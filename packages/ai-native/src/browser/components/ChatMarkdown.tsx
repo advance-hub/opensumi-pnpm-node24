@@ -1,0 +1,534 @@
+import cls from 'classnames';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+
+import { MarkdownReactParser, MarkdownReactRenderer } from '@opensumi/ide-components/lib/markdown-react';
+import { IMarkedOptions, marked } from '@opensumi/ide-components/lib/utils';
+import { AppConfig, ConfigProvider, FILE_COMMANDS, useInjectable } from '@opensumi/ide-core-browser';
+import { CommandService, URI } from '@opensumi/ide-core-common';
+import { WorkbenchEditorService } from '@opensumi/ide-editor';
+import { IMarkdownString, MarkdownString } from '@opensumi/monaco-editor-core/esm/vs/base/common/htmlContent';
+
+import { AIPanelLayoutService } from '../layout/panel-layout.service';
+
+import { CodeEditorWithHighlight } from './ChatEditor';
+import styles from './components.module.less';
+
+import type { Token, Tokens, TokensList } from 'marked';
+
+interface MarkdownProps {
+  markdown: IMarkdownString | string;
+  agentId?: string;
+  command?: string;
+  relationId?: string;
+  className?: string;
+  fillInIncompleteTokens?: boolean; // 补齐不完整的 token，如代码块或表格
+  markedOptions?: IMarkedOptions;
+  hideInsert?: boolean;
+}
+
+interface ChatMarkdownFileLink {
+  label: string;
+  uri: URI;
+  range?: {
+    startLineNumber: number;
+    startColumn: number;
+    endLineNumber: number;
+    endColumn: number;
+  };
+}
+
+const FILE_LINK_PATTERN = /(file:\/\/\/[^\s`<>"']+|(?:\/|\.{1,2}\/|[A-Za-z]:[\\/]|[\w@.-]+\/)[^\s`<>"']+)/g;
+const TRAILING_PUNCTUATION_PATTERN = /[),.;!?，。；！？]$/;
+
+function trimTrailingPunctuation(value: string): { value: string; trailing: string } {
+  let trimmed = value;
+  let trailing = '';
+
+  while (trimmed && TRAILING_PUNCTUATION_PATTERN.test(trimmed)) {
+    trailing = trimmed.slice(-1) + trailing;
+    trimmed = trimmed.slice(0, -1);
+  }
+
+  return { value: trimmed, trailing };
+}
+
+function extractLineRange(value: string): {
+  filePath: string;
+  range?: ChatMarkdownFileLink['range'];
+} {
+  const lineColumnRangeMatch = value.match(/^(.*):L?(\d+):(\d+)(?:-L?(\d+)(?::(\d+))?)?$/i);
+  const lineRangeMatch = lineColumnRangeMatch || value.match(/^(.*):L?(\d+)(?:-L?(\d+))?$/i);
+  if (!lineRangeMatch) {
+    return { filePath: value };
+  }
+
+  const startLineNumber = Number(lineRangeMatch[2]);
+  const startColumn = lineColumnRangeMatch && lineRangeMatch[3] ? Number(lineRangeMatch[3]) : 1;
+  const endLineNumber = lineColumnRangeMatch
+    ? lineRangeMatch[4]
+      ? Number(lineRangeMatch[4])
+      : startLineNumber
+    : lineRangeMatch[3]
+    ? Number(lineRangeMatch[3])
+    : startLineNumber;
+  const endColumn =
+    lineColumnRangeMatch && lineRangeMatch[5]
+      ? Number(lineRangeMatch[5])
+      : endLineNumber === startLineNumber
+      ? startColumn
+      : 1;
+  if (
+    !Number.isFinite(startLineNumber) ||
+    startLineNumber < 1 ||
+    !Number.isFinite(startColumn) ||
+    startColumn < 1 ||
+    !Number.isFinite(endLineNumber) ||
+    endLineNumber < 1 ||
+    !Number.isFinite(endColumn) ||
+    endColumn < 1
+  ) {
+    return { filePath: value };
+  }
+
+  return {
+    filePath: lineRangeMatch[1],
+    range: {
+      startLineNumber,
+      startColumn,
+      endLineNumber,
+      endColumn,
+    },
+  };
+}
+
+function unwrapNestedAnchors(node: React.ReactNode): React.ReactNode {
+  return React.Children.map(node, (child) => {
+    if (!React.isValidElement<{ children?: React.ReactNode }>(child)) {
+      return child;
+    }
+
+    const children = child.props.children ? unwrapNestedAnchors(child.props.children) : child.props.children;
+    if (child.type === 'a') {
+      return children;
+    }
+
+    return React.cloneElement(child, undefined, children);
+  });
+}
+
+function hasUriScheme(value: string): boolean {
+  return /^[A-Za-z][A-Za-z0-9+.-]*:\/\//.test(value);
+}
+
+function looksLikeFilePath(value: string): boolean {
+  if (!value || /^https?:\/\//i.test(value)) {
+    return false;
+  }
+
+  if (/^file:\/\//i.test(value) || /^(?:\/|\.{1,2}\/|[A-Za-z]:[\\/])/.test(value)) {
+    return true;
+  }
+
+  const basename = value.split(/[\\/]/).pop() || '';
+  return value.includes('/') && /\.[^./\\]+$/.test(basename);
+}
+
+function resolveFileUri(filePath: string, workspaceDir: string): URI | undefined {
+  if (!filePath) {
+    return undefined;
+  }
+
+  if (/^file:\/\//i.test(filePath)) {
+    return URI.parse(filePath);
+  }
+
+  if (hasUriScheme(filePath)) {
+    return undefined;
+  }
+
+  if (/^(?:\/|[A-Za-z]:[\\/])/.test(filePath)) {
+    return URI.file(filePath);
+  }
+
+  const normalizedWorkspaceDir = workspaceDir.replace(/[\\/]+$/, '');
+  const normalizedRelativePath = filePath.replace(/^[\\/]+/, '').replace(/\\/g, '/');
+  return URI.file(`${normalizedWorkspaceDir}/${normalizedRelativePath}`);
+}
+
+function parseChatMarkdownFileLink(value: string, workspaceDir: string): ChatMarkdownFileLink | undefined {
+  const { value: trimmedValue } = trimTrailingPunctuation(value.trim());
+  const { filePath, range } = extractLineRange(trimmedValue);
+
+  if (!looksLikeFilePath(filePath)) {
+    return undefined;
+  }
+
+  const uri = resolveFileUri(filePath, workspaceDir);
+  if (!uri) {
+    return undefined;
+  }
+
+  return {
+    label: trimmedValue,
+    uri,
+    range,
+  };
+}
+
+function isLikelyPartOfUri(text: string, matchStart: number, matchText: string): boolean {
+  if (!matchText.startsWith('/') || matchStart === 0) {
+    return false;
+  }
+
+  return text[matchStart - 1] === ':';
+}
+
+export const ChatMarkdown = (props: MarkdownProps) => {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const appConfig = useInjectable<AppConfig>(AppConfig);
+  const editorService = useInjectable<WorkbenchEditorService>(WorkbenchEditorService);
+  const commandService = useInjectable<CommandService>(CommandService);
+  const panelLayoutService = useInjectable<AIPanelLayoutService>(AIPanelLayoutService);
+  const workspaceDir = appConfig.workspaceDir;
+  const [reactParser, setReactParser] = useState<MarkdownReactParser>();
+  const [tokensList, setTokensList] = useState<TokensList>();
+
+  const openFileLink = useCallback(
+    async (target: ChatMarkdownFileLink) => {
+      panelLayoutService?.toggleAgenticWorkbenchVisibility(true);
+
+      try {
+        await commandService?.executeCommand(FILE_COMMANDS.REVEAL_IN_EXPLORER.id, target.uri);
+      } catch {
+        // Opening the editor is still useful if the explorer cannot reveal the path.
+      }
+
+      await editorService?.open(
+        target.uri,
+        target.range
+          ? {
+              range: target.range,
+              revealRangeInCenter: true,
+            }
+          : undefined,
+      );
+    },
+    [commandService, editorService, panelLayoutService],
+  );
+
+  const renderFileLink = useCallback(
+    (target: ChatMarkdownFileLink, key: React.Key, children?: React.ReactNode) => (
+      <a
+        key={key}
+        href={target.uri.toString()}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          void openFileLink(target);
+        }}
+      >
+        {children || target.label}
+      </a>
+    ),
+    [openFileLink],
+  );
+
+  const renderTextWithFileLinks = useCallback(
+    (text: string): React.ReactNode => {
+      const nodes: React.ReactNode[] = [];
+      let lastIndex = 0;
+      let match: RegExpExecArray | null;
+
+      FILE_LINK_PATTERN.lastIndex = 0;
+      while ((match = FILE_LINK_PATTERN.exec(text))) {
+        const rawMatch = match[0];
+        const matchStart = match.index;
+        if (isLikelyPartOfUri(text, matchStart, rawMatch)) {
+          continue;
+        }
+
+        const { value: candidate, trailing } = trimTrailingPunctuation(rawMatch);
+        const target = parseChatMarkdownFileLink(candidate, workspaceDir);
+        if (!target) {
+          continue;
+        }
+
+        if (matchStart > lastIndex) {
+          nodes.push(text.slice(lastIndex, matchStart));
+        }
+
+        nodes.push(renderFileLink(target, `file-link-${matchStart}`));
+        if (trailing) {
+          nodes.push(trailing);
+        }
+        lastIndex = matchStart + rawMatch.length;
+      }
+
+      if (lastIndex === 0) {
+        return text;
+      }
+
+      if (lastIndex < text.length) {
+        nodes.push(text.slice(lastIndex));
+      }
+
+      return nodes;
+    },
+    [renderFileLink, workspaceDir],
+  );
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) {
+      return;
+    }
+
+    const markdown: IMarkdownString =
+      typeof props.markdown === 'string' ? new MarkdownString(props.markdown) : props.markdown;
+
+    const renderer: MarkdownReactRenderer = new MarkdownReactRenderer();
+    renderer.code = (code, lang) => {
+      const language = postProcessCodeBlockLanguageId(lang);
+
+      return (
+        <div className={styles.code}>
+          <ConfigProvider value={appConfig}>
+            <div className={styles.code_block}>
+              <div className={cls(styles.code_language, 'language-badge')}>{language}</div>
+              <CodeEditorWithHighlight
+                input={code as string}
+                language={language}
+                relationId={props.relationId || ''}
+                agentId={props.agentId}
+                command={props.command}
+                hideInsert={props.hideInsert}
+              />
+            </div>
+          </ConfigProvider>
+        </div>
+      );
+    };
+    renderer.codespan = (code) => {
+      const text = String(code);
+      const target = parseChatMarkdownFileLink(text, workspaceDir);
+      if (target && target.label === text.trim()) {
+        return renderFileLink(target, `file-link-code-${text}`, <code className={styles.code_inline}>{text}</code>);
+      }
+
+      return <code className={styles.code_inline}>{code}</code>;
+    };
+    const defaultLinkRenderer = renderer.link.bind(renderer);
+    renderer.link = (href, text) => {
+      const target = parseChatMarkdownFileLink(href, workspaceDir);
+      const linkText = unwrapNestedAnchors(text);
+      if (target) {
+        return renderFileLink(target, `file-link-markdown-${href}`, linkText);
+      }
+
+      return defaultLinkRenderer(href, linkText);
+    };
+    renderer.text = (text) => renderTextWithFileLinks(String(text));
+
+    const reactParser = new MarkdownReactParser({ renderer });
+    const markedOptions = {
+      ...marked.defaults,
+      ...props.markedOptions,
+      renderer: reactParser,
+      smartypants: false,
+    };
+
+    let value = markdown.value ?? '';
+    if (value.length > 100_000) {
+      value = `${value.slice(0, 100_000)}…`;
+    }
+
+    let renderedMarkdown: string;
+    let tokensList: TokensList;
+    if (props.fillInIncompleteTokens) {
+      const tokens = marked.lexer(value, markedOptions);
+      const newTokens = fillInIncompleteTokens(tokens);
+      renderedMarkdown = marked.parser(newTokens, markedOptions);
+      tokensList = newTokens;
+    } else {
+      const tokens = marked.lexer(value, markedOptions);
+      renderedMarkdown = marked.parser(tokens, markedOptions);
+      tokensList = tokens;
+    }
+
+    setTokensList(tokensList);
+    setReactParser(reactParser);
+  }, [
+    props.fillInIncompleteTokens,
+    props.markdown,
+    props.markedOptions,
+    props.relationId,
+    props.agentId,
+    props.command,
+    props.hideInsert,
+    renderFileLink,
+    renderTextWithFileLinks,
+    workspaceDir,
+  ]);
+
+  return (
+    <div className={cls(styles.markdown_container, props.className)} ref={ref} tabIndex={0}>
+      {tokensList && reactParser && reactParser.parse(tokensList)}
+    </div>
+  );
+};
+
+export function postProcessCodeBlockLanguageId(lang: string | undefined): string {
+  if (!lang) {
+    return '';
+  }
+
+  const parts = lang.split(/[\s+|:|,|\{|\?]/, 1);
+  if (parts.length) {
+    return parts[0];
+  }
+  return lang;
+}
+
+export function fillInIncompleteTokens(tokens: TokensList): TokensList {
+  let i: number;
+  let newTokens: Token[] | undefined;
+  for (i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    // 代码块补全，完整的代码块 type=code
+    if (token.type === 'paragraph' && token.raw.match(/(\n|^)```/)) {
+      newTokens = completeCodeBlock(tokens.slice(i));
+      break;
+    }
+
+    // 表格补全，完整的表格 type=table
+    if (token.type === 'paragraph' && token.raw.match(/(\n|^)\|/)) {
+      newTokens = completeTable(tokens.slice(i));
+      break;
+    }
+
+    // 单行 token 补全，如 `a **a
+    if (token.type === 'paragraph' && i === tokens.length - 1) {
+      // Only operates on a single token, because any newline that follows this should break these patterns
+      const newToken = completeSingleLinePattern(token);
+      if (newToken) {
+        newTokens = [newToken];
+        break;
+      }
+    }
+  }
+
+  if (newTokens) {
+    const newTokensList = [...tokens.slice(0, i), ...newTokens] as TokensList;
+    newTokensList.links = tokens.links;
+    return newTokensList;
+  }
+
+  return tokens;
+}
+
+function completeCodeBlock(tokens: Token[]): Token[] {
+  const mergedRawText = mergeRawTokenText(tokens);
+  return marked.lexer(mergedRawText + '\n```');
+}
+
+function completeCodespan(token: Token): Token {
+  return completeWithString(token, '`');
+}
+
+function completeStar(tokens: Token): Token {
+  return completeWithString(tokens, '*');
+}
+
+function completeUnderscore(tokens: Token): Token {
+  return completeWithString(tokens, '_');
+}
+
+function completeLinkTarget(tokens: Token): Token {
+  return completeWithString(tokens, ')');
+}
+
+function completeLinkText(tokens: Token): Token {
+  return completeWithString(tokens, '](about:blank)');
+}
+
+function completeDoublestar(tokens: Token): Token {
+  return completeWithString(tokens, '**');
+}
+
+function completeDoubleUnderscore(tokens: Token): Token {
+  return completeWithString(tokens, '__');
+}
+
+function completeWithString(tokens: Token[] | Token, closingString: string): Token {
+  const mergedRawText = mergeRawTokenText(Array.isArray(tokens) ? tokens : [tokens]);
+
+  // If it was completed correctly, this should be a single token.
+  // Expecting either a Paragraph or a List
+  return marked.lexer(mergedRawText + closingString)[0] as Token;
+}
+
+function completeTable(tokens: Token[]): Token[] | undefined {
+  const mergedRawText = mergeRawTokenText(tokens);
+  const lines = mergedRawText.split('\n');
+
+  let numCols = 0;
+  let hasSeparatorRow = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    // 确定第一行有多少个 |
+    if (typeof numCols === 'undefined' && line.match(/^\s*\|/)) {
+      const line1Matches = line.match(/(\|[^\|]+)(?=\||$)/g);
+      if (line1Matches) {
+        numCols = line1Matches.length;
+      }
+    } else if (typeof numCols === 'number') {
+      // 确定最后一行为分割行，否则表格可能不完整，此时不做任何渲染
+      if (line.match(/^\s*\|/) && i === lines.length - 1) {
+        hasSeparatorRow = true;
+      } else {
+        return undefined;
+      }
+    }
+  }
+
+  if (numCols > 0) {
+    const prefixText = hasSeparatorRow ? lines.slice(0, -1).join('\n') : mergedRawText;
+    const line1EndsInPipe = !!prefixText.match(/\|\s*$/);
+    const newRawText = prefixText + (line1EndsInPipe ? '' : '|') + `\n|${' --- |'.repeat(numCols)}`;
+    return marked.lexer(newRawText);
+  }
+
+  return undefined;
+}
+
+function mergeRawTokenText(tokens: Token[]): string {
+  return tokens.reduce((mergedTokenText, token) => mergedTokenText + token.raw, '');
+}
+
+function completeSingleLinePattern(token: Tokens.ListItem | Tokens.Paragraph | Tokens.Generic): Token | undefined {
+  for (const { type, raw } of token.tokens ?? []) {
+    if (type !== 'text') {
+      continue;
+    }
+
+    const lines = raw.split('\n');
+    const lastLine = lines[lines.length - 1];
+    const patterns = [
+      { condition: lastLine.includes('`'), action: completeCodespan },
+      { condition: lastLine.includes('**'), action: completeDoublestar },
+      { condition: lastLine.match(/\*\w/), action: completeStar },
+      { condition: lastLine.match(/(^|\s)__\w/), action: completeDoubleUnderscore },
+      { condition: lastLine.match(/(^|\s)_\w/), action: completeUnderscore },
+      { condition: lastLine.match(/(^|\s)\[.*\]\(\w*/), action: completeLinkTarget },
+      { condition: lastLine.match(/(^|\s)\[\w/), action: completeLinkText },
+    ];
+
+    for (const pattern of patterns) {
+      if (pattern.condition) {
+        return pattern.action(token);
+      }
+    }
+  }
+
+  return undefined;
+}

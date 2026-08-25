@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "../../../packages/webview/src",
+    "outDir": "../../../packages/webview/lib"
+  },
+  "include": ["../../../packages/webview/src"],
+  "exclude": ["../../../packages/webview/__mocks__"]
+}

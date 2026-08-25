@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "../../../packages/monaco-enhance/src",
+    "outDir": "../../../packages/monaco-enhance/lib"
+  },
+  "include": ["../../../packages/monaco-enhance/src"],
+  "exclude": ["../../../packages/monaco-enhance/__mocks__"]
+}

@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "../../../packages/overlay/src",
+    "outDir": "../../../packages/overlay/lib"
+  },
+  "include": ["../../../packages/overlay/src"],
+  "exclude": ["../../../packages/overlay/__mocks__"]
+}

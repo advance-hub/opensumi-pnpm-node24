@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "../../../packages/keymaps/src",
+    "outDir": "../../../packages/keymaps/lib"
+  },
+  "include": ["../../../packages/keymaps/src"],
+  "exclude": ["../../../packages/keymaps/__mocks__"]
+}

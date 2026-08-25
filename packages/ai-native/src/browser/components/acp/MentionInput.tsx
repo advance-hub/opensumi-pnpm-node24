@@ -1,0 +1,2205 @@
+import cls from 'classnames';
+import * as React from 'react';
+
+import { getSymbolIcon, localize, useInjectable } from '@opensumi/ide-core-browser';
+import { Icon, Popover, PopoverPosition, getIcon } from '@opensumi/ide-core-browser/lib/components';
+import { EnhanceIcon } from '@opensumi/ide-core-browser/lib/components/ai-native';
+import { FooterButtonPosition } from '@opensumi/ide-core-common';
+import { URI } from '@opensumi/ide-utils';
+
+import { FileContext } from '../../../common/llm-context';
+import { ProjectRule } from '../../../common/types';
+import { PermissionDialogManager } from '../../acp/permission-dialog-container';
+import {
+  ChatInputFooterContribution,
+  ChatInputFooterRegistry,
+  ChatInputFooterRegistryToken,
+} from '../../chat/chat-input-footer.registry';
+import { MentionPanel } from '../mention-input/mention-panel';
+import { ExtendedModelOption, MentionSelect } from '../mention-input/mention-select';
+import {
+  MENTION_KEYWORD,
+  MentionInputHandle,
+  MentionInputProps,
+  MentionInputSubmitHandler,
+  MentionInputSubmitResult,
+  MentionItem,
+  MentionState,
+  MentionType,
+} from '../mention-input/types';
+import { PermissionDialogWidget } from '../permission-dialog-widget';
+
+import { hasChatInputTextPayload } from './chat-input-validation';
+import styles from './mention-input.module.less';
+import { ModeOption } from './types';
+
+import type { AcpSessionConfigOption } from '../../chat/session-provider';
+
+export const WHITE_SPACE_TEXT = '&nbsp;';
+
+interface NormalizedConfigOption {
+  id: string;
+  name: string;
+  description?: string;
+  currentValue: string;
+  isBoolean: boolean;
+  options: ExtendedModelOption[];
+}
+
+function readConfigId(option: AcpSessionConfigOption): string | undefined {
+  const rawId = option.id || option.configId;
+  if (typeof rawId === 'string') {
+    return rawId;
+  }
+  if (rawId && typeof rawId === 'object' && typeof (rawId as { id?: unknown }).id === 'string') {
+    return (rawId as { id: string }).id;
+  }
+  return undefined;
+}
+
+function readConfigCurrentValue(option: AcpSessionConfigOption): boolean | string | undefined {
+  const kind = option.kind && typeof option.kind === 'object' ? option.kind : undefined;
+  const value = kind?.currentValue ?? option.currentValue ?? option.current_value ?? option.value;
+  return typeof value === 'boolean' || typeof value === 'string' ? value : undefined;
+}
+
+function isBooleanConfig(option: AcpSessionConfigOption): boolean {
+  const kind = option.kind;
+  return (
+    kind === 'boolean' ||
+    option.type === 'boolean' ||
+    (kind && typeof kind === 'object' && kind.type === 'boolean') ||
+    typeof readConfigCurrentValue(option) === 'boolean'
+  );
+}
+
+function readConfigValueOptions(option: AcpSessionConfigOption): ExtendedModelOption[] {
+  if (isBooleanConfig(option)) {
+    return [
+      { label: 'On', value: 'true' },
+      { label: 'Off', value: 'false' },
+    ];
+  }
+
+  const roots = [
+    option.kind && typeof option.kind === 'object' ? option.kind.options : undefined,
+    option.options,
+    option.values,
+  ];
+  const values = roots.find((root) => Array.isArray(root)) || [];
+
+  return values
+    .map((item: any) => {
+      const value = item?.value ?? item?.id;
+      if (typeof value !== 'string') {
+        return undefined;
+      }
+      const label = item?.name || item?.label || value;
+      return {
+        label,
+        value,
+        description: item?.description || undefined,
+      };
+    })
+    .filter(Boolean) as ExtendedModelOption[];
+}
+
+function normalizeConfigOptions(configOptions?: AcpSessionConfigOption[]): NormalizedConfigOption[] {
+  return (configOptions || [])
+    .map((option) => {
+      const id = readConfigId(option);
+      if (!id) {
+        return undefined;
+      }
+
+      const options = readConfigValueOptions(option);
+      if (options.length === 0) {
+        return undefined;
+      }
+
+      const rawCurrentValue = readConfigCurrentValue(option);
+      const currentValue =
+        rawCurrentValue === undefined
+          ? options[0].value
+          : typeof rawCurrentValue === 'boolean'
+          ? String(rawCurrentValue)
+          : rawCurrentValue;
+      return {
+        id,
+        name: option.name || option.label || id,
+        description: option.description,
+        currentValue,
+        isBoolean: isBooleanConfig(option),
+        options: options.map((item) => ({ ...item, selected: item.value === currentValue })),
+      };
+    })
+    .filter(Boolean) as NormalizedConfigOption[];
+}
+
+const SERIALIZABLE_MENTION_TYPES = new Set<string>([
+  MentionType.FILE,
+  MentionType.FOLDER,
+  MentionType.CODE,
+  MentionType.RULE,
+]);
+
+const BLOCK_ELEMENT_NAMES = new Set([
+  'ADDRESS',
+  'ARTICLE',
+  'ASIDE',
+  'BLOCKQUOTE',
+  'DIV',
+  'DL',
+  'FIELDSET',
+  'FIGCAPTION',
+  'FIGURE',
+  'FOOTER',
+  'FORM',
+  'H1',
+  'H2',
+  'H3',
+  'H4',
+  'H5',
+  'H6',
+  'HEADER',
+  'HR',
+  'LI',
+  'MAIN',
+  'NAV',
+  'OL',
+  'P',
+  'PRE',
+  'SECTION',
+  'TABLE',
+  'TR',
+  'UL',
+]);
+
+type AcpMentionInputProps = MentionInputProps & {
+  defaultInput?: string;
+  onDefaultInputConsumed?: () => void;
+  onModeChange?: (modeId: string) => void;
+  onConfigOptionChange?: (configId: string, value: boolean | string) => void;
+  onAgentChange?: (agentId: string) => void;
+  modeOptions?: ModeOption[];
+  currentMode?: string;
+  configOptions?: AcpSessionConfigOption[];
+  slashCommands?: Array<{ nameWithSlash: string; icon?: string; name?: string; description?: string }>;
+};
+
+function serializeEditorChildren(element: Element): string {
+  let serialized = '';
+  const children = Array.from(element.childNodes);
+
+  children.forEach((child, index) => {
+    const isBlockElement = child instanceof HTMLElement && BLOCK_ELEMENT_NAMES.has(child.tagName);
+    if (isBlockElement && serialized && !serialized.endsWith('\n')) {
+      serialized += '\n';
+    }
+
+    serialized += serializeEditorNode(child);
+
+    if (isBlockElement && index < children.length - 1 && !serialized.endsWith('\n')) {
+      serialized += '\n';
+    }
+  });
+
+  return serialized;
+}
+
+function serializeEditorNode(node: Node): string {
+  if (node instanceof Text) {
+    return node.data.replace(/\u00a0/g, ' ');
+  }
+
+  if (!(node instanceof HTMLElement)) {
+    return '';
+  }
+
+  if (node.matches(`.${styles.mention_tag}`)) {
+    const contextId = node.dataset.contextId;
+    const type = node.dataset.type;
+    if (contextId && type && SERIALIZABLE_MENTION_TYPES.has(type)) {
+      return `{{@${type}:${contextId}}}`;
+    }
+  }
+
+  if (node.tagName === 'BR') {
+    return '\n';
+  }
+
+  return serializeEditorChildren(node);
+}
+
+function serializeEditorContent(editor: HTMLDivElement): string {
+  return serializeEditorChildren(editor);
+}
+
+function appendPlainText(fragment: DocumentFragment, text: string): void {
+  text.split('\n').forEach((line, index) => {
+    if (index > 0) {
+      fragment.appendChild(document.createElement('br'));
+    }
+    if (line) {
+      fragment.appendChild(document.createTextNode(line));
+    }
+  });
+}
+
+function restoreEditorContent(editor: HTMLDivElement, content: string): void {
+  const fragment = document.createDocumentFragment();
+  const mentionPattern = /{{@(file|folder|code|rule):([^{}]+)}}/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = mentionPattern.exec(content))) {
+    if (match.index > lastIndex) {
+      appendPlainText(fragment, content.slice(lastIndex, match.index));
+    }
+
+    const [, type, contextId] = match;
+    const mentionTag = document.createElement('span');
+    mentionTag.className = styles.mention_tag;
+    mentionTag.dataset.id = contextId;
+    mentionTag.dataset.type = type;
+    mentionTag.dataset.contextId = contextId;
+    mentionTag.contentEditable = 'false';
+    mentionTag.textContent = contextId;
+    fragment.appendChild(mentionTag);
+    lastIndex = mentionPattern.lastIndex;
+  }
+
+  if (lastIndex < content.length) {
+    appendPlainText(fragment, content.slice(lastIndex));
+  }
+
+  editor.replaceChildren(fragment);
+}
+
+function focusEditorAtEnd(editor: HTMLDivElement | null): void {
+  if (!editor) {
+    return;
+  }
+
+  editor.focus();
+  const selection = window.getSelection();
+  if (!selection) {
+    return;
+  }
+
+  const range = document.createRange();
+  range.selectNodeContents(editor);
+  range.collapse(false);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+const MentionInputImpl = (
+  {
+    mentionItems = [],
+    onSend,
+    onSendImmediately,
+    onStop,
+    onEscape,
+    onEmptyArrowUp,
+    onEmptySubmit,
+    hasSendPayload,
+    onToggleExpanded,
+    onUserInput,
+    disabled = false,
+    loading = false,
+    mentionKeyword = MENTION_KEYWORD,
+    onSelectionChange,
+    onImageUpload,
+    onSlashSelect,
+    labelService,
+    workspaceService,
+    placeholder = 'Ask anything, @ to mention',
+    footerConfig = {
+      buttons: [],
+      showModelSelector: false,
+    },
+    contextService,
+    expanded = false,
+    allowEmptySubmit = false,
+    defaultInput,
+    onDefaultInputConsumed,
+    onModeChange,
+    onConfigOptionChange,
+    modeOptions,
+    currentMode,
+    configOptions,
+    slashCommands = [],
+  }: AcpMentionInputProps,
+  ref: React.ForwardedRef<MentionInputHandle>,
+) => {
+  const editorRef = React.useRef<HTMLDivElement>(null);
+  const mentionPanelContainerRef = React.useRef<HTMLDivElement>(null);
+  const mountedRef = React.useRef(false);
+  const editorGenerationRef = React.useRef(0);
+  const submitInFlightRef = React.useRef(false);
+  const [mentionState, setMentionState] = React.useState<MentionState>({
+    active: false,
+    startPos: null,
+    filter: '',
+    position: { top: 0, left: 0 },
+    activeIndex: 0,
+    level: 0, // 0: 一级菜单, 1: 二级菜单
+    parentType: null, // 二级菜单的父类型
+    secondLevelFilter: '', // 二级菜单的筛选文本
+    inlineSearchActive: false, // 是否在输入框中进行二级搜索
+    inlineSearchStartPos: null, // 内联搜索的起始位置
+    loading: false, // 添加加载状态
+    trigger: '@',
+  });
+  const mentionStateRef = React.useRef(mentionState);
+  mentionStateRef.current = mentionState;
+
+  React.useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      editorGenerationRef.current += 1;
+    };
+  }, []);
+
+  const closeTransientUi = React.useCallback(() => {
+    const wasOpen = mentionStateRef.current.active || mentionStateRef.current.inlineSearchActive;
+    if (wasOpen) {
+      setMentionState((state) => ({
+        ...state,
+        active: false,
+        inlineSearchActive: false,
+      }));
+    }
+    return wasOpen;
+  }, []);
+
+  React.useEffect(() => {
+    if (disabled) {
+      closeTransientUi();
+    }
+  }, [closeTransientUi, disabled]);
+
+  // 添加模型选择状态
+  const [selectedModel, setSelectedModel] = React.useState<string>(footerConfig.defaultModel || '');
+
+  // 添加 Mode 选择状态，从 currentMode prop 或首个 modeOption 初始化
+  const [selectedMode, setSelectedMode] = React.useState<string>(
+    currentMode || (modeOptions && modeOptions.length > 0 ? modeOptions[0].id : ''),
+  );
+
+  // 添加缓存状态，用于存储二级菜单项
+  const [secondLevelCache, setSecondLevelCache] = React.useState<Record<string, MentionItem[]>>({});
+
+  // 添加历史记录状态
+  const [history, setHistory] = React.useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = React.useState<number>(-1);
+  const [currentInput, setCurrentInput] = React.useState<string>('');
+  const [isNavigatingHistory, setIsNavigatingHistory] = React.useState<boolean>(false);
+  const [attachedFiles, setAttachedFiles] = React.useState<{
+    files: FileContext[];
+    folders: FileContext[];
+    rules: ProjectRule[];
+  }>({
+    files: [],
+    folders: [],
+    rules: [],
+  });
+
+  // 权限弹窗服务
+  const permissionDialogManager = useInjectable<PermissionDialogManager>(PermissionDialogManager);
+  const footerRegistry = useInjectable<ChatInputFooterRegistry>(ChatInputFooterRegistryToken);
+  const [footerItems, setFooterItems] = React.useState<ChatInputFooterContribution[]>([]);
+  const [optionsBottomPosition, setOptionsBottomPosition] = React.useState(0);
+
+  // 添加用于跟踪 mention_tag 的状态
+  const prevMentionTagsRef = React.useRef<
+    Array<{
+      id: string;
+      type: string;
+      contextId: string;
+    }>
+  >([]);
+
+  const restoreSerializedContent = React.useCallback((content: string) => {
+    if (!editorRef.current) {
+      return;
+    }
+
+    restoreEditorContent(editorRef.current, content);
+    editorGenerationRef.current += 1;
+    prevMentionTagsRef.current = Array.from(editorRef.current.querySelectorAll(`.${styles.mention_tag}`)).map(
+      (tag) => ({
+        id: tag.getAttribute('data-id') || '',
+        type: tag.getAttribute('data-type') || '',
+        contextId: tag.getAttribute('data-context-id') || '',
+      }),
+    );
+  }, []);
+
+  React.useImperativeHandle(
+    ref,
+    () => ({
+      getSerializedContent: () => (editorRef.current ? serializeEditorContent(editorRef.current) : ''),
+      restoreSerializedContent,
+      focus: () => focusEditorAtEnd(editorRef.current),
+      closeTransientUi,
+    }),
+    [closeTransientUi, restoreSerializedContent],
+  );
+
+  const getCurrentItems = (): MentionItem[] => {
+    if (mentionState.level === 0) {
+      return mentionItems;
+    } else if (mentionState.parentType) {
+      // 如果正在加载，返回缓存的项目
+      if (mentionState.loading) {
+        return secondLevelCache[mentionState.parentType] || [];
+      }
+
+      // 返回缓存的项目
+      return secondLevelCache[mentionState.parentType] || [];
+    }
+    return [];
+  };
+
+  const getSlashItems = (): MentionItem[] => {
+    const filterText = mentionState.filter.substring(1).toLowerCase();
+    return slashCommands
+      .filter((cmd) => cmd.nameWithSlash.toLowerCase().includes(filterText))
+      .map((cmd) => ({
+        id: cmd.nameWithSlash,
+        type: 'slash',
+        text: cmd.nameWithSlash,
+        description: cmd.description,
+        icon: cmd.icon,
+      }));
+  };
+
+  const useDebounce = <T,>(value: T, delay: number): T => {
+    const [debouncedValue, setDebouncedValue] = React.useState<T>(value);
+
+    React.useEffect(() => {
+      const handler = setTimeout(() => {
+        setDebouncedValue(value);
+      }, delay);
+
+      return () => {
+        clearTimeout(handler);
+      };
+    }, [value, delay]);
+
+    return debouncedValue;
+  };
+
+  const debouncedSecondLevelFilter = useDebounce(mentionState.secondLevelFilter, 300);
+
+  React.useEffect(() => {
+    setSelectedModel(footerConfig.defaultModel || '');
+  }, [footerConfig.defaultModel]);
+
+  // 外部受控模式：当 footerConfig.currentMode 变化时（如 ACP Mention 切换通知），同步更新选择器
+  React.useEffect(() => {
+    if (currentMode) {
+      setSelectedMode(currentMode);
+    }
+  }, [currentMode]);
+
+  // 当 currentMode 或 modeOptions 变化时（如 mentionModes 异步加载完成），更新 selectedMode
+  React.useEffect(() => {
+    if (currentMode) {
+      setSelectedMode(currentMode);
+    } else if (modeOptions && modeOptions.length > 0 && !selectedMode) {
+      setSelectedMode(modeOptions[0].id);
+    }
+  }, [currentMode, modeOptions]);
+
+  // 当 defaultInput 变化时，填充输入框并将光标置于末尾
+  React.useEffect(() => {
+    if (defaultInput && editorRef.current) {
+      editorRef.current.textContent = defaultInput;
+      editorGenerationRef.current += 1;
+      // 将光标放到末尾
+      const range = document.createRange();
+      const selection = window.getSelection();
+      range.selectNodeContents(editorRef.current);
+      range.collapse(false);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+      editorRef.current.focus();
+      onDefaultInputConsumed?.();
+    }
+  }, [defaultInput]);
+
+  React.useEffect(() => {
+    if (mentionState.level === 1 && mentionState.parentType && debouncedSecondLevelFilter !== undefined) {
+      // 查找父级菜单项
+      const parentItem = mentionItems.find((item) => item.id === mentionState.parentType);
+      if (!parentItem) {
+        return;
+      }
+
+      // 设置加载状态
+      setMentionState((prev) => ({ ...prev, loading: true }));
+
+      // 异步加载
+      const fetchItems = async () => {
+        try {
+          // 首先显示高优先级项目（如果有）
+          const items: MentionItem[] = [];
+          if (parentItem.getHighestLevelItems) {
+            const highestLevelItems = parentItem.getHighestLevelItems();
+            for (const item of highestLevelItems) {
+              if (!items.some((i) => i.id === item.id)) {
+                items.push(item);
+              }
+            }
+            // 立即更新缓存，显示高优先级项目
+            setSecondLevelCache((prev) => ({
+              ...prev,
+              [mentionState.parentType!]: highestLevelItems,
+            }));
+          }
+
+          // 然后异步加载更多项目
+          if (parentItem.getItems) {
+            try {
+              // 获取子菜单项
+              const newItems = await parentItem.getItems(debouncedSecondLevelFilter);
+
+              // 去重合并
+              const combinedItems: MentionItem[] = [...items];
+
+              for (const item of newItems) {
+                if (!combinedItems.some((i) => i.id === item.id)) {
+                  combinedItems.push(item);
+                }
+              }
+
+              // 更新缓存
+              setSecondLevelCache((prev) => ({
+                ...prev,
+                [mentionState.parentType!]: combinedItems,
+              }));
+            } catch (error) {
+              // 如果异步加载失败，至少保留高优先级项目
+              setMentionState((prev) => ({ ...prev, loading: false }));
+            }
+          }
+
+          // 最后清除加载状态
+          setMentionState((prev) => ({ ...prev, loading: false }));
+        } catch (error) {
+          setMentionState((prev) => ({ ...prev, loading: false }));
+        }
+      };
+
+      fetchItems();
+    }
+  }, [debouncedSecondLevelFilter, mentionState.level, mentionState.parentType]);
+
+  React.useEffect(() => {
+    const disposable = contextService?.onDidContextFilesChangeEvent(({ attached, attachedFolders, attachedRules }) => {
+      setAttachedFiles({ files: attached, folders: attachedFolders, rules: attachedRules });
+    });
+
+    return () => {
+      disposable?.dispose();
+    };
+  }, []);
+
+  React.useEffect(() => {
+    setFooterItems(footerRegistry.getItems());
+    const disposable = footerRegistry.onDidChange(() => {
+      setFooterItems(footerRegistry.getItems());
+    });
+    return () => {
+      disposable.dispose();
+    };
+  }, [footerRegistry]);
+
+  React.useEffect(() => {
+    const handleInsertSlash = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (disabled || !editorRef.current || !detail?.nameWithSlash) {
+        return;
+      }
+
+      const selection = window.getSelection();
+      if (!selection || !selection.rangeCount) {
+        return;
+      }
+
+      const range = selection.getRangeAt(0);
+      range.deleteContents();
+
+      // 创建 slash 标签
+      const slashTag = document.createElement('span');
+      slashTag.className = styles.slash_command_tag;
+      slashTag.dataset.command = detail.nameWithSlash;
+      slashTag.contentEditable = 'false';
+      slashTag.textContent = detail.nameWithSlash;
+
+      range.insertNode(slashTag);
+
+      // 在标签后插入空格
+      const spaceNode = document.createTextNode(' ');
+      const newRange = document.createRange();
+      newRange.setStartAfter(slashTag);
+      newRange.insertNode(spaceNode);
+      newRange.setStartAfter(spaceNode);
+      newRange.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(newRange);
+
+      editorRef.current.focus();
+    };
+
+    window.addEventListener('opensumi-chat-input-insert-slash', handleInsertSlash);
+    return () => {
+      window.removeEventListener('opensumi-chat-input-insert-slash', handleInsertSlash);
+    };
+  }, [disabled]);
+
+  // 监听外部打开 slash panel 的事件（如 footer "/" 按钮点击）
+  React.useEffect(() => {
+    const handleOpenSlashPanel = () => {
+      if (disabled || !editorRef.current) {
+        return;
+      }
+
+      // 确保编辑器聚焦
+      editorRef.current.focus();
+
+      // 在光标位置插入 "/"
+      const selection = window.getSelection();
+      if (!selection || !selection.rangeCount) {
+        return;
+      }
+
+      const range = selection.getRangeAt(0);
+      const textNode = document.createTextNode('/');
+      range.insertNode(textNode);
+
+      // 将光标放到 "/" 之后
+      const newRange = document.createRange();
+      newRange.setStartAfter(textNode);
+      newRange.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(newRange);
+
+      // 打开 slash panel
+      const cursorPos = getCursorPosition(editorRef.current);
+      setMentionState({
+        active: true,
+        startPos: cursorPos,
+        filter: '/',
+        position: { top: 0, left: 0 },
+        activeIndex: 0,
+        level: 0,
+        parentType: null,
+        secondLevelFilter: '',
+        inlineSearchActive: false,
+        inlineSearchStartPos: null,
+        loading: false,
+        trigger: '/',
+      });
+    };
+
+    window.addEventListener('opensumi-chat-input-open-slash-panel', handleOpenSlashPanel);
+    return () => {
+      window.removeEventListener('opensumi-chat-input-open-slash-panel', handleOpenSlashPanel);
+    };
+  }, [disabled]);
+
+  // 获取光标位置
+  const getCursorPosition = (element: HTMLElement): number => {
+    const selection = window.getSelection();
+    if (!selection || !selection.rangeCount) {
+      return 0;
+    }
+
+    const range = selection.getRangeAt(0);
+    const preCaretRange = range.cloneRange();
+    preCaretRange.selectNodeContents(element);
+    preCaretRange.setEnd(range.endContainer, range.endOffset);
+    return preCaretRange.toString().length;
+  };
+
+  const handleInput = () => {
+    if (disabled) {
+      return;
+    }
+    editorGenerationRef.current += 1;
+    // 如果用户开始输入，退出历史导航模式
+    if (isNavigatingHistory) {
+      setIsNavigatingHistory(false);
+      setHistoryIndex(-1);
+    }
+
+    // 检测 mention_tag 的删除
+    if (editorRef.current) {
+      const currentMentionTags = Array.from(editorRef.current.querySelectorAll(`.${styles.mention_tag}`)).map(
+        (tag) => ({
+          id: tag.getAttribute('data-id') || '',
+          type: tag.getAttribute('data-type') || '',
+          contextId: tag.getAttribute('data-context-id') || '',
+        }),
+      );
+
+      // 找出被删除的 mention_tag
+      const deletedTags = prevMentionTagsRef.current.filter(
+        (prevTag) =>
+          !currentMentionTags.some(
+            (currentTag) =>
+              currentTag.id === prevTag.id &&
+              currentTag.type === prevTag.type &&
+              currentTag.contextId === prevTag.contextId,
+          ),
+      );
+
+      // 清理被删除的 mention_tag 对应的 context
+      deletedTags.forEach((deletedTag) => {
+        if (deletedTag.contextId) {
+          const uri = new URI(deletedTag.contextId);
+          if (deletedTag.type === MentionType.FILE) {
+            removeContext(MentionType.FILE, uri);
+          } else if (deletedTag.type === MentionType.FOLDER) {
+            removeContext(MentionType.FOLDER, uri);
+          } else if (deletedTag.type === MentionType.RULE) {
+            removeContext(MentionType.RULE, uri);
+          }
+        }
+      });
+
+      // 更新 mention_tag 状态
+      prevMentionTagsRef.current = currentMentionTags;
+    }
+
+    const selection = window.getSelection();
+    if (!selection || !selection.rangeCount || !editorRef.current) {
+      onUserInput?.();
+      return;
+    }
+
+    const text = editorRef.current.textContent || '';
+    const cursorPos = getCursorPosition(editorRef.current);
+
+    // 判断是否刚输入了 @
+    if (text[cursorPos - 1] === mentionKeyword && !mentionState.active && !mentionState.inlineSearchActive) {
+      setMentionState({
+        active: true,
+        startPos: cursorPos,
+        filter: mentionKeyword,
+        position: { top: 0, left: 0 }, // 固定位置，不再需要动态计算
+        activeIndex: 0,
+        level: 0,
+        parentType: null,
+        secondLevelFilter: '',
+        inlineSearchActive: false,
+        inlineSearchStartPos: null,
+        loading: false,
+        trigger: '@',
+      });
+    }
+
+    // 判断是否刚输入了 /（仅当 / 是第一个非空白字符时触发）
+    if (
+      text[cursorPos - 1] === '/' &&
+      !mentionState.active &&
+      !mentionState.inlineSearchActive &&
+      slashCommands.length > 0 &&
+      text.substring(0, cursorPos - 1).trim() === ''
+    ) {
+      setMentionState({
+        active: true,
+        startPos: cursorPos,
+        filter: '/',
+        position: { top: 0, left: 0 },
+        activeIndex: 0,
+        level: 0,
+        parentType: null,
+        secondLevelFilter: '',
+        inlineSearchActive: false,
+        inlineSearchStartPos: null,
+        loading: false,
+        trigger: '/',
+      });
+    }
+
+    // 如果已激活提及面板且在一级菜单，更新过滤内容
+    if (mentionState.active && mentionState.level === 0 && mentionState.startPos !== null) {
+      if (cursorPos < mentionState.startPos) {
+        // 如果光标移到了 @ 之前，关闭面板
+        setMentionState((prev) => ({ ...prev, active: false }));
+      } else {
+        const newFilter = text.substring(mentionState.startPos - 1, cursorPos);
+        setMentionState((prev) => ({
+          ...prev,
+          filter: newFilter,
+          activeIndex: 0,
+        }));
+      }
+    }
+
+    // 如果在输入框中进行二级搜索
+    if (mentionState.inlineSearchActive && mentionState.inlineSearchStartPos !== null && mentionState.parentType) {
+      // 获取父级类型
+      const parentItem = mentionItems.find((i) => i.id === mentionState.parentType);
+      if (!parentItem) {
+        onUserInput?.();
+        return;
+      }
+
+      // 检查光标是否在 @type: 之后
+      const typePrefix = `@${parentItem.type}:`;
+      const prefixPos = mentionState.inlineSearchStartPos - typePrefix.length;
+
+      if (prefixPos >= 0 && cursorPos > prefixPos + typePrefix.length) {
+        // 提取搜索文本
+        const searchText = text.substring(prefixPos + typePrefix.length, cursorPos);
+
+        // 只有当搜索文本变化时才更新状态
+        if (searchText !== mentionState.secondLevelFilter) {
+          setMentionState((prev) => ({
+            ...prev,
+            secondLevelFilter: searchText,
+            active: true,
+            activeIndex: 0,
+          }));
+        }
+      } else if (cursorPos <= prefixPos) {
+        // 如果光标移到了 @type: 之前，关闭内联搜索
+        setMentionState((prev) => ({
+          ...prev,
+          inlineSearchActive: false,
+          active: false,
+        }));
+      }
+    }
+
+    // 检查输入框高度，如果超过最大高度则添加滚动条
+    if (editorRef.current) {
+      const editorHeight = editorRef.current.scrollHeight;
+      if (editorHeight >= 120) {
+        editorRef.current.style.overflowY = 'auto';
+      } else {
+        editorRef.current.style.overflowY = 'hidden';
+      }
+    }
+
+    // 检查编辑器内容，处理只有 <br> 标签的情况
+    if (editorRef.current) {
+      const content = editorRef.current.innerHTML;
+      // 如果内容为空或只有 <br> 标签
+      if (content === '' || content === '<br>' || content === '<br/>') {
+        // 清空编辑器内容
+        editorRef.current.innerHTML = '';
+      }
+    }
+
+    onUserInput?.();
+  };
+
+  // 处理键盘事件
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (disabled) {
+      e.preventDefault();
+      e.stopPropagation();
+      return;
+    }
+    if (e.key === 'Enter' && e.nativeEvent.isComposing) {
+      return;
+    }
+
+    if (e.key === 'Escape' && e.shiftKey && e.altKey) {
+      e.preventDefault();
+      onToggleExpanded?.();
+      return;
+    }
+
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      if (closeTransientUi()) {
+        return;
+      }
+      const selectedSlashCommand = editorRef.current?.querySelector('[data-command]');
+      if (selectedSlashCommand) {
+        selectedSlashCommand.remove();
+        onSlashSelect?.('');
+        handleInput();
+        editorRef.current?.focus();
+        return;
+      }
+      onEscape?.();
+      return;
+    }
+
+    // 当输入框为空时，处理删除键 (Backspace) 或 Delete 键来删除上下文内容
+    if (
+      (e.key === 'Backspace' || e.key === 'Delete') &&
+      editorRef.current &&
+      (!editorRef.current.textContent || editorRef.current.textContent.trim() === '')
+    ) {
+      contextService?.cleanFileContext();
+    }
+
+    // 添加对 @ 键的监听，支持在任意位置触发菜单
+    if (e.key === MENTION_KEYWORD && !mentionState.active && !mentionState.inlineSearchActive && editorRef.current) {
+      const cursorPos = getCursorPosition(editorRef.current);
+
+      // 立即设置菜单状态，不等待 handleInput
+      setMentionState({
+        active: true,
+        startPos: cursorPos + 1, // +1 因为 @ 还没有被插入
+        filter: mentionKeyword,
+        position: { top: 0, left: 0 }, // 固定位置
+        activeIndex: 0,
+        level: 0,
+        parentType: null,
+        secondLevelFilter: '',
+        inlineSearchActive: false,
+        inlineSearchStartPos: null,
+        loading: false,
+        trigger: '@',
+      });
+    }
+
+    // 添加对 / 键的监听，仅当 / 是第一个非空白字符时触发 slash command 菜单
+    if (
+      e.key === '/' &&
+      !mentionState.active &&
+      !mentionState.inlineSearchActive &&
+      editorRef.current &&
+      slashCommands.length > 0
+    ) {
+      const cursorPos = getCursorPosition(editorRef.current);
+      const text = editorRef.current.textContent || '';
+
+      // 检查 / 之前的字符是否全是空白
+      if (text.substring(0, cursorPos).trim() !== '') {
+        // 不是第一个非空白字符，不触发 slash 面板，但仍设置状态以支持后续过滤
+        return;
+      }
+
+      setMentionState({
+        active: true,
+        startPos: cursorPos + 1,
+        filter: '/',
+        position: { top: 0, left: 0 },
+        activeIndex: 0,
+        level: 0,
+        parentType: null,
+        secondLevelFilter: '',
+        inlineSearchActive: false,
+        inlineSearchStartPos: null,
+        loading: false,
+        trigger: '/',
+      });
+    }
+
+    const editorHasTextPayload = hasChatInputTextPayload(editorRef.current?.innerHTML);
+    const editorIsEmpty = !editorHasTextPayload && !hasSendPayload?.();
+
+    if (
+      e.key === 'ArrowUp' &&
+      !e.shiftKey &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey &&
+      !mentionState.active &&
+      !mentionState.inlineSearchActive &&
+      editorIsEmpty &&
+      onEmptyArrowUp?.()
+    ) {
+      e.preventDefault();
+      return;
+    }
+
+    // 处理上下方向键导航历史记录
+    if ((e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // 只有在非提及面板激活状态下才处理历史导航
+      if (!mentionState.active && !mentionState.inlineSearchActive && editorRef.current && history.length > 0) {
+        const currentContent = editorRef.current.innerHTML;
+
+        // 检查是否应该触发历史导航
+        const shouldTriggerHistory =
+          // 当前内容为空
+          (!hasChatInputTextPayload(currentContent) && !hasSendPayload?.()) ||
+          // 或者当前内容与历史记录中的某一项匹配（正在浏览历史）
+          (isNavigatingHistory && historyIndex >= 0 && history[history.length - 1 - historyIndex] === currentContent);
+
+        if (shouldTriggerHistory) {
+          e.preventDefault();
+
+          // 如果是第一次按上下键，保存当前输入
+          if (!isNavigatingHistory) {
+            setCurrentInput(currentContent);
+            setIsNavigatingHistory(true);
+          }
+
+          // 计算新的历史索引
+          let newIndex = historyIndex;
+          if (e.key === 'ArrowUp') {
+            // 向上导航到较早的历史记录
+            newIndex = Math.min(history.length - 1, historyIndex + 1);
+          } else {
+            // 向下导航到较新的历史记录
+            newIndex = Math.max(-1, historyIndex - 1);
+          }
+
+          setHistoryIndex(newIndex);
+
+          // 更新编辑器内容
+          if (newIndex === -1) {
+            // 恢复到当前输入
+            editorRef.current.innerHTML = currentInput;
+          } else {
+            // 显示历史记录
+            editorRef.current.innerHTML = history[history.length - 1 - newIndex];
+          }
+
+          // 将光标移到末尾
+          const range = document.createRange();
+          range.selectNodeContents(editorRef.current);
+          range.collapse(false);
+          const selection = window.getSelection();
+          if (selection) {
+            selection.removeAllRanges();
+            selection.addRange(range);
+          }
+
+          return;
+        }
+      }
+    } else if (isNavigatingHistory && e.key !== 'ArrowUp' && e.key !== 'ArrowDown') {
+      // 如果用户在浏览历史记录后开始输入其他内容，退出历史导航模式
+      setIsNavigatingHistory(false);
+      setHistoryIndex(-1);
+    }
+
+    // 添加对 Enter 键的处理，只有在按下 Shift+Enter 时才允许换行
+    if (e.key === 'Enter') {
+      if (e.shiftKey && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        handleSendImmediately();
+        return;
+      }
+
+      if (!e.shiftKey) {
+        e.preventDefault();
+        if (!mentionState.active) {
+          if (editorIsEmpty && onEmptySubmit) {
+            onEmptySubmit();
+            return;
+          }
+          handleSend();
+          return;
+        }
+      }
+    }
+
+    // 如果提及面板未激活，不处理其他键盘事件
+    if (!mentionState.active) {
+      return;
+    }
+
+    // 获取当前过滤后的项目
+    let filteredItems = mentionState.trigger === '/' ? getSlashItems() : getCurrentItems();
+
+    // 一级菜单过滤（仅对 mention 面板生效）
+    if (
+      mentionState.level === 0 &&
+      mentionState.filter &&
+      mentionState.filter.length > 1 &&
+      mentionState.trigger !== '/'
+    ) {
+      const searchText = mentionState.filter.substring(1).toLowerCase();
+      filteredItems = filteredItems.filter((item) => item.text.toLowerCase().includes(searchText));
+    }
+
+    if (filteredItems.length === 0) {
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      // 向下导航
+      setMentionState((prev) => ({
+        ...prev,
+        activeIndex: (prev.activeIndex + 1) % filteredItems.length,
+      }));
+      e.preventDefault();
+    } else if (e.key === 'ArrowUp') {
+      // 向上导航
+      setMentionState((prev) => ({
+        ...prev,
+        activeIndex: (prev.activeIndex - 1 + filteredItems.length) % filteredItems.length,
+      }));
+      e.preventDefault();
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+      // 确认选择
+      if (filteredItems.length > 0) {
+        handleSelectItem(filteredItems[mentionState.activeIndex]);
+        e.preventDefault();
+      }
+    }
+  };
+
+  // 添加对输入法事件的处理
+  const handleCompositionEnd = () => {
+    // 输入法输入完成后的处理
+    // 这里可以添加额外的逻辑，如果需要的话
+  };
+
+  const handlePaste = async (e: React.ClipboardEvent<HTMLDivElement>) => {
+    if (disabled) {
+      e.preventDefault();
+      return;
+    }
+    const items = e.clipboardData.items;
+    const text = e.clipboardData.getData('text/plain');
+    const editor = editorRef.current;
+    const selection = window.getSelection();
+    const selectedRange = selection?.rangeCount ? selection.getRangeAt(0) : undefined;
+    const pasteRange =
+      editor &&
+      selectedRange &&
+      editor.contains(selectedRange.startContainer) &&
+      editor.contains(selectedRange.endContainer)
+        ? selectedRange.cloneRange()
+        : undefined;
+
+    // 先收集所有图片文件
+    const imageFiles: File[] = [];
+    // eslint-disable-next-line @typescript-eslint/prefer-for-of
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].kind === MentionType.FILE && items[i].type.startsWith('image/')) {
+        const file = items[i].getAsFile();
+        if (file) {
+          imageFiles.push(file);
+        }
+      }
+    }
+
+    e.preventDefault();
+
+    // 处理文本，保留换行和缩进
+    const processedText = text
+      .replace(/\t/g, '    ')
+      .replace(/\n\s*\n/g, '\n\n')
+      .replace(/[ \t]+$/gm, '');
+
+    if (pasteRange && selection) {
+      pasteRange.deleteContents();
+
+      // 将处理后的文本按行分割
+      const lines = processedText.split('\n');
+      const fragment = document.createDocumentFragment();
+
+      lines.forEach((line, index) => {
+        const leadingSpaces = line.match(/^ +/)?.[0].length || 0;
+        const literalLine = `${'\u00a0'.repeat(leadingSpaces)}${line.slice(leadingSpaces)}`;
+        if (literalLine) {
+          fragment.appendChild(document.createTextNode(literalLine));
+        }
+
+        // 如果不是最后一行，添加换行符
+        if (index < lines.length - 1) {
+          fragment.appendChild(document.createElement('br'));
+        }
+      });
+
+      // 插入处理后的内容
+      const lastNode = fragment.lastChild;
+      pasteRange.insertNode(fragment);
+
+      // 将光标移动到插入内容的末尾
+      if (lastNode && lastNode.parentNode) {
+        const newRange = document.createRange();
+        newRange.setStartAfter(lastNode);
+        newRange.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(newRange);
+      }
+
+      // 触发 input 事件以更新状态
+      handleInput();
+    }
+
+    // 图片上传独立于同步文本插入，避免异步完成后使用已经漂移的 selection。
+    if (imageFiles.length > 0 && onImageUpload) {
+      await onImageUpload(imageFiles);
+    }
+  };
+
+  // 初始化编辑器
+  React.useEffect(() => {
+    if (editorRef.current) {
+      // 设置初始占位符
+      if (placeholder && !editorRef.current.textContent) {
+        editorRef.current.setAttribute('data-placeholder', placeholder);
+      }
+
+      // 初始化 mention_tag 状态
+      const initialMentionTags = Array.from(editorRef.current.querySelectorAll(`.${styles.mention_tag}`)).map(
+        (tag) => ({
+          id: tag.getAttribute('data-id') || '',
+          type: tag.getAttribute('data-type') || '',
+          contextId: tag.getAttribute('data-context-id') || '',
+        }),
+      );
+      prevMentionTagsRef.current = initialMentionTags;
+    }
+  }, [placeholder]);
+
+  // 处理点击事件
+  const handleDocumentClick = (e: MouseEvent) => {
+    if (mentionState.active && !mentionPanelContainerRef.current?.contains(e.target as Node)) {
+      setMentionState((prev) => ({
+        ...prev,
+        active: false,
+        inlineSearchActive: false,
+      }));
+    }
+  };
+
+  // 添加和移除全局点击事件监听器
+  React.useEffect(() => {
+    document.addEventListener('click', handleDocumentClick, true);
+    return () => {
+      document.removeEventListener('click', handleDocumentClick, true);
+    };
+  }, [mentionState.active]);
+
+  // 选择提及项目
+  const handleSelectItem = (item: MentionItem, isTriggerByClick = true) => {
+    if (disabled || !editorRef.current) {
+      return;
+    }
+
+    // 处理 slash command 选择
+    if (mentionState.trigger === '/') {
+      // 仅删除 / 和过滤文本，实际命令文本由事件监听器插入
+      let textNode;
+      let startOffset;
+      let endOffset;
+
+      const walker = document.createTreeWalker(editorRef.current, NodeFilter.SHOW_TEXT);
+      let charCount = 0;
+      let node;
+
+      while ((node = walker.nextNode())) {
+        const nodeLength = node.textContent?.length || 0;
+
+        if (
+          mentionState.startPos !== null &&
+          mentionState.startPos - 1 >= charCount &&
+          mentionState.startPos - 1 < charCount + nodeLength
+        ) {
+          textNode = node;
+          startOffset = mentionState.startPos - 1 - charCount;
+          const cursorPos = isTriggerByClick
+            ? mentionState.startPos + mentionState.filter.length - 1
+            : getCursorPosition(editorRef.current);
+          endOffset = Math.min(cursorPos - charCount, nodeLength);
+          break;
+        }
+
+        charCount += nodeLength;
+      }
+
+      if (textNode) {
+        const tempRange = document.createRange();
+        tempRange.setStart(textNode, startOffset);
+        tempRange.setEnd(textNode, endOffset);
+        tempRange.deleteContents();
+      }
+
+      setMentionState((prev) => ({ ...prev, active: false }));
+      editorRef.current.focus();
+
+      onSlashSelect?.(item.text);
+      // 通过事件通知父组件设置 slash command（事件监听器会负责插入命令文本）
+      window.dispatchEvent(
+        new CustomEvent('opensumi-chat-input-insert-slash', {
+          detail: { nameWithSlash: item.text },
+        }),
+      );
+      return;
+    }
+
+    // 如果项目有子菜单，进入二级菜单
+    if (item.getItems) {
+      const selection = window.getSelection();
+      if (!selection || !selection.rangeCount) {
+        return;
+      }
+
+      // 如果是从一级菜单选择了带子菜单的项目
+      if (mentionState.level === 0 && mentionState.startPos !== null) {
+        // 更安全地管理文本替换
+        let textNode;
+        let startOffset;
+        let endOffset;
+
+        // 找到包含 @ 符号的文本节点
+        const walker = document.createTreeWalker(editorRef.current, NodeFilter.SHOW_TEXT);
+        let charCount = 0;
+        let node;
+
+        while ((node = walker.nextNode())) {
+          const nodeLength = node.textContent?.length || 0;
+
+          // 检查 @ 符号是否在这个节点中
+          if (mentionState.startPos - 1 >= charCount && mentionState.startPos - 1 < charCount + nodeLength) {
+            textNode = node;
+            startOffset = mentionState.startPos - 1 - charCount;
+
+            // 确保不会超出节点范围
+            const cursorPos = isTriggerByClick
+              ? mentionState.startPos + mentionState.filter.length - 1
+              : getCursorPosition(editorRef.current);
+            endOffset = Math.min(cursorPos - charCount, nodeLength);
+            break;
+          }
+
+          charCount += nodeLength;
+        }
+
+        if (textNode) {
+          // 创建一个新的范围来替换文本
+          const tempRange = document.createRange();
+          tempRange.setStart(textNode, startOffset);
+          tempRange.setEnd(textNode, endOffset);
+
+          // 替换为 @type:
+          tempRange.deleteContents();
+          const typePrefix = document.createTextNode(`${mentionKeyword}${item.type}:`);
+          tempRange.insertNode(typePrefix);
+
+          // 将光标移到 @type: 后面
+          const newRange = document.createRange();
+          newRange.setStartAfter(typePrefix);
+          newRange.setEndAfter(typePrefix);
+          selection.removeAllRanges();
+          selection.addRange(newRange);
+          // 激活内联搜索模式
+          setMentionState((prev) => ({
+            ...prev,
+            active: true,
+            level: 1,
+            parentType: item.id,
+            inlineSearchActive: true,
+            inlineSearchStartPos: getCursorPosition(editorRef.current as HTMLElement),
+            secondLevelFilter: '',
+            activeIndex: 0,
+          }));
+          editorRef.current.focus();
+          return;
+        }
+      }
+
+      return;
+    }
+
+    const selection = window.getSelection();
+    if (!selection || !selection.rangeCount) {
+      return;
+    }
+
+    // 如果是在内联搜索模式下选择项目
+    if (mentionState.inlineSearchActive && mentionState.parentType && mentionState.inlineSearchStartPos !== null) {
+      // 找到 @type: 的位置
+      const parentItem = mentionItems.find((i) => i.id === mentionState.parentType);
+      if (!parentItem) {
+        return;
+      }
+
+      const typePrefix = `${mentionKeyword}${parentItem.type}:`;
+      const prefixPos = mentionState.inlineSearchStartPos - typePrefix.length;
+
+      if (prefixPos >= 0) {
+        // 创建一个带样式的提及标签
+        const mentionTag = document.createElement('span');
+        mentionTag.className = styles.mention_tag;
+        mentionTag.dataset.id = item.id;
+        mentionTag.dataset.type = item.type;
+        mentionTag.dataset.contextId = item.contextId || '';
+        mentionTag.contentEditable = 'false';
+
+        if (item.type === MentionType.FILE || item.type === MentionType.FOLDER) {
+          // 创建图标容器
+          const iconSpan = document.createElement('span');
+          iconSpan.className = cls(
+            styles.mention_icon,
+            item.type === MentionType.FILE ? labelService?.getIcon(new URI(item.text)) : getIcon('folder'),
+          );
+          mentionTag.appendChild(iconSpan);
+          if (item.type === MentionType.FOLDER) {
+            contextService?.addFolderToContext(new URI(item.contextId), true);
+          } else {
+            contextService?.addFileToContext(new URI(item.contextId), undefined, true);
+          }
+        } else if (item.type === MentionType.CODE) {
+          const iconSpan = document.createElement('span');
+          iconSpan.className = cls(styles.mention_icon, item.kind && getSymbolIcon(item.kind) + ' outline-icon');
+          mentionTag.appendChild(iconSpan);
+          if (item.symbol) {
+            contextService?.addFileToContext(
+              new URI(item.contextId),
+              [item.symbol.range.startLineNumber, item.symbol.range.endLineNumber],
+              true,
+            );
+          }
+        } else if (item.type === MentionType.RULE) {
+          const iconSpan = document.createElement('span');
+          iconSpan.className = cls(styles.mention_icon, getIcon('rules'));
+          mentionTag.appendChild(iconSpan);
+          contextService?.addRuleToContext(new URI(item.contextId), true);
+        }
+        const workspace = workspaceService?.workspace;
+        let relativePath = item.text;
+        if (workspace && item.contextId) {
+          relativePath = item.contextId.replace(new URI(workspace.uri).codeUri.fsPath, '').slice(1);
+        }
+        // 创建文本内容容器
+        const textSpan = document.createTextNode(relativePath);
+        mentionTag.appendChild(textSpan);
+
+        // 创建一个范围从 @type: 开始到当前光标
+        const tempRange = document.createRange();
+
+        // 定位到 @type: 的位置
+        let charIndex = 0;
+        let foundStart = false;
+        const textNodes: Array<{ node: Node; start: number; end: number }> = [];
+
+        function findPosition(node: Node) {
+          if (node.nodeType === 3) {
+            // 文本节点
+            textNodes.push({
+              node,
+              start: charIndex,
+              end: charIndex + node.textContent!.length,
+            });
+            charIndex += node.textContent!.length;
+          } else if (node.nodeType === 1) {
+            // 元素节点
+            const children = node.childNodes || [];
+            for (const child of Array.from(children)) {
+              findPosition(child);
+            }
+          }
+        }
+
+        findPosition(editorRef.current);
+
+        for (const textNode of textNodes) {
+          if (prefixPos >= textNode.start && prefixPos <= textNode.end) {
+            const startOffset = prefixPos - textNode.start;
+            tempRange.setStart(textNode.node, startOffset);
+            foundStart = true;
+          }
+
+          if (foundStart) {
+            // 如果是点击触发，使用过滤文本的长度来确定结束位置
+            const cursorPos = isTriggerByClick
+              ? prefixPos + typePrefix.length + mentionState.secondLevelFilter.length
+              : getCursorPosition(editorRef.current);
+
+            if (cursorPos >= textNode.start && cursorPos <= textNode.end) {
+              const endOffset = cursorPos - textNode.start;
+              tempRange.setEnd(textNode.node, endOffset);
+              break;
+            }
+          }
+        }
+
+        if (foundStart) {
+          tempRange.deleteContents();
+          tempRange.insertNode(mentionTag);
+
+          // 将光标移到提及标签后面
+          const newRange = document.createRange();
+          newRange.setStartAfter(mentionTag);
+          newRange.setEndAfter(mentionTag);
+          selection.removeAllRanges();
+          selection.addRange(newRange);
+
+          // 添加一个空格，增加间隔
+          const spaceNode = document.createTextNode(' '); // 使用不间断空格
+          newRange.insertNode(spaceNode);
+          newRange.setStartAfter(spaceNode);
+          newRange.setEndAfter(spaceNode);
+          selection.removeAllRanges();
+          selection.addRange(newRange);
+        }
+
+        setMentionState((prev) => ({
+          ...prev,
+          active: false,
+          inlineSearchActive: false,
+        }));
+        editorRef.current.focus();
+        return;
+      }
+    }
+
+    // 原有的处理逻辑（用于非内联搜索情况）
+    // 创建一个带样式的提及标签
+    const mentionTag = document.createElement('span');
+    mentionTag.className = styles.mention_tag;
+    mentionTag.dataset.id = item.id;
+    mentionTag.dataset.type = item.type;
+    mentionTag.dataset.contextId = item.contextId || '';
+    mentionTag.contentEditable = 'false';
+
+    // 为 file 和 folder 类型添加图标
+    if (item.type === MentionType.FILE || item.type === 'folder') {
+      // 创建图标容器
+      const iconSpan = document.createElement('span');
+      iconSpan.className = cls(
+        styles.mention_icon,
+        item.type === MentionType.FILE ? labelService?.getIcon(new URI(item.text)) : getIcon('folder'),
+      );
+      mentionTag.appendChild(iconSpan);
+    }
+    const workspace = workspaceService?.workspace;
+    let relativePath = item.text;
+    if (workspace && item.contextId) {
+      relativePath = item.contextId.replace(new URI(workspace.uri).codeUri.fsPath, '').slice(1);
+    }
+    // 创建文本内容容器
+    const textSpan = document.createTextNode(relativePath);
+    mentionTag.appendChild(textSpan);
+
+    // 定位到 @ 符号的位置
+    let charIndex = 0;
+    let foundStart = false;
+    const textNodes: Array<{ node: Node; start: number; end: number }> = [];
+
+    function findPosition(node: Node) {
+      if (node.nodeType === 3) {
+        // 文本节点
+        textNodes.push({
+          node,
+          start: charIndex,
+          end: charIndex + node.textContent!.length,
+        });
+        charIndex += node.textContent!.length;
+      } else if (node.nodeType === 1) {
+        // 元素节点
+        const children = node.childNodes;
+        for (const child of Array.from(children)) {
+          findPosition(child);
+        }
+      }
+    }
+
+    findPosition(editorRef.current);
+
+    const tempRange = document.createRange();
+
+    if (mentionState.startPos !== null) {
+      for (const textNode of textNodes) {
+        if (mentionState.startPos - 1 >= textNode.start && mentionState.startPos - 1 <= textNode.end) {
+          const startOffset = mentionState.startPos - 1 - textNode.start;
+          tempRange.setStart(textNode.node, startOffset);
+          foundStart = true;
+        }
+
+        if (foundStart) {
+          // 如果是点击触发，使用过滤文本的长度来确定结束位置
+          const cursorPos = isTriggerByClick
+            ? mentionState.startPos + mentionState.filter.length - 1
+            : getCursorPosition(editorRef.current);
+
+          if (cursorPos >= textNode.start && cursorPos <= textNode.end) {
+            const endOffset = cursorPos - textNode.start;
+            tempRange.setEnd(textNode.node, endOffset);
+            break;
+          }
+        }
+      }
+    }
+
+    if (foundStart) {
+      tempRange.deleteContents();
+      tempRange.insertNode(mentionTag);
+
+      // 将光标移到提及标签后面
+      const newRange = document.createRange();
+      newRange.setStartAfter(mentionTag);
+      newRange.setEndAfter(mentionTag);
+      selection.removeAllRanges();
+      selection.addRange(newRange);
+
+      // 添加一个空格，增加间隔
+      const spaceNode = document.createTextNode(' '); // 使用不间断空格
+      newRange.insertNode(spaceNode);
+      newRange.setStartAfter(spaceNode);
+      newRange.setEndAfter(spaceNode);
+      selection.removeAllRanges();
+      selection.addRange(newRange);
+    }
+    setMentionState((prev) => ({ ...prev, active: false }));
+    editorRef.current.focus();
+  };
+
+  // 处理模型选择变更
+  const handleModelChange = React.useCallback(
+    (value: string) => {
+      if (disabled) {
+        return;
+      }
+      setSelectedModel(value);
+      onSelectionChange?.(value);
+    },
+    [disabled, selectedModel, onSelectionChange],
+  );
+
+  // 处理 Mode 选择变更
+  const handleModeChange = React.useCallback(
+    (value: string) => {
+      if (disabled) {
+        return;
+      }
+      setSelectedMode(value);
+      onModeChange?.(value);
+    },
+    [disabled, onModeChange],
+  );
+
+  const normalizedConfigOptions = React.useMemo(
+    () => normalizeConfigOptions(configOptions || footerConfig.configOptions),
+    [configOptions, footerConfig.configOptions],
+  );
+
+  const handleConfigOptionChange = React.useCallback(
+    (config: NormalizedConfigOption, value: string) => {
+      if (disabled) {
+        return;
+      }
+      onConfigOptionChange?.(config.id, config.isBoolean ? value === 'true' : value);
+    },
+    [disabled, onConfigOptionChange],
+  );
+
+  const handleSendWith = (send?: MentionInputSubmitHandler) => {
+    if (disabled || !editorRef.current) {
+      return;
+    }
+
+    // 获取原始HTML内容
+    const rawContent = editorRef.current.innerHTML;
+    if (!rawContent && !allowEmptySubmit && !hasSendPayload?.()) {
+      return;
+    }
+
+    const processedContent = serializeEditorContent(editorRef.current);
+    if (!send) {
+      return;
+    }
+    if (submitInFlightRef.current) {
+      return false;
+    }
+
+    const submittedEditor = editorRef.current;
+    const submissionGeneration = editorGenerationRef.current;
+    submitInFlightRef.current = true;
+
+    const finishAcceptedSend = (sendResult: MentionInputSubmitResult) => {
+      const accepted =
+        sendResult !== false &&
+        !(
+          typeof sendResult === 'object' &&
+          sendResult !== null &&
+          sendResult.accepted === false &&
+          sendResult.draftDisposition !== 'queued'
+        );
+      if (!accepted) {
+        return sendResult;
+      }
+      if (
+        !mountedRef.current ||
+        editorRef.current !== submittedEditor ||
+        editorGenerationRef.current !== submissionGeneration
+      ) {
+        return false;
+      }
+
+      if (rawContent) {
+        setHistory((prev) => [...prev, rawContent]);
+        setHistoryIndex(-1);
+        setIsNavigatingHistory(false);
+      }
+
+      editorRef.current.innerHTML = '';
+      prevMentionTagsRef.current = [];
+      contextService?.cleanFileContext();
+
+      editorRef.current.style.overflowY = 'hidden';
+      editorRef.current.style.height = 'auto';
+      editorGenerationRef.current += 1;
+      return sendResult;
+    };
+
+    let sendResult: ReturnType<MentionInputSubmitHandler>;
+    try {
+      sendResult = send(processedContent, {
+        model: selectedModel,
+        ...footerConfig,
+      });
+    } catch (error) {
+      submitInFlightRef.current = false;
+      throw error;
+    }
+    if (sendResult && typeof (sendResult as PromiseLike<MentionInputSubmitResult>).then === 'function') {
+      return Promise.resolve(sendResult).then(
+        (result) => {
+          submitInFlightRef.current = false;
+          return finishAcceptedSend(result);
+        },
+        () => {
+          submitInFlightRef.current = false;
+          return false;
+        },
+      );
+    }
+
+    submitInFlightRef.current = false;
+    return finishAcceptedSend(sendResult as MentionInputSubmitResult);
+  };
+
+  const handleSend = () => handleSendWith(onSend);
+  const handleSendImmediately = () => handleSendWith(onSendImmediately);
+
+  const handleClearContext = React.useCallback(() => {
+    if (disabled) {
+      return;
+    }
+    contextService?.cleanFileContext();
+  }, [contextService, disabled]);
+
+  const handleTitleClick = React.useCallback(() => {
+    if (disabled || !editorRef.current) {
+      return;
+    }
+
+    // 聚焦输入框
+    editorRef.current.focus();
+
+    // 获取当前光标位置
+    const selection = window.getSelection();
+    if (!selection) {
+      return;
+    }
+
+    // 在当前位置插入 @
+    const range = document.createRange();
+
+    // 如果编辑器为空，直接插入
+    if (!editorRef.current.textContent || editorRef.current.textContent.trim() === '') {
+      editorRef.current.innerHTML = '@';
+      range.setStart(editorRef.current.firstChild || editorRef.current, 1);
+      range.setEnd(editorRef.current.firstChild || editorRef.current, 1);
+    } else {
+      // 当输入框有内容时，总是在末尾插入 @ 符号
+      const textNode = document.createTextNode(' @');
+
+      // 移动到编辑器末尾
+      range.selectNodeContents(editorRef.current);
+      range.collapse(false); // 移动到末尾
+
+      // 在末尾插入空格和 @ 符号
+      range.insertNode(textNode);
+      range.setStartAfter(textNode);
+      range.setEndAfter(textNode);
+    }
+
+    // 设置新的光标位置
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    // 获取插入后的光标位置
+    const newCursorPos = getCursorPosition(editorRef.current);
+
+    // 激活菜单状态
+    setMentionState({
+      active: true,
+      startPos: newCursorPos,
+      filter: '@',
+      position: { top: 0, left: 0 },
+      activeIndex: 0,
+      level: 0,
+      parentType: null,
+      secondLevelFilter: '',
+      inlineSearchActive: false,
+      inlineSearchStartPos: null,
+      loading: false,
+      trigger: '@',
+    });
+  }, [disabled]);
+
+  const handleStop = React.useCallback(() => {
+    if (!disabled && onStop) {
+      onStop();
+    }
+  }, [disabled, onStop]);
+
+  // 渲染自定义按钮
+  const renderButtons = React.useCallback(
+    (position: FooterButtonPosition) =>
+      (footerConfig.buttons || [])
+        .filter((button) => button.position === position)
+        .map((button) => {
+          // Built-in @ mention trigger button
+          if (button.id === 'mention-trigger') {
+            return (
+              <Popover
+                key={button.id}
+                overlayClassName={styles.popover_icon}
+                id={'ai-chat-mention-trigger'}
+                position={PopoverPosition.top}
+                title={button.title}
+              >
+                <EnhanceIcon
+                  className={cls(getIcon('at-sign'), styles.mention_trigger_logo)}
+                  tabIndex={disabled ? -1 : 0}
+                  role='button'
+                  ariaLabel={button.title}
+                  onClick={disabled ? undefined : handleTitleClick}
+                />
+              </Popover>
+            );
+          }
+          return (
+            <Popover
+              key={button.id}
+              overlayClassName={styles.popover_icon}
+              id={`ai-chat-${button.id}`}
+              position={PopoverPosition.top}
+              title={button.title}
+            >
+              <EnhanceIcon
+                className={cls(button.icon ? getIcon(button.icon) : button.iconClass, styles[`${button.id}_logo`])}
+                tabIndex={disabled ? -1 : 0}
+                role='button'
+                ariaLabel={button.title}
+                onClick={disabled ? undefined : button.onClick}
+              />
+            </Popover>
+          );
+        }),
+    [disabled, footerConfig.buttons, handleTitleClick],
+  );
+
+  const hasContext = React.useMemo(
+    () => attachedFiles.files.length > 0 || attachedFiles.folders.length > 0 || attachedFiles.rules.length > 0,
+    [attachedFiles],
+  );
+
+  const renderModelSelectorTip = React.useCallback(
+    (children: React.ReactNode) => {
+      if (footerConfig.disableModelSelector) {
+        return (
+          <Popover
+            id='ai-chat-model-selector'
+            title={localize('aiNative.chat.modelSelector.disableTip')}
+            position={PopoverPosition.top}
+          >
+            {children}
+          </Popover>
+        );
+      }
+      return children;
+    },
+    [footerConfig.disableModelSelector],
+  );
+
+  // 转换模型选项为扩展格式
+  const getExtendedModelOptions = React.useMemo((): ExtendedModelOption[] => {
+    // 如果有扩展模型选项，直接使用
+    if (footerConfig.extendedModelOptions) {
+      return footerConfig.extendedModelOptions.map((option) => ({
+        ...option,
+        selected: option.value === selectedModel,
+      }));
+    }
+
+    // 否则从基础模型选项转换
+    return (footerConfig.modelOptions || []).map((option): ExtendedModelOption => {
+      const extendedOption: ExtendedModelOption = {
+        ...option,
+      };
+
+      // 设置选中状态：如果当前模型匹配选中的模型，则标记为选中
+      extendedOption.selected = option.value === selectedModel;
+
+      return extendedOption;
+    });
+  }, [footerConfig.modelOptions, footerConfig.extendedModelOptions, selectedModel]);
+
+  const removeContext = React.useCallback(
+    (type: MentionType, uri: URI) => {
+      if (disabled) {
+        return;
+      }
+      if (type === MentionType.FILE) {
+        contextService?.removeFileFromContext(uri, true);
+      } else if (type === MentionType.FOLDER) {
+        contextService?.removeFolderFromContext(uri);
+      } else if (type === MentionType.RULE) {
+        contextService?.removeRuleFromContext(uri);
+      }
+    },
+    [contextService, disabled],
+  );
+
+  const getFileNameFromPath = (path: string) => decodeURIComponent(path.split('/').pop() || 'Unknown Rule');
+
+  const renderContextPreview = React.useCallback(
+    () => (
+      <div className={styles.context_preview_container}>
+        <span
+          className={cls(styles.context_preview_title, hasContext && styles.has_context)}
+          onClick={handleTitleClick}
+        >
+          {!hasContext ? localize('aiNative.chat.context.title') : ''}
+        </span>
+        {attachedFiles.files.map((file, index) => (
+          <div key={`file-${index}`} className={styles.context_preview_item} data-type={MentionType.FILE}>
+            <Icon
+              iconClass={cls(
+                labelService?.getIcon(file.uri) || MentionType.FILE,
+                styles.context_preview_item_icon,
+                styles.icon,
+              )}
+            />
+            <Icon
+              iconClass={cls(styles.close_icon, getIcon('close'))}
+              role='button'
+              tabIndex={disabled ? -1 : 0}
+              aria-label={`Remove file context ${new URI(file.uri.toString()).displayName}`}
+              onClick={() => removeContext(MentionType.FILE, file.uri)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  removeContext(MentionType.FILE, file.uri);
+                }
+              }}
+            />
+            <span className={styles.context_preview_item_text}>{new URI(file.uri.toString()).displayName}</span>
+          </div>
+        ))}
+
+        {attachedFiles.folders.map((folder, index) => (
+          <div key={`folder-${index}`} className={styles.context_preview_item} data-type='folder'>
+            <Icon iconClass={cls(getIcon('folder'), styles.context_preview_item_icon, styles.icon)} />
+            <Icon
+              iconClass={cls(styles.close_icon, getIcon('close'))}
+              role='button'
+              tabIndex={disabled ? -1 : 0}
+              aria-label={`Remove folder context ${new URI(folder.uri.toString()).displayName}`}
+              onClick={() => removeContext(MentionType.FOLDER, folder.uri)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  removeContext(MentionType.FOLDER, folder.uri);
+                }
+              }}
+            />
+            <span className={styles.context_preview_item_text}>{new URI(folder.uri.toString()).displayName}</span>
+          </div>
+        ))}
+
+        {attachedFiles.rules.map((rule, index) => (
+          <div key={`rule-${index}`} className={styles.context_preview_item} data-type='rule'>
+            <Icon iconClass={cls(getIcon('rules'), styles.context_preview_item_icon, styles.icon)} />
+            <Icon
+              iconClass={cls(styles.close_icon, getIcon('close'))}
+              role='button'
+              tabIndex={disabled ? -1 : 0}
+              aria-label={`Remove rule context ${getFileNameFromPath(rule.path).replace('.mdc', '')}`}
+              onClick={() => removeContext(MentionType.RULE, new URI(rule.path))}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  removeContext(MentionType.RULE, new URI(rule.path));
+                }
+              }}
+            />
+            <span className={styles.context_preview_item_text}>
+              {getFileNameFromPath(rule.path).replace('.mdc', '')}
+            </span>
+          </div>
+        ))}
+      </div>
+    ),
+    [handleClearContext, hasContext, attachedFiles, labelService, contextService, handleTitleClick, removeContext],
+  );
+
+  return (
+    <div
+      aria-disabled={disabled}
+      className={cls(styles.input_container, expanded && styles.input_container_expanded)}
+      onClickCapture={
+        disabled
+          ? (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }
+          : undefined
+      }
+      onKeyDownCapture={
+        disabled
+          ? (event) => {
+              event.preventDefault();
+              event.stopPropagation();
+            }
+          : undefined
+      }
+    >
+      <PermissionDialogWidget dialogManager={permissionDialogManager} bottom={optionsBottomPosition} />
+      {!disabled && mentionState.active && (
+        <div ref={mentionPanelContainerRef} className={styles.mention_panel_container}>
+          <MentionPanel
+            items={mentionState.trigger === '/' ? getSlashItems() : getCurrentItems()}
+            activeIndex={mentionState.activeIndex}
+            onSelectItem={(item) => handleSelectItem(item, true)}
+            position={{ top: 0, left: 0 }}
+            filter={mentionState.level === 0 ? mentionState.filter : mentionState.secondLevelFilter}
+            visible={true}
+            level={mentionState.level}
+            loading={mentionState.loading}
+            listId='agentic-chat-suggestion-list'
+            ariaLabel={mentionState.trigger === '/' ? 'Available commands' : 'Context suggestions'}
+            optionIdPrefix='agentic-chat-suggestion-option'
+          />
+        </div>
+      )}
+      <div className={styles.editor_area}>
+        <div
+          ref={editorRef}
+          className={styles.editor}
+          role='textbox'
+          aria-label='Agentic chat input'
+          aria-disabled={disabled}
+          aria-multiline='true'
+          aria-autocomplete='list'
+          aria-expanded={!disabled && mentionState.active}
+          aria-controls={!disabled && mentionState.active ? 'agentic-chat-suggestion-list' : undefined}
+          aria-activedescendant={
+            !disabled && mentionState.active ? `agentic-chat-suggestion-option-${mentionState.activeIndex}` : undefined
+          }
+          contentEditable={!disabled}
+          onInput={handleInput}
+          onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
+          onCompositionEnd={handleCompositionEnd}
+        />
+      </div>
+      <div className={styles.footer}>
+        <div className={styles.left_control}>
+          {footerItems
+            .filter((item) => item.position !== FooterButtonPosition.RIGHT)
+            .map((item) => {
+              const Component = item.component;
+              return <Component key={item.id} />;
+            })}
+          {renderButtons(FooterButtonPosition.LEFT)}
+          {renderContextPreview()}
+        </div>
+        <div className={styles.right_control}>
+          {footerConfig.showModelSelector &&
+            normalizedConfigOptions.length === 0 &&
+            renderModelSelectorTip(
+              <MentionSelect
+                options={getExtendedModelOptions}
+                value={selectedModel}
+                onChange={handleModelChange}
+                className={styles.model_selector}
+                size='small'
+                disabled={disabled || footerConfig.disableModelSelector}
+                showThinking={footerConfig.showThinking}
+                thinkingEnabled={footerConfig.thinkingEnabled}
+                onThinkingChange={footerConfig.onThinkingChange}
+              />,
+            )}
+
+          {modeOptions &&
+            modeOptions.length > 0 &&
+            normalizedConfigOptions.length === 0 &&
+            renderModelSelectorTip(
+              <MentionSelect
+                options={modeOptions.map((opt) => ({
+                  label: opt.name,
+                  value: opt.id,
+                  description: opt.description,
+                }))}
+                value={selectedMode}
+                onChange={handleModeChange}
+                className={styles.mode_selector}
+                size='small'
+                disabled={disabled}
+              />,
+            )}
+
+          <div className={styles.config_controls}>
+            {normalizedConfigOptions.map((config) => (
+              <React.Fragment key={config.id}>
+                {renderModelSelectorTip(
+                  <MentionSelect
+                    options={config.options}
+                    value={config.currentValue}
+                    onChange={(value) => handleConfigOptionChange(config, value)}
+                    className={styles.config_selector}
+                    size='small'
+                    disabled={disabled}
+                  />,
+                )}
+              </React.Fragment>
+            ))}
+          </div>
+
+          {footerItems
+            .filter((item) => item.position === FooterButtonPosition.RIGHT)
+            .map((item) => {
+              const Component = item.component;
+              return <Component key={item.id} />;
+            })}
+          {renderButtons(FooterButtonPosition.RIGHT)}
+          <Popover
+            overlayClassName={styles.popover_icon}
+            id={'ai-chat-send'}
+            position={PopoverPosition.top}
+            content={!loading ? 'Send' : 'Stop'}
+          >
+            {!loading ? (
+              <EnhanceIcon
+                wrapperClassName={styles.send_logo}
+                className={cls(getIcon('send-outlined'), styles.send_logo_icon)}
+                tabIndex={disabled ? -1 : 0}
+                role='button'
+                onClick={disabled ? undefined : handleSend}
+                ariaLabel={'Send'}
+              />
+            ) : (
+              <EnhanceIcon
+                wrapperClassName={styles.stop_logo}
+                className={cls(getIcon('close'), styles.stop_logo_icon)}
+                onClick={disabled ? undefined : handleStop}
+                tabIndex={disabled ? -1 : 0}
+                role='button'
+                ariaLabel={'Stop'}
+              />
+            )}
+          </Popover>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export const MentionInput = React.forwardRef<MentionInputHandle, AcpMentionInputProps>(MentionInputImpl);

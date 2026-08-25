@@ -1,0 +1,391 @@
+import { Autowired, Injectable, Injector, Provider } from '@opensumi/di';
+import {
+  AIBackSerivcePath,
+  AIBackSerivceToken,
+  AINativeConfigService,
+  BrowserModule,
+  ChatAgentViewServiceToken,
+  ChatFeatureRegistryToken,
+  ChatHistoryRegistryToken,
+  ChatInputFooterRegistryToken,
+  ChatInputRegistryToken,
+  ChatRenderRegistryToken,
+  ChatServiceToken,
+  ChatViewRegistryToken,
+  IAIInlineChatService,
+  InlineChatFeatureRegistryToken,
+  RenameCandidatesProviderRegistryToken,
+  ResolveConflictRegistryToken,
+} from '@opensumi/ide-core-browser';
+import {
+  AcpPermissionServicePath,
+  AcpPermissionServiceToken,
+  AcpThreadStatusServicePath,
+  AcpWebMcpBridgePath,
+  IACPConfigProvider,
+  IntelligentCompletionsRegistryToken,
+  MCPConfigServiceToken,
+  ProblemFixRegistryToken,
+  RulesServiceToken,
+  TerminalRegistryToken,
+  WebMcpGroupRegistryToken,
+} from '@opensumi/ide-core-common';
+import { FolderFilePreferenceProvider } from '@opensumi/ide-preferences/lib/browser/folder-file-preference-provider';
+
+import {
+  ChatProxyServiceToken,
+  DefaultChatAgentToken,
+  IAIInlineCompletionsProvider,
+  IChatAgentService,
+  IChatInternalService,
+  IChatManagerService,
+  InlineDiffServiceToken,
+  SumiMCPServerProxyServicePath,
+  TokenMCPServerProxyService,
+} from '../common';
+import { LLMContextServiceToken } from '../common/llm-context';
+import { MCPServerManager, MCPServerManagerPath } from '../common/mcp-server-manager';
+import { ChatAgentPromptProvider, DefaultChatAgentPromptProvider } from '../common/prompts/context-prompt-provider';
+import { ACPChatAgentPromptProvider } from '../common/prompts/empty-prompt-provider';
+
+import {
+  AcpChatRelayStore,
+  AcpChatRelaySummaryProvider,
+  AcpPermissionBridgeService,
+  AcpPermissionRpcService,
+  AcpPermissionTitleIndicatorService,
+  AcpThreadStatusRpcService,
+  AcpWebMcpRpcService,
+  AgenticTaskRegistryService,
+  AgenticWorkspaceSwitchService,
+  WebMcpGroupRegistry,
+} from './acp';
+import { AcpFooterContribution } from './acp/components/AcpFooterContribution';
+import { AcpDebugLogContribution } from './acp/debug-log/acp-debug-log.contribution';
+import { AcpPermissionDialogContribution, PermissionDialogManager } from './acp/permission-dialog-container';
+import { AINativeBrowserContribution } from './ai-core.contribution';
+import { AcpChatAgent } from './chat/acp-chat-agent';
+import { ACPSessionProvider } from './chat/acp-session-provider';
+import { ApplyService } from './chat/apply.service';
+import { ChatAgentService } from './chat/chat-agent.service';
+import { ChatAgentViewService } from './chat/chat-agent.view.service';
+import { ChatInputFooterRegistry } from './chat/chat-input-footer.registry';
+import { ChatManagerService } from './chat/chat-manager.service';
+import { AcpChatManagerService } from './chat/chat-manager.service.acp';
+import { ChatProxyService } from './chat/chat-proxy.service';
+import { AcpChatProxyService } from './chat/chat-proxy.service.acp';
+import { ChatService } from './chat/chat.api.service';
+import { ChatFeatureRegistry } from './chat/chat.feature.registry';
+import { ChatHistoryRegistry } from './chat/chat.history.registry';
+import { ChatInputRegistry } from './chat/chat.input.registry';
+import { ChatInternalService } from './chat/chat.internal.service';
+import { AcpChatInternalService } from './chat/chat.internal.service.acp';
+import { ChatRenderRegistry } from './chat/chat.render.registry';
+import { ChatViewRegistry } from './chat/chat.view.registry';
+import { DefaultACPConfigProvider } from './chat/default-acp-config-provider';
+import { DefaultChatAgent } from './chat/default-chat-agent';
+import { LocalStorageProvider } from './chat/local-storage-provider';
+import { ISessionProviderRegistry, SessionProviderRegistry } from './chat/session-provider-registry';
+import { LlmContextContribution } from './context/llm-context.contribution';
+import { LLMContextServiceImpl } from './context/llm-context.service';
+import { AICodeActionContribution } from './contrib/code-action/code-action.contribution';
+import { AIInlineCompletionsProvider } from './contrib/inline-completions/completeProvider';
+import { IntelligentCompletionsContribution } from './contrib/intelligent-completions/intelligent-completions.contribution';
+import { IntelligentCompletionsRegistry } from './contrib/intelligent-completions/intelligent-completions.feature.registry';
+import { InterfaceNavigationContribution } from './contrib/interface-navigation/interface-navigation.contribution';
+import { MergeConflictContribution } from './contrib/merge-conflict';
+import { ResolveConflictRegistry } from './contrib/merge-conflict/merge-conflict.feature.registry';
+import { ProblemFixProviderRegistry } from './contrib/problem-fix/problem-fix.feature.registry';
+import { RenameCandidatesProviderRegistry } from './contrib/rename/rename.feature.registry';
+import { TerminalAIContribution } from './contrib/terminal/terminal-ai.contributon';
+import { TerminalFeatureRegistry } from './contrib/terminal/terminal.feature.registry';
+import { LanguageParserService } from './languages/service';
+import { AIPanelLayoutService } from './layout/panel-layout.service';
+import { BaseApplyService } from './mcp/base-apply.service';
+import { MCPConfigCommandContribution } from './mcp/config/mcp-config.commands';
+import { MCPConfigContribution } from './mcp/config/mcp-config.contribution';
+import { MCPConfigService } from './mcp/config/mcp-config.service';
+import { MCPFolderPreferenceProvider } from './mcp/mcp-folder-preference-provider';
+import { MCPPreferencesContribution } from './mcp/mcp-preferences-contribution';
+import { MCPServerProxyService } from './mcp/mcp-server-proxy.service';
+import { MCPServerRegistry } from './mcp/mcp-server.feature.registry';
+import { CreateNewFileWithTextTool } from './mcp/tools/createNewFileWithText';
+import { EditFileTool } from './mcp/tools/editFile';
+import { FileSearchTool } from './mcp/tools/fileSearch';
+import { GetDiagnosticsTool } from './mcp/tools/getDiagnosticsByPath';
+import { GrepSearchTool } from './mcp/tools/grepSearch';
+import { ListDirTool } from './mcp/tools/listDir';
+import { ReadFileTool } from './mcp/tools/readFile';
+import { RunTerminalCommandTool } from './mcp/tools/runTerminalCmd';
+import { AINativePreferencesContribution } from './preferences';
+import { RulesContribution } from './rules/rules.contribution';
+import { RulesService } from './rules/rules.service';
+import { AINativeCoreContribution, MCPServerContribution, TokenMCPServerRegistry } from './types';
+import { InlineChatFeatureRegistry } from './widget/inline-chat/inline-chat.feature.registry';
+import { InlineChatService } from './widget/inline-chat/inline-chat.service';
+import { InlineDiffService } from './widget/inline-diff';
+
+@Injectable()
+export class AINativeModule extends BrowserModule {
+  @Autowired(AINativeConfigService)
+  protected readonly aiNativeConfig: AINativeConfigService;
+
+  constructor() {
+    super();
+    this.aiNativeConfig.setAINativeModuleLoaded(true);
+  }
+
+  contributionProvider = [AINativeCoreContribution, MCPServerContribution];
+  providers: Provider[] = [
+    AINativeBrowserContribution,
+    InterfaceNavigationContribution,
+    TerminalAIContribution,
+    MergeConflictContribution,
+    AICodeActionContribution,
+    AINativePreferencesContribution,
+    IntelligentCompletionsContribution,
+    MCPConfigContribution,
+    MCPConfigCommandContribution,
+    MCPPreferencesContribution,
+    AcpDebugLogContribution,
+    AcpPermissionDialogContribution,
+    PermissionDialogManager,
+    AcpPermissionBridgeService,
+    AcpPermissionTitleIndicatorService,
+    AcpChatRelayStore,
+    AcpChatRelaySummaryProvider,
+    AgenticTaskRegistryService,
+    AgenticWorkspaceSwitchService,
+    AIPanelLayoutService,
+    {
+      token: ISessionProviderRegistry,
+      useClass: SessionProviderRegistry,
+    },
+    // ACP Config Provider
+    {
+      token: IACPConfigProvider,
+      useClass: DefaultACPConfigProvider,
+    },
+    // Session Providers
+    LocalStorageProvider,
+    ACPSessionProvider,
+    // ACP service subclasses (used conditionally via factory)
+    AcpChatManagerService,
+    AcpChatInternalService,
+    AcpChatProxyService,
+
+    // MCP Server Contributions START
+    ListDirTool,
+    ReadFileTool,
+    EditFileTool,
+    CreateNewFileWithTextTool,
+    FileSearchTool,
+    GrepSearchTool,
+    GetDiagnosticsTool,
+    RunTerminalCommandTool,
+    // MCP Server Contributions END
+
+    // Context Service
+    LlmContextContribution,
+    RulesContribution,
+    AcpFooterContribution,
+    {
+      token: LLMContextServiceToken,
+      useClass: LLMContextServiceImpl,
+    },
+
+    {
+      token: TokenMCPServerRegistry,
+      useClass: MCPServerRegistry,
+    },
+    {
+      token: TokenMCPServerProxyService,
+      useClass: MCPServerProxyService,
+    },
+    {
+      token: InlineChatFeatureRegistryToken,
+      useClass: InlineChatFeatureRegistry,
+    },
+    {
+      token: ChatFeatureRegistryToken,
+      useClass: ChatFeatureRegistry,
+    },
+    {
+      token: ChatRenderRegistryToken,
+      useClass: ChatRenderRegistry,
+    },
+    {
+      token: ChatInputRegistryToken,
+      useClass: ChatInputRegistry,
+    },
+    {
+      token: ChatViewRegistryToken,
+      useClass: ChatViewRegistry,
+    },
+    {
+      token: ChatHistoryRegistryToken,
+      useClass: ChatHistoryRegistry,
+    },
+    {
+      token: ChatInputFooterRegistryToken,
+      useClass: ChatInputFooterRegistry,
+    },
+    {
+      token: ResolveConflictRegistryToken,
+      useClass: ResolveConflictRegistry,
+    },
+    {
+      token: IntelligentCompletionsRegistryToken,
+      useClass: IntelligentCompletionsRegistry,
+    },
+    {
+      token: IAIInlineChatService,
+      useClass: InlineChatService,
+    },
+    {
+      token: IChatManagerService,
+      useFactory: (injector: Injector) => {
+        const config = injector.get(AINativeConfigService);
+        if (config.capabilities.supportsAgentMode) {
+          return injector.get(AcpChatManagerService);
+        }
+        return injector.get(ChatManagerService);
+      },
+    },
+    {
+      token: IChatAgentService,
+      useClass: ChatAgentService,
+    },
+    {
+      token: ChatAgentViewServiceToken,
+      useClass: ChatAgentViewService,
+    },
+    {
+      token: IChatInternalService,
+      useFactory: (injector: Injector) => {
+        const config = injector.get(AINativeConfigService);
+        if (config.capabilities.supportsAgentMode) {
+          return injector.get(AcpChatInternalService);
+        }
+        return injector.get(ChatInternalService);
+      },
+    },
+    {
+      token: ChatProxyServiceToken,
+      useFactory: (injector: Injector) => {
+        const config = injector.get(AINativeConfigService);
+        if (config.capabilities.supportsAgentMode) {
+          return injector.get(AcpChatProxyService);
+        }
+        return injector.get(ChatProxyService);
+      },
+    },
+    {
+      token: DefaultChatAgentToken,
+      useClass: DefaultChatAgent,
+    },
+    // ACP Agent - 用于 ACP 模式
+    AcpChatAgent,
+    {
+      token: ChatServiceToken,
+      useClass: ChatService,
+    },
+    {
+      token: RenameCandidatesProviderRegistryToken,
+      useClass: RenameCandidatesProviderRegistry,
+    },
+    {
+      token: ProblemFixRegistryToken,
+      useClass: ProblemFixProviderRegistry,
+    },
+    {
+      token: TerminalRegistryToken,
+      useClass: TerminalFeatureRegistry,
+    },
+    {
+      token: LanguageParserService,
+      useClass: LanguageParserService,
+    },
+    {
+      token: IAIInlineCompletionsProvider,
+      useClass: AIInlineCompletionsProvider,
+    },
+    {
+      token: ChatAgentPromptProvider,
+      useFactory(injector) {
+        const config = injector.get(AINativeConfigService);
+        if (config.capabilities.supportsAgentMode) {
+          return injector.get(ACPChatAgentPromptProvider);
+        }
+        return injector.get(DefaultChatAgentPromptProvider);
+      },
+    },
+    {
+      token: InlineDiffServiceToken,
+      useClass: InlineDiffService,
+    },
+    {
+      token: BaseApplyService,
+      useClass: ApplyService,
+    },
+    {
+      token: MCPConfigServiceToken,
+      useClass: MCPConfigService,
+    },
+    {
+      token: RulesServiceToken,
+      useClass: RulesService,
+    },
+    {
+      token: FolderFilePreferenceProvider,
+      useClass: MCPFolderPreferenceProvider,
+      dropdownForTag: true,
+      tag: 'mcp',
+    },
+    {
+      token: AcpPermissionServiceToken,
+      useClass: AcpPermissionRpcService,
+    },
+    {
+      token: AcpThreadStatusServicePath,
+      useClass: AcpThreadStatusRpcService,
+    },
+    // WebMCP group registry and RPC bridge
+    {
+      token: WebMcpGroupRegistryToken,
+      useClass: WebMcpGroupRegistry,
+    },
+    {
+      token: AcpWebMcpBridgePath,
+      useClass: AcpWebMcpRpcService,
+    },
+  ];
+
+  backServices = [
+    {
+      servicePath: AIBackSerivcePath,
+      token: AIBackSerivceToken,
+      clientToken: ChatProxyServiceToken,
+    },
+    {
+      servicePath: MCPServerManagerPath,
+      token: MCPServerManager,
+    },
+    {
+      clientToken: TokenMCPServerProxyService,
+      servicePath: SumiMCPServerProxyServicePath,
+    },
+    {
+      servicePath: AcpPermissionServicePath,
+      clientToken: AcpPermissionServiceToken,
+    },
+    {
+      servicePath: AcpThreadStatusServicePath,
+      clientToken: AcpThreadStatusServicePath,
+    },
+    {
+      servicePath: AcpWebMcpBridgePath,
+      clientToken: AcpWebMcpBridgePath,
+    },
+  ];
+}

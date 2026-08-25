@@ -1,0 +1,32 @@
+{
+  "name": "@opensumi/ide-opened-editor",
+  "version": "3.9.0",
+  "files": [
+    "lib",
+    "src"
+  ],
+  "license": "MIT",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "scripts": {
+    "prepublishOnly": "yarn run build",
+    "build": "tsc --build ../../configs/ts/references/tsconfig.opened-editor.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:opensumi/core.git"
+  },
+  "devDependencies": {
+    "@opensumi/ide-components": "workspace:*",
+    "@opensumi/ide-core-browser": "workspace:*",
+    "@opensumi/ide-core-common": "workspace:*",
+    "@opensumi/ide-decoration": "workspace:*",
+    "@opensumi/ide-dev-tool": "workspace:*",
+    "@opensumi/ide-editor": "workspace:*",
+    "@opensumi/ide-explorer": "workspace:*",
+    "@opensumi/ide-main-layout": "workspace:*",
+    "@opensumi/ide-theme": "workspace:*",
+    "@opensumi/ide-webview": "workspace:*",
+    "@opensumi/ide-workspace": "workspace:*"
+  }
+}

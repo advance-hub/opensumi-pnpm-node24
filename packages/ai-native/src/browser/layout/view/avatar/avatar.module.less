@@ -1,0 +1,56 @@
+.ai_actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.avatar_icon_large {
+  width: 16px;
+  height: 16px;
+  font-size: 16px !important;
+}
+
+.ai_switch {
+  height: 16px;
+  width: 16px;
+  min-width: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.layout_switch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 86px;
+}
+
+.layout_switch_button {
+  min-width: 86px;
+  height: 22px;
+  padding: 0 3px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--kt-menubar-foreground);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 20px;
+  white-space: nowrap;
+
+  &:hover {
+    color: var(--menubar-selectionForeground);
+    background: var(--menubar-selectionBackground);
+  }
+
+  &:focus-visible {
+    outline: 1px solid var(--focusBorder);
+    outline-offset: 1px;
+  }
+}

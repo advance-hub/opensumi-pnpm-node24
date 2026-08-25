@@ -1,0 +1,86 @@
+@import '../style/mixins.less';
+
+// --- validate input
+.input-box {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  position: relative;
+
+  .@{prefix}-input {
+    &.validate-error {
+      border: 1px solid var(--inputValidation-errorBorder);
+    }
+
+    &.validate-info {
+      border: 1px solid var(--inputValidation-infoBorder);
+    }
+
+    &.validate-warning {
+      border: 1px solid var(--inputValidation-warningBorder);
+    }
+  }
+
+  &.popup {
+    .@{prefix}-input {
+      background-color: var(--input-background);
+    }
+  }
+
+  .validate-message {
+    margin-top: 4px;
+    display: inline-block;
+    overflow: hidden;
+    text-align: left;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 4px;
+    font-size: 12px;
+    line-height: 20px;
+    min-height: 34px;
+    word-wrap: break-word;
+    white-space: normal;
+    position: absolute;
+    width: 100%;
+    left: 0;
+    top: 100%;
+    z-index: 10;
+    border-radius: 0px 0px 2px 2px;
+
+    &.popup {
+      border: none;
+      background-color: transparent;
+      .overlay-shadow();
+
+      &.validate-error {
+        color: var(--inputValidation-errorForeground);
+        background-color: var(--inputValidation-errorBackground);
+        border: 1px solid var(--inputValidation-errorBorder);
+      }
+
+      &.validate-info {
+        background-color: var(--inputValidation-infoBackground);
+        border: 1px solid var(--inputValidation-infoBorder);
+        color: var(--inputValidation-infoForeground);
+      }
+
+      &.validate-warning {
+        background-color: var(--inputValidation-warningBackground);
+        border: 1px solid var(--inputValidation-warningBorder);
+        color: var(--inputValidation-warningForeground);
+      }
+    }
+
+    &.validate-error {
+      color: var(--kt-inputValidation-errorTextForeground);
+    }
+
+    &.validate-info {
+      color: var(--inputValidation-infoForeground);
+    }
+
+    &.validate-warning {
+      color: var(--kt-inputValidation-warningTextForeground);
+    }
+  }
+}

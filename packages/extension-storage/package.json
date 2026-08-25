@@ -1,0 +1,30 @@
+{
+  "name": "@opensumi/ide-extension-storage",
+  "version": "3.9.0",
+  "files": [
+    "lib",
+    "src"
+  ],
+  "license": "MIT",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "scripts": {
+    "prepublishOnly": "yarn run build",
+    "build": "tsc --build ../../configs/ts/references/tsconfig.extension-storage.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:opensumi/core.git"
+  },
+  "dependencies": {
+    "@opensumi/ide-core-common": "workspace:*",
+    "@opensumi/ide-core-node": "workspace:*",
+    "@opensumi/ide-file-service": "workspace:*",
+    "@opensumi/ide-logs": "workspace:*",
+    "@opensumi/ide-workspace": "workspace:*"
+  },
+  "devDependencies": {
+    "@opensumi/ide-core-browser": "workspace:*",
+    "@opensumi/ide-dev-tool": "workspace:*"
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "name": "@opensumi/ide-debug",
+  "version": "3.9.0",
+  "files": [
+    "lib",
+    "src"
+  ],
+  "license": "MIT",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "scripts": {
+    "prepublishOnly": "yarn run build",
+    "build": "tsc --build ../../configs/ts/references/tsconfig.debug.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:opensumi/core.git"
+  },
+  "dependencies": {
+    "@opensumi/ide-connection": "workspace:*",
+    "@opensumi/ide-core-common": "workspace:*",
+    "@opensumi/ide-core-node": "workspace:*",
+    "@opensumi/ide-file-service": "workspace:*",
+    "@opensumi/ide-task": "workspace:*",
+    "@opensumi/ide-terminal-next": "workspace:*",
+    "@opensumi/ide-utils": "workspace:*",
+    "@rjsf/core": "5.20.0",
+    "@rjsf/utils": "5.20.0",
+    "@rjsf/validator-ajv6": "5.20.0",
+    "anser": "^2.1.1",
+    "btoa": "^1.2.1",
+    "react-virtualized-auto-sizer": "^1.0.2"
+  },
+  "devDependencies": {
+    "@opensumi/ide-components": "workspace:*",
+    "@opensumi/ide-core-browser": "workspace:*",
+    "@opensumi/ide-dev-tool": "workspace:*",
+    "@opensumi/ide-editor": "workspace:*",
+    "@opensumi/ide-main-layout": "workspace:*",
+    "@opensumi/ide-monaco": "workspace:*",
+    "@opensumi/ide-monaco-enhance": "workspace:*",
+    "@opensumi/ide-output": "workspace:*",
+    "@opensumi/ide-overlay": "workspace:*",
+    "@opensumi/ide-preferences": "workspace:*",
+    "@opensumi/ide-quick-open": "workspace:*",
+    "@opensumi/ide-storage": "workspace:*",
+    "@opensumi/ide-theme": "workspace:*",
+    "@opensumi/ide-variable": "workspace:*",
+    "@opensumi/ide-workspace": "workspace:*",
+    "@opensumi/ide-workspace-edit": "workspace:*",
+    "@types/btoa": "^1.2.3"
+  }
+}

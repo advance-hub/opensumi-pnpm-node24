@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "../../../packages/task/src",
+    "outDir": "../../../packages/task/lib"
+  },
+  "include": ["../../../packages/task/src"],
+  "exclude": ["../../../packages/task/__mocks__"]
+}

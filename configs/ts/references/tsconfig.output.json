@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "../../../packages/output/src",
+    "outDir": "../../../packages/output/lib"
+  },
+  "include": ["../../../packages/output/src"],
+  "exclude": ["../../../packages/output/__mocks__"]
+}

@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "../../../packages/connection/src",
+    "outDir": "../../../packages/connection/lib"
+  },
+  "include": ["../../../packages/connection/src"],
+  "exclude": ["../../../packages/connection/__mocks__"]
+}

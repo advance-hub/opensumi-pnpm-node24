@@ -1,0 +1,10 @@
+[build]
+builder = "NIXPACKS"
+nixpacksConfigPath = "./nixpacks.toml"
+nixpacksVersion = "1.21.2"
+
+[deploy]
+numReplicas = 1
+sleepApplication = true
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5

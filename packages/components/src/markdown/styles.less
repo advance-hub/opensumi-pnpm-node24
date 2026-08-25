@@ -1,0 +1,27 @@
+@import '../style/variable.less';
+
+.@{prefix}-md-renderer-wrap {
+  word-break: break-all;
+
+  hr {
+    border-top: 1px solid var(--activityBar-border);
+    margin-bottom: 0.5em;
+  }
+
+  p {
+    margin-bottom: 0.5em;
+  }
+}
+
+.@{prefix}-popover {
+  .@{prefix}-md-renderer-wrap {
+    color: inherit;
+    hr {
+      border-color: inherit;
+      border-bottom: none;
+    }
+    .kt-icon {
+      color: inherit;
+    }
+  }
+}

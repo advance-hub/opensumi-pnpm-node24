@@ -1,0 +1,69 @@
+{
+  "name": "@opensumi/ide-ai-native",
+  "version": "3.9.0",
+  "files": [
+    "lib",
+    "src"
+  ],
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "prepublishOnly": "yarn run build",
+    "build": "tsc --build ../../configs/ts/references/tsconfig.ai-native.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:opensumi/core.git"
+  },
+  "dependencies": {
+    "@agentclientprotocol/sdk": "^0.16.1",
+    "@ai-sdk/anthropic": "^1.1.9",
+    "@ai-sdk/deepseek": "^0.1.11",
+    "@ai-sdk/openai": "^1.1.9",
+    "@ai-sdk/openai-compatible": "^0.1.11",
+    "@modelcontextprotocol/sdk": "^1.11.4",
+    "@opensumi/ide-addons": "workspace:*",
+    "@opensumi/ide-components": "workspace:*",
+    "@opensumi/ide-connection": "workspace:*",
+    "@opensumi/ide-core-common": "workspace:*",
+    "@opensumi/ide-core-node": "workspace:*",
+    "@opensumi/ide-debug": "workspace:*",
+    "@opensumi/ide-design": "workspace:*",
+    "@opensumi/ide-editor": "workspace:*",
+    "@opensumi/ide-file-search": "workspace:*",
+    "@opensumi/ide-file-service": "workspace:*",
+    "@opensumi/ide-main-layout": "workspace:*",
+    "@opensumi/ide-markers": "workspace:*",
+    "@opensumi/ide-monaco": "workspace:*",
+    "@opensumi/ide-outline": "workspace:*",
+    "@opensumi/ide-overlay": "workspace:*",
+    "@opensumi/ide-preferences": "workspace:*",
+    "@opensumi/ide-quick-open": "workspace:*",
+    "@opensumi/ide-search": "workspace:*",
+    "@opensumi/ide-terminal-next": "workspace:*",
+    "@opensumi/ide-theme": "workspace:*",
+    "@opensumi/ide-utils": "workspace:*",
+    "@opensumi/ide-workspace": "workspace:*",
+    "@xterm/xterm": "5.5.0",
+    "ai": "^4.3.16",
+    "ansi-regex": "^2.0.0",
+    "ansi_up": "^5.1.0",
+    "diff": "^7.0.0",
+    "dom-align": "^1.7.0",
+    "eventsource": "^3.0.5",
+    "node-pty": "1.0.0",
+    "rc-collapse": "^4.0.0",
+    "react-chat-elements": "^12.0.10",
+    "react-highlight": "^0.15.0",
+    "tiktoken": "1.0.12",
+    "web-tree-sitter": "0.22.6",
+    "zod": "^3.25.0 || ^4.0.0",
+    "zod-to-json-schema": "^3.25.0"
+  },
+  "devDependencies": {
+    "@opensumi/ide-core-browser": "workspace:*"
+  }
+}

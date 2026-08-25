@@ -1,0 +1,67 @@
+export const AI_INLINE_CHAT_VISIBLE = {
+  id: 'ai.inlineChat.visible',
+};
+
+export const AI_INLINE_CHAT_INTERACTIVE_INPUT_VISIBLE = {
+  id: 'ai.inlineChat.interactiveInput.visible',
+};
+
+export const AI_INLINE_CHAT_INTERACTIVE_INPUT_CANCEL = {
+  id: 'ai.inlineChat.interactiveInput.cancel',
+};
+
+export const AI_INLINE_COMPLETION_VISIBLE = {
+  id: 'ai.inline.completion.visible',
+};
+
+export const AI_INLINE_DIFF_PARTIAL_EDIT = {
+  id: 'ai.inline.diff.partial.edit',
+};
+
+export const AI_INLINE_COMPLETION_REPORTER = {
+  id: 'ai.inline.completion.reporter',
+};
+
+export const AI_CHAT_VISIBLE = {
+  id: 'ai.chat.visible',
+};
+
+export const AI_PANEL_LAYOUT_CONTEXT = 'aiNative.panelLayout';
+
+export const AI_PANEL_LAYOUT_GET = {
+  id: 'ai-native.panel-layout.get',
+};
+
+export const AI_PANEL_LAYOUT_SET = {
+  id: 'ai-native.panel-layout.set',
+};
+
+export const AI_PANEL_LAYOUT_TOGGLE = {
+  id: 'ai-native.panel-layout.toggle',
+};
+
+export const AI_AGENTIC_WORKBENCH_TOGGLE = {
+  id: 'ai-native.agentic-workbench.toggle',
+};
+
+export const AI_AGENTIC_WORKBENCH_IS_VISIBLE = {
+  id: 'ai-native.agentic-workbench.is-visible',
+};
+
+export const AI_CODE_ACTION = {
+  id: 'ai.code.action',
+};
+
+export namespace AI_CODE_EDITS_COMMANDS {
+  export const DISCARD = {
+    id: 'ai.codeEdits.discard',
+  };
+
+  export const ACCEPT = {
+    id: 'ai.codeEdits.accept',
+  };
+
+  export const TRIGGER = {
+    id: 'ai.codeEdits.trigger',
+  };
+}

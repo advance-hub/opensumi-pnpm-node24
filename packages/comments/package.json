@@ -1,0 +1,34 @@
+{
+  "name": "@opensumi/ide-comments",
+  "version": "3.9.0",
+  "files": [
+    "lib",
+    "src"
+  ],
+  "license": "MIT",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "scripts": {
+    "prepublishOnly": "yarn run build",
+    "build": "tsc -p ../../configs/ts/references/tsconfig.comments.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:opensumi/core.git"
+  },
+  "dependencies": {
+    "@opensumi/ide-core-common": "workspace:*",
+    "react-mentions": "^4.4.10"
+  },
+  "devDependencies": {
+    "@opensumi/ide-components": "workspace:*",
+    "@opensumi/ide-core-browser": "workspace:*",
+    "@opensumi/ide-dev-tool": "workspace:*",
+    "@opensumi/ide-editor": "workspace:*",
+    "@opensumi/ide-main-layout": "workspace:*",
+    "@opensumi/ide-monaco": "workspace:*",
+    "@opensumi/ide-monaco-enhance": "workspace:*",
+    "@opensumi/ide-theme": "workspace:*",
+    "@types/react-mentions": "^4.1.13"
+  }
+}

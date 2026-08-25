@@ -1,0 +1,79 @@
+@import '../style/variable.less';
+
+.@{prefix}-checkbox {
+  font-size: @checkbox-default-size;
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+
+  &-lump {
+    margin-right: 6px;
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+
+    input {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      opacity: 0;
+    }
+
+    input:checked + .@{prefix}-checkbox-icon {
+      border-color: var(--kt-checkbox-selectionBackground);
+      background-color: var(--kt-checkbox-selectionBackground);
+      color: var(--kt-checkbox-selectionForeground);
+
+      svg {
+        display: block;
+        transition: all 0.2s;
+      }
+    }
+  }
+
+  &:hover &-icon {
+    border-color: var(--kt-checkbox-hoverBorder);
+    background-color: var(--kt-checkbox-hoverBackground);
+  }
+
+  &-icon {
+    width: @checkbox-default-size;
+    height: @checkbox-default-size;
+    background-color: var(--checkbox-background);
+    border-radius: 2px;
+    border: 1px solid var(--checkbox-border);
+    position: relative;
+
+    svg {
+      display: none;
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+    }
+  }
+
+  &-large {
+    font-size: @checkbox-large-size;
+
+    &-icon {
+      width: @checkbox-large-size;
+      height: @checkbox-large-size;
+      margin-right: 8px;
+    }
+  }
+
+  &.@{prefix}-checkbox-disabled {
+    // disabled
+    color: var(--kt-checkbox-disableForeground);
+
+    input:checked + .@{prefix}-checkbox-icon {
+      background-color: var(--kt-checkbox-disableBackground);
+      color: var(--kt-checkbox-disableForeground);
+      border-color: transparent;
+    }
+  }
+}

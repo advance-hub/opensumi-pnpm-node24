@@ -1,0 +1,39 @@
+import { Autowired, Injectable } from '@opensumi/di';
+import { ILogger } from '@opensumi/ide-core-browser/lib/logger';
+import { LifeCyclePhase } from '@opensumi/ide-core-common';
+import { ISemanticTokenRegistry } from '@opensumi/ide-theme/lib/common/semantic-tokens-registry';
+
+import {
+  Contributes,
+  LifeCycle,
+  SemanticTokenTypeSchema,
+  VSCodeContributePoint,
+  validateTypeOrModifier,
+} from '../../../common';
+
+@Injectable()
+@Contributes('semanticTokenTypes')
+@LifeCycle(LifeCyclePhase.Ready)
+export class SemanticTokenTypesContributionPoint extends VSCodeContributePoint<SemanticTokenTypeSchema> {
+  @Autowired(ILogger)
+  protected readonly logger: ILogger;
+
+  @Autowired(ISemanticTokenRegistry)
+  protected readonly semanticTokenRegistry: ISemanticTokenRegistry;
+
+  contribute() {
+    for (const contrib of this.contributesMap) {
+      const { contributes } = contrib;
+      if (!Array.isArray(contributes)) {
+        this.logger.warn("'configuration.semanticTokenTypes' must be an array");
+        return;
+      }
+
+      for (const contrib of contributes) {
+        if (validateTypeOrModifier(contrib, 'semanticTokenType', this.logger)) {
+          this.semanticTokenRegistry.registerTokenType(contrib.id, contrib.description, contrib.superType);
+        }
+      }
+    }
+  }
+}

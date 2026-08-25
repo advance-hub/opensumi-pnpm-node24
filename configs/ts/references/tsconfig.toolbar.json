@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "../../../packages/toolbar/src",
+    "outDir": "../../../packages/toolbar/lib"
+  },
+  "include": ["../../../packages/toolbar/src"],
+  "exclude": ["../../../packages/toolbar/__mocks__"]
+}

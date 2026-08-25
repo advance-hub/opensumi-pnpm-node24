@@ -1,0 +1,43 @@
+@import '../style/variable.less';
+
+@dialog-prefix-cls: ~'@{prefix}-modal';
+
+.kt-overlay {
+  &.@{dialog-prefix-cls} {
+    padding: 24px 24px;
+    color: var(--kt-modal-foreground);
+  }
+
+  .@{dialog-prefix-cls} {
+    &-body {
+      background: var(--kt-modal-background);
+      border-color: var(--notifications-border);
+    }
+
+    &-header {
+      background-color: var(--kt-modal-background);
+      border-bottom-color: var(--kt-modal-separatorBackground);
+      height: 56px;
+      border-radius: 2px 2px 0 0;
+    }
+
+    &-title {
+      color: var(--kt-modal-foreground);
+    }
+
+    &-footer {
+      background-color: var(--kt-modal-background);
+      border-top-color: var(--kt-modal-separatorBackground);
+      height: 52px;
+      border-radius: 0 0 2px 2px;
+    }
+
+    &-close-x {
+      margin: 8px 10px 0 0;
+      width: 16px;
+      height: 16px;
+      line-height: 20px;
+      color: var(--kt-notificationsCloseIcon-foreground);
+    }
+  }
+}

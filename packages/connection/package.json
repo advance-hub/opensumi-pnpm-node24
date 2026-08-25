@@ -1,0 +1,34 @@
+{
+  "name": "@opensumi/ide-connection",
+  "version": "3.9.0",
+  "files": [
+    "lib",
+    "src"
+  ],
+  "license": "MIT",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "scripts": {
+    "prepublishOnly": "yarn run build",
+    "build": "tsc --build ../../configs/ts/references/tsconfig.connection.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:opensumi/core.git"
+  },
+  "dependencies": {
+    "@furyjs/fury": "0.5.9-beta",
+    "@opensumi/events": "^1.0.0",
+    "@opensumi/ide-core-common": "workspace:*",
+    "@opensumi/ide-utils": "workspace:*",
+    "@opensumi/reconnecting-websocket": "^4.4.0",
+    "@opensumi/vscode-jsonrpc": "^8.0.0-next.2",
+    "path-to-regexp": "^6.2.1",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@opensumi/ide-components": "workspace:*",
+    "@opensumi/ide-dev-tool": "workspace:*",
+    "@opensumi/mock-socket": "^9.3.1"
+  }
+}

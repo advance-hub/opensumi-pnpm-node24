@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "../../../packages/workspace-edit/src",
+    "outDir": "../../../packages/workspace-edit/lib"
+  },
+  "include": ["../../../packages/workspace-edit/src"],
+  "exclude": ["../../../packages/workspace-edit/__mocks__"]
+}

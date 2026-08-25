@@ -1,0 +1,107 @@
+import { execFile } from 'child_process';
+import path from 'path';
+import { promisify } from 'util';
+
+import { expect } from '@playwright/test';
+
+import { OpenSumiApp } from '../app';
+import { OpenSumiDiffEditor } from '../diff-editor';
+import { OpenSumiExplorerView } from '../explorer-view';
+import { OpenSumiFileTreeView } from '../filetree-view';
+import { OpenSumiSCMView } from '../scm-view';
+import { OpenSumiWorkspace } from '../workspace';
+
+import test, { page } from './hooks';
+
+const execFileAsync = promisify(execFile);
+
+let app: OpenSumiApp;
+let explorer: OpenSumiExplorerView;
+let scm: OpenSumiSCMView;
+let fileTreeView: OpenSumiFileTreeView;
+let workspace: OpenSumiWorkspace;
+
+test.describe('OpenSumi SCM Panel', () => {
+  test.beforeAll(async () => {
+    workspace = new OpenSumiWorkspace([path.resolve(__dirname, '../../src/tests/workspaces/git-workspace')]);
+    await workspace.initWorksapce();
+    await execFileAsync('git', ['init'], { cwd: workspace.workspace.codeUri.fsPath });
+    app = await OpenSumiApp.load(page, workspace);
+    explorer = await app.open(OpenSumiExplorerView);
+    explorer.initFileTreeView(workspace.workspace.displayName);
+    fileTreeView = explorer.fileTreeView;
+  });
+
+  test.afterAll(() => {
+    app.dispose();
+  });
+
+  test('The "U" charset should on the files tail after git initialized', async () => {
+    await explorer.fileTreeView.open();
+    const action = await fileTreeView.getTitleActionByName('Refresh');
+    await action?.click();
+    await expect
+      .poll(async () => {
+        const node = await explorer.getFileStatTreeNodeByPath('a.js');
+        return node?.badge();
+      })
+      .toBe('U');
+  });
+
+  test('The "U" charset should on the files tail on SCM view', async () => {
+    scm = await app.open(OpenSumiSCMView);
+    await scm.open();
+    await expect
+      .poll(async () => {
+        const node = await scm.getFileStatTreeNodeByPath('a.js');
+        return node?.getBadge();
+      })
+      .toBe('U');
+  });
+
+  test('Open file from context menu', async () => {
+    scm = await app.open(OpenSumiSCMView);
+    await scm.open();
+    const node = await scm.getFileStatTreeNodeByPath('a.js');
+    const item = await node?.getMenuItemByName('Open File');
+    await item?.click();
+    await app.page.waitForTimeout(1000);
+    if (node) {
+      const editor = new OpenSumiDiffEditor(app, node);
+      const currentTab = await editor.getCurrentTab();
+      const dataUri = await currentTab?.getAttribute('data-uri');
+      expect(dataUri?.startsWith('file')).toBeTruthy();
+    }
+  });
+
+  test('Open file with diff editor', async () => {
+    scm = await app.open(OpenSumiSCMView);
+    await scm.open();
+    const node = await scm.getFileStatTreeNodeByPath('a.js');
+    await node?.open();
+    await app.page.waitForTimeout(1000);
+    if (node) {
+      const editor = new OpenSumiDiffEditor(app, node);
+      const currentTab = await editor.getCurrentTab();
+      const dataUri = await currentTab?.getAttribute('data-uri');
+      expect(dataUri?.startsWith('diff')).toBeTruthy();
+    }
+  });
+
+  test('SCM list view mode is work', async () => {
+    scm = await app.open(OpenSumiSCMView);
+    await scm.open();
+    const actionDom = await scm.scmView.getTitleActionById('workbench.scm.action.setListViewMode');
+    await actionDom?.click();
+    const stageAllAction = await scm.scmView.getTreeNodeActionById('git.stageAll');
+    await stageAllAction?.click();
+    await app.page.waitForTimeout(1000);
+    const treeItems = await scm.getTreeItems();
+    if (treeItems) {
+      expect(treeItems.length).toBe(3);
+      const firstTreeNode = treeItems[0];
+      const nodeTail = await firstTreeNode.getNodeTail();
+      expect(nodeTail).toBe('1');
+    }
+  });
+});

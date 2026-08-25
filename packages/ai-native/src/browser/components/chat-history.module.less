@@ -1,0 +1,203 @@
+.chat_history_header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 0 0 0 12px;
+  color: var(--editor-foreground);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+
+  .chat_history_header_title {
+    opacity: 0.6;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+    span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: calc(100vw - 80px);
+      display: inline-block;
+      white-space: nowrap;
+    }
+  }
+
+  .chat_history_header_actions {
+    display: flex;
+    align-items: center;
+    font-size: 12px;
+
+    .chat_history_header_actions_history {
+      cursor: pointer;
+    }
+
+    .chat_history_header_actions_new {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+    }
+
+    :global {
+      .kt-popover-title {
+        margin-bottom: 8px;
+      }
+      .kt-popover-content {
+        background-color: var(--editor-background);
+        color: var(--editor-foreground);
+      }
+      .kt-popover-arrow {
+        border-bottom-color: var(--editor-background);
+      }
+      .kt-popover {
+        opacity: 1;
+      }
+    }
+  }
+
+  .kt-popover {
+    .kt-popover-content {
+      width: 300px;
+    }
+    .kt-popover-content {
+      color: var(--editor-foreground);
+      background-color: var(--editor-background);
+      padding: 12px 12px;
+      border-radius: 3px;
+      box-shadow: 0 0 8px 2px var(--widget-shadow);
+    }
+    .kt-popover-title {
+      color: var(--editor-foreground);
+      font-size: 13px;
+    }
+    .kt-input {
+      color: var(--input-foreground);
+      background: var(--input-background);
+      border: 1px solid var(--input-border);
+      text-align: left;
+      height: 24px;
+      font-size: 13px;
+      border-radius: 4px;
+      &:focus {
+        border-color: var(--inputValidation-infoBorder);
+      }
+
+      &::placeholder {
+        color: var(--input-placeholderForeground);
+        opacity: 0.6;
+      }
+    }
+  }
+
+  .chat_history_search {
+    width: 100%;
+    border-radius: 4px;
+  }
+
+  .chat_history_list {
+    overflow: auto;
+    max-height: 400px;
+    width: 300px;
+    margin-top: 4px;
+    font-size: 13px;
+  }
+
+  .chat_history_time {
+    opacity: 0.6;
+    padding-left: 4px;
+  }
+
+  .chat_history_item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    padding: 4px;
+    margin-top: 2px;
+    border-radius: 3px;
+
+    &.chat_history_item_pending {
+      .chat_history_item_pending_icon {
+        background: var(--notificationsWarningIcon-foreground, #e6a817);
+        border-radius: 50%;
+        width: 18px;
+        height: 18px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        color: var(--editor-background, #1e1e1e);
+        font-size: 11px;
+        line-height: 1;
+      }
+    }
+
+    .chat_history_item_content {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      max-width: 100%;
+      height: 24px;
+    }
+
+    .chat_history_item_title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: inline-block;
+      white-space: nowrap;
+    }
+
+    .chat_history_item_actions {
+      display: none;
+    }
+
+    &:hover {
+      background: var(--textPreformat-background);
+
+      .chat_history_item_actions {
+        display: block;
+      }
+      .chat_history_item_content {
+        max-width: calc(100% - 50px);
+      }
+    }
+
+    &.chat_history_item_selected,
+    &.chat_history_item_selected:hover {
+      background: var(--list-activeSelectionBackground, var(--textPreformat-background));
+      color: var(--list-activeSelectionForeground, inherit);
+    }
+  }
+
+  svg {
+    path {
+      fill: var(--foreground);
+    }
+  }
+}
+
+.chat_history_button_wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.pending_permission_badge {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background-color: var(--notificationsErrorIcon-foreground, #e74c3c);
+  color: #fff;
+  font-size: 10px;
+  line-height: 16px;
+  text-align: center;
+  font-weight: 600;
+  pointer-events: none;
+}

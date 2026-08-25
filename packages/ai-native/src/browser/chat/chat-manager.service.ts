@@ -1,0 +1,352 @@
+import { Autowired, INJECTOR_TOKEN, Injectable, Injector } from '@opensumi/di';
+import { PreferenceService } from '@opensumi/ide-core-browser';
+import {
+  AINativeSettingSectionsId,
+  CancellationToken,
+  CancellationTokenSource,
+  Disposable,
+  DisposableMap,
+  Emitter,
+  IChatProgress,
+  IDisposable,
+  ILogger,
+  IStorage,
+  LRUCache,
+  STORAGE_NAMESPACE,
+  StorageProvider,
+  debounce,
+} from '@opensumi/ide-core-common';
+import { ChatFeatureRegistryToken, IHistoryChatMessage } from '@opensumi/ide-core-common/lib/types/ai-native';
+
+import { IChatAgentService, IChatFollowup, IChatRequestMessage, IChatResponseErrorDetails } from '../../common';
+import { MsgHistoryManager } from '../model/msg-history-manager';
+
+import { ChatModel, ChatRequestModel, ChatResponseModel, IChatProgressResponseContent } from './chat-model';
+import { ChatFeatureRegistry } from './chat.feature.registry';
+
+interface ISessionModel {
+  sessionId: string;
+  createdAt?: number;
+  modelId: string;
+  history: { additional: Record<string, any>; messages: IHistoryChatMessage[] };
+  requests: {
+    requestId: string;
+    message: IChatRequestMessage;
+    response: {
+      isCanceled: boolean;
+      responseText: string;
+      responseContents: IChatProgressResponseContent[];
+      responseParts: IChatProgressResponseContent[];
+      errorDetails: IChatResponseErrorDetails | undefined;
+      followups: IChatFollowup[];
+    };
+  }[];
+}
+
+const MAX_SESSION_COUNT = 20;
+
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+class DisposableLRUCache<K, V extends IDisposable = IDisposable> extends LRUCache<K, V> implements IDisposable {
+  disposeKey(key: K): void {
+    const disposable = this.get(key);
+    if (disposable) {
+      disposable.dispose();
+    }
+    this.delete(key);
+  }
+
+  dispose(): void {
+    this.forEach((disposable) => {
+      disposable.dispose();
+    });
+    this.clear();
+  }
+}
+
+@Injectable()
+export class ChatManagerService extends Disposable {
+  // Exposed as protected so AcpChatManagerService subclass can access it
+  protected sessionModels = this.registerDispose(new DisposableLRUCache<string, ChatModel>(MAX_SESSION_COUNT));
+  #pendingRequests = this.registerDispose(new DisposableMap<string, CancellationTokenSource>());
+  protected storageInitEmitter = new Emitter<void>();
+  public onStorageInit = this.storageInitEmitter.event;
+
+  @Autowired(INJECTOR_TOKEN)
+  injector: Injector;
+
+  @Autowired(IChatAgentService)
+  chatAgentService: IChatAgentService;
+
+  @Autowired(ILogger)
+  protected readonly logger: ILogger;
+
+  @Autowired(StorageProvider)
+  private storageProvider: StorageProvider;
+
+  @Autowired(PreferenceService)
+  private preferenceService: PreferenceService;
+
+  @Autowired(ChatFeatureRegistryToken)
+  protected chatFeatureRegistry: ChatFeatureRegistry;
+
+  private _chatStorage: IStorage;
+
+  protected fromJSON(data: ISessionModel[]) {
+    return data
+      .filter((item) => item.history.messages.length > 0)
+      .map((item) => {
+        const model = new ChatModel(this.chatFeatureRegistry, {
+          sessionId: item.sessionId,
+          createdAt: item.createdAt,
+          history: new MsgHistoryManager(this.chatFeatureRegistry, item.history),
+          modelId: item.modelId,
+        });
+        const requests = item.requests.map(
+          (request) =>
+            new ChatRequestModel(
+              request.requestId,
+              model,
+              request.message,
+              new ChatResponseModel(request.requestId, model, request.message.agentId, {
+                responseContents: request.response.responseContents,
+                isComplete: true,
+                responseText: request.response.responseText,
+                responseParts: request.response.responseParts,
+                errorDetails: request.response.errorDetails,
+                followups: request.response.followups,
+                isCanceled: request.response.isCanceled,
+              }),
+            ),
+        );
+        model.restoreRequests(requests);
+        return model;
+      });
+  }
+
+  constructor() {
+    super();
+  }
+
+  async init() {
+    this._chatStorage = await this.storageProvider(STORAGE_NAMESPACE.CHAT);
+    const sessionsModelData = this._chatStorage.get<ISessionModel[]>('sessionModels', []);
+    const savedSessions = this.fromJSON(sessionsModelData);
+    savedSessions.forEach((session) => {
+      this.sessionModels.set(session.sessionId, session);
+      this.listenSession(session);
+    });
+    await this.storageInitEmitter.fireAndAwait();
+  }
+
+  getSessions() {
+    return Array.from(this.sessionModels.values());
+  }
+
+  async startSession(): Promise<ChatModel> {
+    const model = new ChatModel(this.chatFeatureRegistry);
+    this.sessionModels.set(model.sessionId, model);
+    this.listenSession(model);
+    return model;
+  }
+
+  getSession(sessionId: string): ChatModel | undefined {
+    return this.sessionModels.get(sessionId);
+  }
+
+  clearSession(sessionId: string) {
+    const model = this.sessionModels.get(sessionId) as ChatModel;
+    if (!model) {
+      throw new Error(`Unknown session: ${sessionId}`);
+    }
+    this.sessionModels.disposeKey(sessionId);
+    this.#pendingRequests.get(sessionId)?.cancel();
+    this.#pendingRequests.disposeKey(sessionId);
+    this.saveSessions();
+  }
+
+  createRequest(sessionId: string, message: string, agentId: string, command?: string, images?: string[]) {
+    const model = this.getSession(sessionId);
+    if (!model) {
+      throw new Error(`Unknown session: ${sessionId}`);
+    }
+
+    if (this.#pendingRequests.has(sessionId)) {
+      return;
+    }
+
+    return model.addRequest({ prompt: message, agentId, command, images });
+  }
+
+  async sendRequest(sessionId: string, request: ChatRequestModel, regenerate: boolean) {
+    const startTime = Date.now();
+    this.logger.log(
+      `[ChatManagerService] sendRequest enter — sessionId=${sessionId}, requestId=${request.requestId}, agentId=${
+        request.message.agentId
+      }, command=${request.message.command || '(empty)'}, regenerate=${Boolean(regenerate)}`,
+    );
+    const model = this.getSession(sessionId);
+    if (!model) {
+      this.logger.error(
+        `[ChatManagerService] sendRequest missing model — sessionId=${sessionId}, requestId=${request.requestId}`,
+      );
+      throw new Error(`Unknown session: ${sessionId}`);
+    }
+    this.logger.log(
+      `[ChatManagerService] sendRequest model resolved — sessionId=${sessionId}, requestId=${
+        request.requestId
+      }, requests=${model.requests.length}, historyMessages=${model.history.getMessages().length}`,
+    );
+
+    const savedModelId = model.modelId;
+    const modelId = this.preferenceService.get<string>(AINativeSettingSectionsId.ModelID);
+    this.logger.log(
+      `[ChatManagerService] sendRequest model preference — sessionId=${sessionId}, requestId=${
+        request.requestId
+      }, savedModelId=${savedModelId || '(empty)'}, currentModelId=${modelId || '(empty)'}`,
+    );
+    if (!savedModelId) {
+      // 首次对话时记录 modelId
+      model.modelId = modelId;
+    } else if (savedModelId !== modelId && this.shouldValidateModelChange(sessionId, model)) {
+      // 模型切换时，清空对话历史
+      this.logger.error(
+        `[ChatManagerService] sendRequest model changed — sessionId=${sessionId}, requestId=${
+          request.requestId
+        }, savedModelId=${savedModelId || '(empty)'}, currentModelId=${modelId || '(empty)'}`,
+      );
+      throw new Error('Model changed unexpectedly');
+    } else if (savedModelId !== modelId) {
+      this.logger.log(
+        `[ChatManagerService] sendRequest model change allowed — sessionId=${sessionId}, requestId=${
+          request.requestId
+        }, savedModelId=${savedModelId || '(empty)'}, currentModelId=${modelId || '(empty)'}`,
+      );
+    }
+
+    const source = new CancellationTokenSource();
+    const token = source.token;
+    this.#pendingRequests.set(model.sessionId, source);
+    this.logger.log(
+      `[ChatManagerService] sendRequest pending registered — sessionId=${sessionId}, requestId=${request.requestId}`,
+    );
+    const listener = token.onCancellationRequested(() => {
+      this.logger.log(
+        `[ChatManagerService] sendRequest cancellation requested — sessionId=${sessionId}, requestId=${request.requestId}`,
+      );
+      request.response.cancel();
+    });
+
+    const contextWindow = this.preferenceService.get<number>(AINativeSettingSectionsId.ContextWindow);
+    this.logger.log(
+      `[ChatManagerService] sendRequest history start — sessionId=${sessionId}, requestId=${request.requestId}, contextWindow=${contextWindow}`,
+    );
+    const history = model.getMessageHistory(contextWindow);
+    this.logger.log(
+      `[ChatManagerService] sendRequest history done — sessionId=${sessionId}, requestId=${request.requestId}, historyMessages=${history.length}`,
+    );
+
+    try {
+      const progressCallback = (progress: IChatProgress) => {
+        if (token.isCancellationRequested) {
+          return;
+        }
+        model.acceptResponseProgress(request, progress);
+      };
+      this.logger.log(
+        `[ChatManagerService] sendRequest progress callback ready — sessionId=${sessionId}, requestId=${request.requestId}`,
+      );
+      const requestProps = {
+        sessionId,
+        requestId: request.requestId,
+        message: request.message.prompt,
+        command: request.message.command,
+        images: request.message.images,
+        regenerate,
+      };
+      this.logger.log(
+        `[ChatManagerService] sendRequest invokeAgent before — sessionId=${sessionId}, requestId=${
+          request.requestId
+        }, agentId=${request.message.agentId}, messageChars=${requestProps.message.length}, historyMessages=${
+          history.length
+        }, chatAgentService=${this.chatAgentService?.constructor?.name || '(unknown)'}`,
+      );
+      const result = await this.chatAgentService.invokeAgent(
+        request.message.agentId,
+        requestProps,
+        progressCallback,
+        history,
+        token,
+      );
+      this.logger.log(
+        `[ChatManagerService] sendRequest invokeAgent after — sessionId=${sessionId}, requestId=${
+          request.requestId
+        }, elapsedMs=${Date.now() - startTime}, hasErrorDetails=${Boolean(result.errorDetails)}`,
+      );
+
+      if (!token.isCancellationRequested) {
+        if (result.errorDetails) {
+          request.response.setErrorDetails(result.errorDetails);
+          request.response.complete();
+          return;
+        }
+        const followups = this.chatAgentService.getFollowups(
+          request.message.agentId,
+          sessionId,
+          CancellationToken.None,
+        );
+        followups.then((followups) => {
+          request.response.setFollowups(followups);
+          request.response.complete();
+        });
+      }
+    } catch (error) {
+      const message = getErrorMessage(error);
+      this.logger.error(
+        `[ChatManagerService] sendRequest error — sessionId=${sessionId}, requestId=${request.requestId}, error=${message}`,
+      );
+      if (!token.isCancellationRequested) {
+        request.response.setErrorDetails({ message });
+        request.response.complete();
+      }
+    } finally {
+      this.logger.log(
+        `[ChatManagerService] sendRequest cleanup — sessionId=${sessionId}, requestId=${request.requestId}, elapsedMs=${
+          Date.now() - startTime
+        }, canceled=${token.isCancellationRequested}`,
+      );
+      listener.dispose();
+      this.#pendingRequests.disposeKey(model.sessionId);
+      this.saveSessions();
+    }
+  }
+
+  protected shouldValidateModelChange(_sessionId: string, _model: ChatModel): boolean {
+    void _sessionId;
+    void _model;
+    return true;
+  }
+
+  protected listenSession(session: ChatModel) {
+    this.addDispose(
+      session.history.onMessageAdditionalChange(() => {
+        this.saveSessions();
+      }),
+    );
+  }
+
+  @debounce(1000)
+  protected saveSessions() {
+    this._chatStorage.set('sessionModels', this.getSessions());
+  }
+
+  cancelRequest(sessionId: string): boolean {
+    const pendingRequest = this.#pendingRequests.get(sessionId);
+    pendingRequest?.cancel();
+    this.#pendingRequests.disposeKey(sessionId);
+    this.saveSessions();
+    return Boolean(pendingRequest);
+  }
+}

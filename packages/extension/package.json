@@ -1,0 +1,71 @@
+{
+  "name": "@opensumi/ide-extension",
+  "version": "3.9.0",
+  "files": [
+    "lib",
+    "hosted"
+  ],
+  "license": "MIT",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "scripts": {
+    "prepublishOnly": "yarn run build",
+    "build": "yarn run build:pkg && yarn run build:ext-host && yarn run compile:worker",
+    "build:pkg": "tsc --build ../../configs/ts/references/tsconfig.extension.json",
+    "compile:worker": "webpack --config webpack.config.worker.js",
+    "watch:worker": "webpack -w --config webpack.config.worker.js",
+    "build:ext-host": "tsc -p ../../configs/ts/references/tsconfig.extension.json",
+    "watch:ext-host": "tsc --watch -p ../../configs/ts/references/tsconfig.extension.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:opensumi/core.git"
+  },
+  "dependencies": {
+    "@opensumi/events": "^1.0.0",
+    "@opensumi/ide-connection": "workspace:*",
+    "@opensumi/ide-core-browser": "workspace:*",
+    "@opensumi/ide-core-node": "workspace:*",
+    "@opensumi/ide-debug": "workspace:*",
+    "@opensumi/ide-file-search": "workspace:*",
+    "@opensumi/ide-file-service": "workspace:*",
+    "@opensumi/ide-logs": "workspace:*",
+    "@opensumi/ide-markdown": "workspace:*",
+    "@opensumi/ide-task": "workspace:*",
+    "@opensumi/ide-terminal-next": "workspace:*",
+    "@opensumi/ide-utils": "workspace:*",
+    "@opensumi/ide-webview": "workspace:*",
+    "address": "^1.1.2",
+    "glob-to-regexp": "0.4.1",
+    "is-running": "^2.1.0",
+    "lru-cache": "^6.0.0",
+    "picomatch": "^2.2.1",
+    "semver": "^7.5.2",
+    "tree-kill": "^1.2.2",
+    "v8-inspect-profiler": "^0.1.1"
+  },
+  "devDependencies": {
+    "@opensumi/ide-ai-native": "workspace:*",
+    "@opensumi/ide-comments": "workspace:*",
+    "@opensumi/ide-components": "workspace:*",
+    "@opensumi/ide-core-browser": "workspace:*",
+    "@opensumi/ide-core-common": "workspace:*",
+    "@opensumi/ide-decoration": "workspace:*",
+    "@opensumi/ide-dev-tool": "workspace:*",
+    "@opensumi/ide-editor": "workspace:*",
+    "@opensumi/ide-extension-storage": "workspace:*",
+    "@opensumi/ide-file-tree-next": "workspace:*",
+    "@opensumi/ide-i18n": "workspace:*",
+    "@opensumi/ide-main-layout": "workspace:*",
+    "@opensumi/ide-monaco": "workspace:*",
+    "@opensumi/ide-output": "workspace:*",
+    "@opensumi/ide-overlay": "workspace:*",
+    "@opensumi/ide-quick-open": "workspace:*",
+    "@opensumi/ide-scm": "workspace:*",
+    "@opensumi/ide-testing": "workspace:*",
+    "@opensumi/ide-theme": "workspace:*",
+    "@opensumi/ide-toolbar": "workspace:*",
+    "@opensumi/ide-workspace": "workspace:*",
+    "@opensumi/ide-workspace-edit": "workspace:*"
+  }
+}

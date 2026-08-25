@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "../../../packages/quick-open/src",
+    "outDir": "../../../packages/quick-open/lib"
+  },
+  "include": ["../../../packages/quick-open/src"],
+  "exclude": ["../../../packages/quick-open/__mocks__"]
+}

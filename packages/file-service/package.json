@@ -1,0 +1,38 @@
+{
+  "name": "@opensumi/ide-file-service",
+  "version": "3.9.0",
+  "files": [
+    "lib",
+    "src"
+  ],
+  "license": "MIT",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "scripts": {
+    "prepublishOnly": "yarn run build",
+    "build": "tsc --build ../../configs/ts/references/tsconfig.file-service.json",
+    "build:watcher-host": "tsc -p ../../configs/ts/references/tsconfig.file-service.json"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:opensumi/core.git"
+  },
+  "dependencies": {
+    "@furyjs/fury": "0.5.9-beta",
+    "@opensumi/ide-connection": "workspace:*",
+    "@opensumi/ide-core-common": "workspace:*",
+    "@opensumi/ide-core-node": "workspace:*",
+    "@opensumi/ide-logs": "workspace:*",
+    "@opensumi/ide-utils": "workspace:*",
+    "@parcel/watcher": "2.5.1",
+    "file-type": "16.5.4",
+    "nsfw": "2.2.5",
+    "trash": "^5.2.0",
+    "vscode-languageserver-types": "^3.16.0",
+    "write-file-atomic": "^5.0.1"
+  },
+  "devDependencies": {
+    "@opensumi/ide-core-browser": "workspace:*",
+    "@opensumi/ide-dev-tool": "workspace:*"
+  }
+}

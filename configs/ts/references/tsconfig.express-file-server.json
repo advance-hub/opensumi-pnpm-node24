@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "../../../packages/express-file-server/src",
+    "outDir": "../../../packages/express-file-server/lib"
+  },
+  "include": ["../../../packages/express-file-server/src"],
+  "exclude": ["../../../packages/express-file-server/__mocks__"]
+}

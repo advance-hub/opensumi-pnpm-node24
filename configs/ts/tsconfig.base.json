@@ -1,0 +1,30 @@
+{
+  "baseUrl": "./",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "target": "ES2018",
+    "moduleResolution": "nodenext",
+    "strict": true,
+    "strictPropertyInitialization": false,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    "importHelpers": true,
+    "resolveJsonModule": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "downlevelIteration": true,
+    "noEmitOnError": false,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "strictFunctionTypes": false,
+    "useUnknownInCatchVariables": false,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "jsx": "react",
+    "lib": ["dom", "esnext", "webworker", "WebWorker.ImportScripts"],
+    "typeRoots": ["../../node_modules/@types", "../../typings"]
+  }
+}

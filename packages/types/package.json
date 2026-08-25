@@ -1,0 +1,21 @@
+{
+  "name": "@opensumi/sumi",
+  "version": "3.9.0",
+  "typings": "index.d.ts",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:opensumi/core.git"
+  },
+  "scripts": {
+    "prepublishOnly": "yarn run build",
+    "build": "tsx ./build.ts"
+  },
+  "dependencies": {
+    "@opensumi/ide-components": "workspace:*",
+    "vscode-uri": "3.0.2"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0"
+  }
+}

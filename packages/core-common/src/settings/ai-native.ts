@@ -1,0 +1,96 @@
+export enum AINativeSettingSectionsId {
+  /**
+   * inline diff preview mode
+   */
+  InlineDiffPreviewMode = 'ai.native.inlineDiff.preview.mode',
+
+  InlineChatAutoVisible = 'ai.native.inlineChat.auto.visible',
+  InlineChatCodeActionEnabled = 'ai.native.inlineChat.codeAction.enabled',
+  InterfaceQuickNavigationEnabled = 'ai.native.interface.quickNavigation.enabled',
+  ChatVisibleType = 'ai.native.chat.visible.type',
+  PanelLayout = 'ai.native.panelLayout',
+
+  /**
+   * Whether to enable prompt engineering, some LLM models may not perform well on prompt engineering.
+   */
+  IntelligentCompletionsPromptEngineeringEnabled = 'ai.native.intelligentCompletions.promptEngineering.enabled',
+  IntelligentCompletionsDebounceTime = 'ai.native.intelligentCompletions.debounceTime',
+  IntelligentCompletionsCacheEnabled = 'ai.native.intelligentCompletions.cache.enabled',
+  IntelligentCompletionsAlwaysVisible = 'ai.native.intelligentCompletions.alwaysVisible',
+
+  /**
+   * Code edits settings
+   */
+  CodeEditsLintErrors = 'ai.native.codeEdits.lintErrors',
+  CodeEditsLineChange = 'ai.native.codeEdits.lineChange',
+  CodeEditsTyping = 'ai.native.codeEdits.typing',
+  CodeEditsRenderType = 'ai.native.codeEdits.renderType',
+
+  /**
+   * Language model API keys
+   */
+  LLMModelSelection = 'ai.native.llm.model.selection',
+  ContextWindow = 'ai.native.llm.contextWindow',
+  MaxTokens = 'ai.native.llm.maxTokens',
+  ModelID = 'ai.native.llm.model.id',
+  DeepseekApiKey = 'ai.native.deepseek.apiKey',
+  AnthropicApiKey = 'ai.native.anthropic.apiKey',
+  OpenaiApiKey = 'ai.native.openai.apiKey',
+  OpenaiBaseURL = 'ai.native.openai.baseURL',
+
+  /**
+   * MCP Server configurations
+   */
+  MCPServers = 'ai.native.mcp.servers',
+
+  /**
+   * Agent configurations
+   */
+  AgentConfigs = 'ai.native.agent.configs',
+
+  /**
+   * ACP: Node.js runtime path for agent subprocesses
+   */
+  NodePath = 'ai-native.acp.nodePath',
+
+  /**
+   * ACP: Per-agent spawn parameter overrides (command/args/env)
+   */
+  AgentConfigsOverride = 'ai-native.acp.agents',
+
+  /**
+   * ACP: Maximum number of reusable agent threads.
+   */
+  AcpThreadPoolSize = 'ai-native.acp.threadPoolSize',
+
+  /**
+   * ACP: Browser delivery strategy for agent output.
+   */
+  AcpDeliveryMode = 'ai-native.acp.deliveryMode',
+
+  /**
+   * Default Agent Type
+   */
+  DefaultAgentType = 'ai.native.agent.defaultType',
+
+  TerminalAutoRun = 'ai.native.terminal.autorun',
+
+  /**
+   * WebMCP tool exposure profile for ACP agents.
+   */
+  WebMcpEnabled = 'ai.native.webmcp.enabled',
+  WebMcpProfile = 'ai.native.webmcp.profile',
+
+  /**
+   * Rules settings
+   */
+  GlobalRules = 'ai.native.globalRules',
+
+  /**
+   * System prompt
+   */
+  SystemPrompt = 'ai.native.chat.system.prompt',
+}
+export const AI_NATIVE_SETTING_GROUP_ID = 'AI-Native';
+export const AI_NATIVE_SETTING_GROUP_TITLE = 'AI Native';
+export const DEFAULT_ACP_THREAD_POOL_SIZE = 10;

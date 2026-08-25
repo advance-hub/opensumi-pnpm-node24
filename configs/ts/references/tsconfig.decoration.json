@@ -1,0 +1,9 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "../../../packages/decoration/src",
+    "outDir": "../../../packages/decoration/lib"
+  },
+  "include": ["../../../packages/decoration/src"],
+  "exclude": ["../../../packages/decoration/__mocks__"]
+}

@@ -1,0 +1,266 @@
+@import '../style/variable.less';
+
+.@{prefix}-clickable-icon {
+  &:hover {
+    transform: scale(1.1);
+  }
+
+  &:active {
+    transform: scale(1.1);
+  }
+}
+
+.@{prefix}-icon-resource::before {
+  display: inherit;
+  background-size: 16px;
+  background-position: center;
+  background-repeat: no-repeat;
+  width: 22px;
+  height: 22px;
+  -webkit-font-smoothing: antialiased;
+  flex-shrink: 0;
+}
+
+.@{prefix}-button {
+  border: none;
+  outline: none;
+  cursor: pointer;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 12px;
+  padding: 0px 12px;
+  height: 28px;
+  line-height: 1;
+  box-sizing: border-box;
+  border-radius: 2px;
+  color: var(--button-foreground);
+  background-color: var(--button-background);
+  white-space: pre-wrap;
+
+  &.block-button {
+    width: 100%;
+  }
+
+  & > .@{prefix}-button-secondary-more {
+    color: inherit;
+    margin-left: 5px;
+  }
+}
+
+@keyframes loadingCircle {
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.@{prefix}-button-anticon-spin {
+  animation: loadingCircle 1s infinite linear;
+  margin-right: 5px;
+}
+
+.default-button {
+  color: var(--kt-defaultButton-foreground);
+  background-color: var(--kt-defaultButton-background);
+
+  &:hover {
+    background-color: var(--kt-defaultButton-hoverBackground);
+  }
+
+  &:active {
+    background-color: var(--kt-defaultButton-clickBackground);
+  }
+}
+
+.primary-button {
+  color: var(--kt-primaryButton-foreground);
+  background-color: var(--kt-primaryButton-background);
+  border: 1px solid var(--kt-primaryButton-border);
+
+  &:hover {
+    background-color: var(--kt-primaryButton-hoverBackground);
+  }
+
+  &:active {
+    background-color: var(--kt-primaryButton-clickBackground);
+  }
+}
+
+.secondary-button {
+  color: var(--kt-secondaryButton-foreground);
+  background-color: var(--kt-secondaryButton-background);
+  border-style: solid;
+  border-width: 1px;
+  border-color: var(--kt-secondaryButton-border);
+
+  &:hover {
+    color: var(--kt-secondaryButton-hoverForeground);
+    background-color: var(--kt-secondaryButton-hoverBackground);
+    border-color: var(--kt-secondaryButton-hoverBorder);
+  }
+
+  &:active {
+    color: var(--kt-secondaryButton-clickForeground);
+    background-color: var(--kt-secondaryButton-clickBackground);
+    border-color: var(--kt-secondaryButton-clickBorder);
+  }
+}
+
+.ghost-button {
+  border-style: solid;
+  border-width: 1px;
+
+  &:disabled {
+    border-color: transparent;
+    border: none;
+    cursor: default;
+  }
+}
+
+.ghost-secondary-button {
+  color: var(--kt-whiteGhostButton-foreground);
+  background-color: var(--kt-whiteGhostButton-background);
+  border-color: transparent;
+
+  &:hover {
+    color: var(--kt-whiteGhostButton-foreground);
+    background-color: transparent;
+    border-color: var(--kt-whiteGhostButton-border);
+  }
+
+  &:active {
+    color: var(--kt-whiteGhostButton-clickForeground);
+    background-color: transparent;
+    border-color: var(--kt-whiteGhostButton-clickBorder);
+  }
+
+  &:disabled {
+    color: var(--kt-whiteGhostButton-disableForeground);
+    border-color: transparent;
+    cursor: default;
+  }
+}
+
+.link-button {
+  color: var(--kt-linkButton-foreground);
+  background-color: transparent;
+
+  &:hover {
+    color: var(--kt-linkButton-hoverForeground);
+    background-color: transparent;
+    border-color: transparent;
+  }
+
+  &:active {
+    color: var(--kt-linkButton-clickForeground);
+    border-color: transparent;
+    background-color: transparent;
+  }
+
+  &:disabled {
+    color: var(--kt-linkButton-disableForeground);
+    border-color: transparent !important;
+    background-color: transparent !important;
+    cursor: default;
+  }
+}
+
+.ghost-primary-button:disabled {
+  border-color: transparent;
+  background-color: transparent;
+}
+
+.ghost-button:disabled,
+.danger-button:disabled,
+.secondary-button:disabled,
+.primary-button:disabled,
+.ghost-danger-button:disabled,
+.default-button:disabled,
+.@{prefix}-danger-button-loading,
+.@{prefix}-primary-button-loading,
+.@{prefix}-secondary-button-loading {
+  color: var(--kt-button-disableForeground) !important;
+  background-color: var(--kt-button-disableBackground) !important;
+  // 这里是用 box-shadow 来实现边框的，因为 border 会破坏盒模型
+  box-shadow: var(--kt-button-disableBorder) 0px 0px 0px 1px inset;
+  cursor: not-allowed;
+
+  & > .@{prefix}-button-secondary-more {
+    color: var(--kt-button-disableForeground);
+  }
+}
+
+.secondary-button:disabled {
+  border: none;
+}
+
+.link-button:disabled {
+  cursor: not-allowed;
+}
+
+.ghost-primary-button {
+  color: var(--kt-primaryGhostButton-foreground);
+  background-color: var(--kt-primaryGhostButton-background);
+  border-color: transparent;
+
+  &:hover {
+    border-color: var(--kt-primaryGhostButton-border);
+    background-color: transparent;
+  }
+}
+
+.ghost-primary-button:active {
+  color: var(--kt-primaryGhostButton-clickForeground);
+  background-color: var(--kt-primaryGhostButton-clickBackground);
+  border-color: var(--kt-primaryGhostButton-clickBorder);
+}
+
+.danger-button {
+  color: var(--kt-dangerButton-foreground);
+  background-color: var(--kt-dangerButton-background);
+
+  &:hover {
+    background-color: var(--kt-dangerButton-hoverBackground);
+  }
+
+  &:active {
+    background-color: var(--kt-dangerButton-clickBackground);
+  }
+}
+
+.ghost-danger-button {
+  color: var(--kt-dangerGhostButton-foreground);
+  background-color: var(--kt-dangerGhostButton-background);
+  border-color: var(--kt-dangerGhostButton-border);
+
+  &:hover {
+    background-color: transparent;
+    border-color: var(--kt-dangerGhostButton-hoverBorder);
+  }
+
+  &:active {
+    background-color: var(--kt-dangerGhostButton-clickBackground);
+    border-color: var(--kt-dangerGhostButton-clickBorder);
+  }
+}
+
+.large-button-size {
+  padding: 0px 16px;
+  height: 32px;
+  line-height: 32px;
+  font-size: 14px;
+}
+
+.default-button-size {
+  padding: 0px 12px;
+  height: 28px;
+  line-height: 28px;
+  font-size: 12px;
+}
+
+.small-button-size {
+  padding: 0px 8px;
+  height: 22px;
+  line-height: 22px;
+  font-size: 12px;
+}

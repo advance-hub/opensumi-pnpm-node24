@@ -1,0 +1,87 @@
+@import '../mention-input/mention-input.module.less';
+
+.popover_icon {
+}
+
+.mention_trigger_logo {
+  margin-right: 5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  border-radius: 4px;
+
+  &:hover {
+    background-color: var(--badge-background);
+  }
+}
+
+.mode_selector {
+  margin-right: 0;
+}
+
+.config_selector {
+  margin-right: 0;
+}
+
+.model_selector {
+  margin-right: 0;
+}
+
+.config_controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.left_control {
+  flex: 1 1 auto !important;
+  gap: 8px;
+  min-width: 0;
+}
+
+.right_control {
+  margin-left: auto;
+  gap: 8px;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.model_selector,
+.mode_selector,
+.config_selector {
+  max-width: 180px;
+}
+
+.footer {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+.context_preview_container {
+  margin: 0;
+  margin-bottom: 0;
+  width: auto;
+  flex: 0 1 auto;
+  background: none;
+  border: none;
+  padding: 0;
+  max-width: 400px;
+  min-width: 0;
+}
+
+.context_preview_title {
+  &::before {
+    content: '@';
+  }
+}
+
+.slash_command_tag {
+  composes: mention_tag from '../mention-input/mention-input.module.less';
+}

@@ -1,0 +1,17 @@
+{
+  "extends": "./configs/ts/tsconfig.resolve.json",
+  "compilerOptions": {
+    "sourceMap": true,
+    "skipLibCheck": false,
+    "outDir": "./dist",
+    "noUnusedLocals": false
+  },
+  "include": ["./packages", "./tools", "./scripts", "./typings/**/*"],
+  "exclude": [
+    "node_modules",
+    "__mocks__",
+    "./tools/workspace/**/*",
+    "./tools/extensions/**/*",
+    "./tools/candidate-ext/**/*"
+  ]
+}

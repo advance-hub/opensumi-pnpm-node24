@@ -1,0 +1,94 @@
+@import '../style/variable.less';
+
+.wrapper {
+  .@{prefix}-modal-body {
+    background: var(--kt-modal-background);
+    border-color: var(--notifications-border);
+  }
+
+  .@{prefix}-modal-footer {
+    align-items: center;
+    justify-content: flex-end;
+    display: flex;
+  }
+
+  .kticon-info-circle {
+    color: var(--kt-modalInfoIcon-foreground);
+  }
+}
+
+.@{prefix}-dialog-content {
+  display: flex;
+
+  .@{prefix}-dialog-content_area {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+
+    .@{prefix}-dialog-content_title {
+      line-height: 22px;
+      font-size: 15px;
+      margin: 0px 0px 8px 0px;
+    }
+  }
+  .@{prefix}-dialog-icon {
+    margin-right: 6px;
+    border: none;
+    outline: none;
+    display: flex;
+    flex-direction: column;
+    padding: 0px;
+    line-height: 30px;
+    &:before {
+      font-size: 20px;
+    }
+  }
+
+  .@{prefix}-dialog-closex {
+    background-color: transparent;
+    border: none;
+    outline: none;
+    display: flex;
+    flex-direction: column;
+    padding: 0px;
+    cursor: pointer;
+    margin-left: 6px;
+    height: 30px;
+    line-height: 30px;
+    width: 20px;
+    align-items: center;
+    justify-content: center;
+    &:hover {
+      transform: scale(1.1);
+    }
+  }
+}
+
+.footer {
+  border-top: 1px solid var(--notifications-border);
+}
+
+.@{prefix}-dialog-buttonWrap {
+  display: flex;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  justify-content: flex-end;
+
+  button {
+    margin: 10px 0 0 8px;
+  }
+}
+
+.@{prefix}-dialog-message {
+  color: var(--kt-modal-foreground);
+  line-height: 30px;
+  font-size: 14px;
+  word-break: break-all;
+  overflow: hidden;
+  flex: 1;
+  align-items: center;
+  display: inline-flex;
+  user-select: text;
+  white-space: pre-wrap;
+}
