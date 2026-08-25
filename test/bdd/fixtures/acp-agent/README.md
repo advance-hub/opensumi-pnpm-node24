@@ -1,11 +1,11 @@
 # Mock ACP Agent
 
-`mock-acp-agent.mjs` is a deterministic stdio ACP agent for BDD and Playwright hardening. It speaks the real ACP transport through `@agentclientprotocol/sdk`, so OpenSumi still uses the normal `AcpThread` process, JSON-RPC, session updates, permission routing, WebMCP injection, and debug-log path.
+`mock-acp-agent.ts` is a deterministic stdio ACP agent for BDD and Playwright hardening. It speaks the real ACP transport through `@agentclientprotocol/sdk`, so OpenSumi still uses the normal `AcpThread` process, JSON-RPC, session updates, permission routing, WebMCP injection, and debug-log path.
 
 Run it directly for help:
 
 ```bash
-node test/bdd/fixtures/acp-agent/mock-acp-agent.mjs --help
+node test/bdd/fixtures/acp-agent/mock-acp-agent.ts --help
 ```
 
 Use it in an ACP BDD runtime by overriding the configured ACP agent command:
@@ -16,7 +16,7 @@ Use it in an ACP BDD runtime by overriding the configured ACP agent command:
   "ai-native.acp.agents": {
     "claude-agent-acp": {
       "command": "node",
-      "args": ["test/bdd/fixtures/acp-agent/mock-acp-agent.mjs", "--fixture=stream-rich"],
+      "args": ["test/bdd/fixtures/acp-agent/mock-acp-agent.ts", "--fixture=stream-rich"],
       "streaming": true,
       "description": "OpenSumi BDD mock ACP agent"
     }

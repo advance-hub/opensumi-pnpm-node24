@@ -2,7 +2,7 @@
 
 **Trigger:** `packages/ai-native/src/node/acp/acp-thread.ts`
 
-**Layer:** `node-contract` **Required profile:** `default` **Fixtures:** The mock ACP agent at `node test/bdd/fixtures/acp-agent/mock-acp-agent.mjs` provides a real stdio ACP protocol process with controllable `stream-rich`, `long-stream`, `send-failure`, `load-failure`, `auth-required`, and `permission` responses/notifications. Unsupported protocol, early process exit, and file/terminal client-hook subcases still require specialized process fixtures if the mock agent does not drive those hooks. **Workspace mutation:** None. **Automation status:** Automated contract spec; no browser click path is required.
+**Layer:** `node-contract` **Required profile:** `default` **Fixtures:** The mock ACP agent at `node test/bdd/fixtures/acp-agent/mock-acp-agent.ts` provides a real stdio ACP protocol process with controllable `stream-rich`, `long-stream`, `send-failure`, `load-failure`, `auth-required`, and `permission` responses/notifications. Unsupported protocol, early process exit, and file/terminal client-hook subcases still require specialized process fixtures if the mock agent does not drive those hooks. **Workspace mutation:** None. **Automation status:** Automated contract spec; no browser click path is required.
 
 ## Given
 

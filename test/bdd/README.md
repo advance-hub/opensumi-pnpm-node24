@@ -125,7 +125,7 @@ http://localhost:8080/?workspaceDir=<absolute>&aiNative=true&acpBddAttachmentFai
 
 The fixture is loopback-only and one-shot. It verifies that restored history remains usable and the Task becomes active even when the first post-restore attachment transport attempt fails.
 
-Configure the ACP agent command with `test/bdd/fixtures/acp-agent/mock-acp-agent.mjs`:
+Configure the ACP agent command with `test/bdd/fixtures/acp-agent/mock-acp-agent.ts`:
 
 ```json
 {
@@ -133,7 +133,7 @@ Configure the ACP agent command with `test/bdd/fixtures/acp-agent/mock-acp-agent
   "ai-native.acp.agents": {
     "claude-agent-acp": {
       "command": "node",
-      "args": ["test/bdd/fixtures/acp-agent/mock-acp-agent.mjs", "--fixture=stream-rich"],
+      "args": ["test/bdd/fixtures/acp-agent/mock-acp-agent.ts", "--fixture=stream-rich"],
       "streaming": true,
       "description": "OpenSumi BDD mock ACP agent"
     }

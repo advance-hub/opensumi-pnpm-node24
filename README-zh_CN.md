@@ -44,7 +44,7 @@
 [mcp-client-feature-image]: https://badge.mcpx.dev/?type=client&features=tools
 [mcp-client-feature-url]: https://modelcontextprotocol.io/clients
 
-[Changelog](./CHANGELOG-zh_CN.md) · [Report Bug][github-issues-url] · [Request Feature][github-issues-url] · [English](./README.md) · 中文
+[Changelog](./docs/CHANGELOG.md) · [Report Bug][github-issues-url] · [Request Feature][github-issues-url] · [English](./README.md) · 中文
 
 </div>
 
@@ -63,26 +63,42 @@
 
 ## ⚡️ 如何开发
 
-由于国内网络访问的问题，部分包的下载安装都会比较缓慢，建议在开始前将你的 npm 镜像切换至国内 taobao 镜像地址，或安装一个 npm 镜像切换工具用于快速切换，如 [nrm](https://www.npmjs.com/package/nrm), 手动设置方式如下：
+本仓库统一使用 Node.js 24 LTS 与 pnpm 11。由于国内网络访问的问题，部分包的下载安装都会比较缓慢，可以为 pnpm 设置国内镜像：
+
+使用 Volta 时请在 Node 24 下同时安装 pnpm：`volta install node@24.16.0 pnpm@11.21.0`。否则，全局 pnpm 仍可能绑定到安装它时使用的旧 Node 版本。
 
 ```bash
-$ yarn config set npmRegistryServer https://registry.npmmirror.com
+$ pnpm config set registry https://registry.npmmirror.com
 ```
 
 ```bash
-$ yarn
-$ yarn run init
-$ yarn run download-extension  # 可选
-$ yarn run start
+$ pnpm install --frozen-lockfile
+$ pnpm run setup:native        # 首次安装或切换 Node 版本后执行
+$ pnpm run init
+$ pnpm run download-extension  # 可选
+$ pnpm run dev                  # 默认轻量：IDE 核心 + Node 24 单后端
+$ pnpm run dev:source           # 框架源码 HMR + server 源码监听档
+$ pnpm run dev:ai               # 默认轻量 + AI Native
+$ pnpm run dev:full             # AI Native + Notebook 完整档
+$ pnpm run dev:collaboration    # 默认轻量 + Yjs 协同
+$ pnpm run dev:full:collaboration # 完整档 + Yjs 协同
 ```
+
+默认档不会装配 AI、Notebook 或协同模块，以减少服务端常驻内存和浏览器初始负担；这些能力仍可通过上面的命令完整启用。传统 VS Code Node 扩展仍由 Node 24 扩展宿主运行。
+
+开发启动器会先检查可用内存，server 健康后才启动 client，并在退出时回收整棵进程树。低内存默认档不生成 source map；需要源码调试映射时使用 `SOURCE_MAP=1 pnpm dev`。
+
+默认 client 直接使用各 workspace 包预编译的 `lib`，避免 Rspack 再把整套框架 TypeScript 源码常驻内存；默认 server 直接运行 `server/dist`，不再额外保留 `tsx watch` 监督进程。修改框架包后先执行 `pnpm init`。需要前后端源码监听时使用 `pnpm dev:source`；只调试一侧时可分别使用 `OPENSUMI_SOURCE_MODE=1 pnpm dev` 或 `OPENSUMI_SERVER_SOURCE_MODE=1 pnpm dev`。源码档会明显增加内存占用。
+
+`client/` 与 `server/` 是仅有的两个可运行产品目录；`packages/` 只承载内部可复用框架能力。代码归属规则见[仓库目录说明](./docs/architecture/repository-layout.md)。
 
 默认情况下，框架会将项目下的 `tools/workspace` 目录作为工作区目录展现, 同时，你也可以通过下面的命令指定你要打开的工作区路径:
 
 ```bash
-$ MY_WORKSPACE={local_path} yarn run start
+$ MY_WORKSPACE={local_path} pnpm run dev
 ```
 
-通常情况下，你可能还会遇到一些系统级别的环境依赖问题，你可以访问 [开发环境准备](./CONTRIBUTING-zh_CN.md#开发环境准备) 查看如何安装对应环境依赖。
+通常情况下，你可能还会遇到一些系统级别的环境依赖问题，你可以访问 [开发环境准备](./docs/CONTRIBUTING-zh_CN.md#开发环境准备) 查看如何安装对应环境依赖。
 
 ## 📕 文档
 
@@ -90,17 +106,17 @@ $ MY_WORKSPACE={local_path} yarn run start
 
 ## 📍 更新日志及不兼容的变更
 
-请访问 [CHANGELOG.md](./CHANGELOG.md).
+请访问 [CHANGELOG.md](./docs/CHANGELOG.md).
 
 ## 🔥 如何贡献
 
-阅读我们的 [如何贡献代码](./CONTRIBUTING-zh_CN.md) 文档学习我们的开发环境配置、流程管理、编码规则等详细规则。
+阅读我们的 [如何贡献代码](./docs/CONTRIBUTING-zh_CN.md) 文档学习我们的开发环境配置、流程管理、编码规则等详细规则。
 
 ## 🙋‍♀️ 帮助我们
 
 如果你希望反馈一个 Bug, 你可以直接在 [Issues](https://github.com/opensumi/core/issues) 中直接按照格式进行创建，在提供必要的复现路径和版本信息后，我们将会有相关人员进行处理。
 
-如果你希望提交一些代码或者帮助我们优化文档，我们十分欢迎 ~ 你可以阅读详细的 [如何贡献代码](./CONTRIBUTING-zh_CN.md) 文档路径如何贡献。
+如果你希望提交一些代码或者帮助我们优化文档，我们十分欢迎 ~ 你可以阅读详细的 [如何贡献代码](./docs/CONTRIBUTING-zh_CN.md) 文档路径如何贡献。
 
 同时，对于 [Issues](https://github.com/opensumi/core/issues) 中标记了 `help wanted` 或者 `good first issue` 的问题，将会比较适合作为你的第一个 PR 来提交。
 
@@ -145,7 +161,7 @@ $ MY_WORKSPACE={local_path} yarn run start
 </tr>
 </table>
 
-在开始之前，请花点时间查看我们的[贡献指南](./CONTRIBUTING-zh_CN.md)。欢迎通过 [Pull Requests](https://github.com/opensumi/core/pulls) 或 [GitHub Issues](https://github.com/opensumi/core/issues) 分享您的想法。
+在开始之前，请花点时间查看我们的[贡献指南](./docs/CONTRIBUTING-zh_CN.md)。欢迎通过 [Pull Requests](https://github.com/opensumi/core/pulls) 或 [GitHub Issues](https://github.com/opensumi/core/issues) 分享您的想法。
 
 ## 📃 协议
 

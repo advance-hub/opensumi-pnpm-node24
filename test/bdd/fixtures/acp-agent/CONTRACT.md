@@ -1,6 +1,6 @@
 # ACP BDD Mock Agent Fixture Contract
 
-This contract summarizes the deterministic fixture modes consumed by BDD hardening work. It is based on the `test/bdd/evidence/2026-06-11` blocked reports and the fixture implementation in `mock-acp-agent.mjs`.
+This contract summarizes the deterministic fixture modes consumed by BDD hardening work. It is based on the `test/bdd/evidence/2026-06-11` blocked reports and the fixture implementation in `mock-acp-agent.ts`.
 
 ## Determinism Rules
 

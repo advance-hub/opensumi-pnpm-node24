@@ -22,7 +22,7 @@
 
 - 使用一次性工作区，至少包含 `editor.js`、`editor2.js`、`editor3.js`。
 - 默认布局用例使用 `default` profile；Agentic 任务和排队任务使用 `interactive` profile。
-- Agentic 用例建议使用 `test/bdd/fixtures/acp-agent/mock-acp-agent.mjs` 的确定性 fixture，避免依赖真实模型输出。
+- Agentic 用例建议使用 `test/bdd/fixtures/acp-agent/mock-acp-agent.ts` 的确定性 fixture，避免依赖真实模型输出。
 - 流式恢复用例使用 `--fixture=long-stream`；历史恢复使用 `--fixture=history`；错误恢复分别使用 `--fixture=create-failure`、`--fixture=send-failure` 和 `--fixture=load-failure`。
 - 进程池用例将 `ai.native.acp.threadPoolSize` 设为 3；容量竞态和失败注入优先执行 node-contract，不依赖真实模型。
 - 跨项目用例准备三个目录：当前项目、另一个存在的项目、一个已删除或不可访问的项目。

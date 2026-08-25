@@ -2,7 +2,7 @@
 
 **Trigger:** `packages/ai-native/src/browser/acp/webmcp-groups/acp-chat.webmcp-group.ts`
 
-**Layer:** `mcp-contract` **Required profile:** `interactive` or `full` **Fixtures:** Fresh MCP session in a profile that exposes `acp_chat_get_available_commands` and command metadata from the mock ACP agent configured as `node test/bdd/fixtures/acp-agent/mock-acp-agent.mjs --fixture=stream-rich`; the active real ACP agent may supply live evidence only when its command catalog is stable for the run. **Workspace mutation:** None. **Automation status:** Automated MCP contract spec; default-profile runs should skip this scenario instead of marking it partial. Playwright conversion requires the stable mock command catalog or an equivalent deterministic provider.
+**Layer:** `mcp-contract` **Required profile:** `interactive` or `full` **Fixtures:** Fresh MCP session in a profile that exposes `acp_chat_get_available_commands` and command metadata from the mock ACP agent configured as `node test/bdd/fixtures/acp-agent/mock-acp-agent.ts --fixture=stream-rich`; the active real ACP agent may supply live evidence only when its command catalog is stable for the run. **Workspace mutation:** None. **Automation status:** Automated MCP contract spec; default-profile runs should skip this scenario instead of marking it partial. Playwright conversion requires the stable mock command catalog or an equivalent deterministic provider.
 
 ## Given
 

@@ -7,9 +7,8 @@
 <p align="center">A framework helps you quickly build AI Native IDE products.</p>
 
 <div align="center">
- 
-[![MCP][mcp-client-image]][mcp-client-url]
-[![MCP Feature][mcp-client-feature-image]][mcp-client-feature-url]
+
+[![MCP][mcp-client-image]][mcp-client-url] [![MCP Feature][mcp-client-feature-image]][mcp-client-feature-url]
 
 [![CI][ci-image]][ci-url] [![E2E][e2e-image]][e2e-url] [![Test Coverage][test-image]][test-url] [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com) [![Issues need help][help-wanted-image]][help-wanted-url]
 
@@ -45,7 +44,7 @@
 [mcp-client-feature-image]: https://badge.mcpx.dev/?type=client&features=tools
 [mcp-client-feature-url]: https://modelcontextprotocol.io/clients
 
-[Changelog](./CHANGELOG.md) · [Report Bug][github-issues-url] · [Request Feature][github-issues-url] · English · [中文](./README-zh_CN.md)
+[Changelog](./docs/CHANGELOG.md) · [Report Bug][github-issues-url] · [Request Feature][github-issues-url] · English · [中文](./README-zh_CN.md)
 
 </div>
 
@@ -64,20 +63,38 @@ Here you can find some of our example projects and templates:
 
 ## ⚡️ Development
 
+Use Node.js 24 LTS and pnpm 11. The browser product lives in `client/`; the single Node.js backend lives in `server/` and retains full VS Code Node extension compatibility.
+
+When using Volta, install both tools after selecting Node 24 (`volta install node@24.16.0 pnpm@11.21.0`); Volta otherwise keeps a globally installed pnpm bound to the Node version that was active when pnpm was installed.
+
 ```bash
-$ yarn install
-$ yarn run init
-$ yarn run download-extension  # Optional
-$ yarn run start
+$ pnpm install --frozen-lockfile
+$ pnpm run setup:native        # First install or after changing Node versions
+$ pnpm run init
+$ pnpm run download-extension  # Optional
+$ pnpm run dev                  # lightweight core profile
+$ pnpm run dev:source           # framework and server source-watch profile
+$ pnpm run dev:ai               # core + AI Native
+$ pnpm run dev:full             # AI Native + Notebook
+$ pnpm run dev:collaboration    # core + Yjs collaboration
+$ pnpm run dev:full:collaboration
 ```
+
+The default profile does not compose AI, Notebook, or collaboration modules, reducing server residency and initial browser work. These capabilities remain available through the explicit profiles above, while traditional VS Code Node extensions continue to run in Node 24 extension hosts.
+
+Development starts the server before the client, enforces bounded heaps and available-memory preflight checks, and shuts down the complete process tree. Source maps are disabled in the low-memory default; run `SOURCE_MAP=1 pnpm dev` when a debugging session needs them.
+
+The default client consumes the workspace packages' precompiled `lib` output instead of making Rspack retain the entire framework TypeScript source graph, and the default server runs the compiled `server/dist` entry without a second `tsx watch` supervisor. Run `pnpm init` after changing framework packages. Use `pnpm dev:source` when both browser-side HMR for `packages/*/src` and server source watching are required; use `OPENSUMI_SOURCE_MODE=1` or `OPENSUMI_SERVER_SOURCE_MODE=1` with `pnpm dev` when only one side needs source mode. These modes intentionally use more memory.
+
+`client/` and `server/` are the only runnable product directories. `packages/` contains internal reusable framework capabilities; see the [repository layout](./docs/architecture/repository-layout.md) for placement rules.
 
 By default, the `tools/workspace` folder in the project would be opened, or you can run the project by specifying the directory in the following way:
 
 ```bash
-$ MY_WORKSPACE={local_path} yarn run start
+$ MY_WORKSPACE={local_path} pnpm run dev
 ```
 
-Usually, you may still encounter some system-level environment dependencies. You can visit [Development Environment Preparation](./CONTRIBUTING.md#development-environment-preparation) to see how to install the corresponding environment dependencies.
+Usually, you may still encounter some system-level environment dependencies. You can visit [Development Environment Preparation](./docs/CONTRIBUTING.md#development-environment-preparation) to see how to install the corresponding environment dependencies.
 
 ## 📕 Documentation
 
@@ -85,15 +102,15 @@ For complete documentation: [opensumi.com](https://opensumi.com)
 
 ## 📍 ReleaseNotes & BreakingChanges
 
-You can see all the releasenotes and breaking changes here: [CHANGELOG.md](./CHANGELOG.md).
+You can see all the releasenotes and breaking changes here: [CHANGELOG.md](./docs/CHANGELOG.md).
 
 ## 🔥 Contributing
 
-Read through our [Contributing Guide](./CONTRIBUTING.md) to learn about our submission process, coding rules and more.
+Read through our [Contributing Guide](./docs/CONTRIBUTING.md) to learn about our submission process, coding rules and more.
 
 ## 🙋‍♀️ Want to Help?
 
-Want to report a bug, contribute some code, or improve documentation? Excellent! Read up on our [Contributing Guidelines](./CONTRIBUTING.md) for contributing and then check out one of our issues labeled as help wanted or good first issue.
+Want to report a bug, contribute some code, or improve documentation? Excellent! Read up on our [Contributing Guidelines](./docs/CONTRIBUTING.md) for contributing and then check out one of our issues labeled as help wanted or good first issue.
 
 ## 🧑‍💻 Needs some help?
 
@@ -134,7 +151,7 @@ Let's build a better OpenSumi together.
 </tr>
 </table>
 
-We warmly invite contributions from everyone. Before you get started, please take a moment to review our [Contributing Guide](./CONTRIBUTING.md). Feel free to share your ideas through [Pull Requests](https://github.com/opensumi/core/pulls) or [GitHub Issues](https://github.com/opensumi/core/issues).
+We warmly invite contributions from everyone. Before you get started, please take a moment to review our [Contributing Guide](./docs/CONTRIBUTING.md). Feel free to share your ideas through [Pull Requests](https://github.com/opensumi/core/pulls) or [GitHub Issues](https://github.com/opensumi/core/issues).
 
 ## 📃 License
 

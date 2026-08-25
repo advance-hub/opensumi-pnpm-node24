@@ -2,7 +2,7 @@
 
 **Trigger:** `packages/ai-native/src/browser/chat/chat.view.acp.tsx`, `packages/ai-native/src/browser/components/ChatReply.tsx`, or `packages/ai-native/src/browser/chat/chat-model.ts`
 
-**Layer:** `runtime-ui` **Required profile:** `interactive` **Fixtures:** Agentic startup has passed, the mock ACP agent is configured as `node test/bdd/fixtures/acp-agent/mock-acp-agent.mjs --fixture=stream-rich`, stable selectors or visible text access are available for the Agentic message list and `Deep Thinking` toggle, and a fresh MCP session runs in a profile exposing the required `acp_chat` tools. **Workspace mutation:** None. **Automation status:** Automated through Chrome DevTools MCP plus the deterministic mock ACP agent; live-agent runs may verify only coarse collapsed-shell behavior, while sentinel reasoning assertions require the mock `stream-rich` fixture.
+**Layer:** `runtime-ui` **Required profile:** `interactive` **Fixtures:** Agentic startup has passed, the mock ACP agent is configured as `node test/bdd/fixtures/acp-agent/mock-acp-agent.ts --fixture=stream-rich`, stable selectors or visible text access are available for the Agentic message list and `Deep Thinking` toggle, and a fresh MCP session runs in a profile exposing the required `acp_chat` tools. **Workspace mutation:** None. **Automation status:** Automated through Chrome DevTools MCP plus the deterministic mock ACP agent; live-agent runs may verify only coarse collapsed-shell behavior, while sentinel reasoning assertions require the mock `stream-rich` fixture.
 
 ## Given
 

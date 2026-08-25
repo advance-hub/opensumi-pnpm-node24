@@ -2,7 +2,7 @@
 
 **Trigger:** `packages/ai-native/src/node/acp/acp-agent.service.ts`, `packages/ai-native/src/node/acp/acp-cli-back.service.ts`, `packages/ai-native/src/node/index.ts`, or `packages/ai-native/src/browser/chat/acp-session-provider.ts`
 
-**Layer:** `node-contract` **Required profile:** `default` **Fixtures:** The mock ACP agent at `node test/bdd/fixtures/acp-agent/mock-acp-agent.mjs` covers session creation/loading, `--fixture=stream-rich` streaming, `--fixture=long-stream` detach/reattach and cancellation, `--fixture=send-failure` prompt errors, `--fixture=load-failure` load fallback, and advertised HTTP MCP capability controls. The service harness can create two browser-scoped `AcpCliBackService` instances over one container-scoped `AcpAgentService`. **Workspace mutation:** None. **Automation status:** Automated contract spec; browser preflight is optional when validating the visible provider path.
+**Layer:** `node-contract` **Required profile:** `default` **Fixtures:** The mock ACP agent at `node test/bdd/fixtures/acp-agent/mock-acp-agent.ts` covers session creation/loading, `--fixture=stream-rich` streaming, `--fixture=long-stream` detach/reattach and cancellation, `--fixture=send-failure` prompt errors, `--fixture=load-failure` load fallback, and advertised HTTP MCP capability controls. The service harness can create two browser-scoped `AcpCliBackService` instances over one container-scoped `AcpAgentService`. **Workspace mutation:** None. **Automation status:** Automated contract spec; browser preflight is optional when validating the visible provider path.
 
 **Acceptance coverage:** `E-01`, `E-02`, and `E-07` from `test/bdd/feat-0710-acceptance.md`.
 

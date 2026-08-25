@@ -2,7 +2,7 @@
 
 **Trigger:** `packages/ai-native/src/node/acp/acp-debug-log.ts`, `packages/ai-native/src/browser/acp/debug-log/acp-debug-log.contribution.ts`, or `packages/ai-native/src/browser/acp/debug-log/acp-debug-log.view.tsx`
 
-**Layer:** `runtime-ui` **Required profile:** `full` with ACP debug logging enabled. **Fixtures:** ACP debug log store, one thread driven by `node test/bdd/fixtures/acp-agent/mock-acp-agent.mjs --fixture=stream-rich` or synthetic store records that emit protocol lines, optionally a real LLM-backed ACP agent for live redacted-log viewer smoke coverage, and the browser debug-log contribution. **Workspace mutation:** None. **Automation status:** Automated with store-level Jest assertions plus Playwright/Chrome DevTools MCP viewer, copy, clear, and redaction checks.
+**Layer:** `runtime-ui` **Required profile:** `full` with ACP debug logging enabled. **Fixtures:** ACP debug log store, one thread driven by `node test/bdd/fixtures/acp-agent/mock-acp-agent.ts --fixture=stream-rich` or synthetic store records that emit protocol lines, optionally a real LLM-backed ACP agent for live redacted-log viewer smoke coverage, and the browser debug-log contribution. **Workspace mutation:** None. **Automation status:** Automated with store-level Jest assertions plus Playwright/Chrome DevTools MCP viewer, copy, clear, and redaction checks.
 
 ## Given
 

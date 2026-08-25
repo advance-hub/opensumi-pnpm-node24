@@ -2,7 +2,7 @@
 
 **Trigger:** `packages/ai-native/src/browser/acp/components/AcpChatViewWrapper.tsx`, `packages/ai-native/src/browser/chat/chat.internal.service.acp.ts`, `packages/ai-native/src/browser/chat/chat.view.acp.tsx`, or `packages/ai-native/src/browser/acp/components/AcpChatViewHeader.tsx`
 
-**Layer:** `runtime-ui` **Required profile:** `interactive` **Fixtures:** Agentic startup has passed, the mock ACP agent is configured as `node test/bdd/fixtures/acp-agent/mock-acp-agent.mjs --fixture=stream-rich`, and a fresh MCP session exposes `acp_chat_get_session_state`, `acp_chat_list_sessions`, and `acp_chat_get_available_commands`. The fixture's `session/new` response includes stable `configOptions`, modes, models, and safe command metadata. **Workspace mutation:** None. **Automation status:** Automated through Chrome DevTools MCP plus safe ACP Chat MCP state/list/command tools; Playwright conversion requires deterministic selectors for footer config controls, model/mode affordances, and command entry points.
+**Layer:** `runtime-ui` **Required profile:** `interactive` **Fixtures:** Agentic startup has passed, the mock ACP agent is configured as `node test/bdd/fixtures/acp-agent/mock-acp-agent.ts --fixture=stream-rich`, and a fresh MCP session exposes `acp_chat_get_session_state`, `acp_chat_list_sessions`, and `acp_chat_get_available_commands`. The fixture's `session/new` response includes stable `configOptions`, modes, models, and safe command metadata. **Workspace mutation:** None. **Automation status:** Automated through Chrome DevTools MCP plus safe ACP Chat MCP state/list/command tools; Playwright conversion requires deterministic selectors for footer config controls, model/mode affordances, and command entry points.
 
 ## Given
 

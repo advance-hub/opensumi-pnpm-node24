@@ -2,7 +2,7 @@
 
 **Trigger:** `packages/ai-native/src/node/acp/acp-debug-log.ts`, `packages/ai-native/src/browser/acp/debug-log/acp-debug-log.view.tsx`, `packages/ai-native/src/browser/chat/chat.view.acp.tsx`, or `packages/ai-native/src/node/acp/acp-cli-back.service.ts`
 
-**Layer:** `runtime-ui` **Required profile:** `full` with ACP debug logging enabled. **Fixtures:** Agentic startup has passed, the mock ACP agent is configured as `node test/bdd/fixtures/acp-agent/mock-acp-agent.mjs --fixture=stream-rich` for a deterministic ACP stream, or a real LLM-backed ACP agent is used only for live redacted-log smoke coverage, debug log store/viewer, and command `ai.native.acp.openDebugLog`. **Workspace mutation:** None. **Automation status:** Automated through Playwright/Chrome DevTools MCP and command execution. The viewer and Copy All share the product redaction contract; live-agent evidence must not include real secrets.
+**Layer:** `runtime-ui` **Required profile:** `full` with ACP debug logging enabled. **Fixtures:** Agentic startup has passed, the mock ACP agent is configured as `node test/bdd/fixtures/acp-agent/mock-acp-agent.ts --fixture=stream-rich` for a deterministic ACP stream, or a real LLM-backed ACP agent is used only for live redacted-log smoke coverage, debug log store/viewer, and command `ai.native.acp.openDebugLog`. **Workspace mutation:** None. **Automation status:** Automated through Playwright/Chrome DevTools MCP and command execution. The viewer and Copy All share the product redaction contract; live-agent evidence must not include real secrets.
 
 ## Given
 
