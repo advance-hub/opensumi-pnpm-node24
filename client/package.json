@@ -1,0 +1,37 @@
+{
+  "name": "@opensumi/client",
+  "version": "3.9.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "cross-env NODE_OPTIONS=--max-old-space-size=768 NODE_ENV=production rspack build --config rspack.config.ts",
+    "build:full": "cross-env NODE_OPTIONS=--max-old-space-size=1024 NODE_ENV=production ENABLE_AI=1 ENABLE_NOTEBOOK=1 rspack build --config rspack.config.ts",
+    "dev": "cross-env NODE_OPTIONS=--max-old-space-size=512 HOST=127.0.0.1 WS_PATH=ws://127.0.0.1:8000 NODE_ENV=development rspack dev --config rspack.config.ts",
+    "dev:ai": "cross-env NODE_OPTIONS=--max-old-space-size=768 ENABLE_AI=1 HOST=127.0.0.1 WS_PATH=ws://127.0.0.1:8000 NODE_ENV=development rspack dev --config rspack.config.ts",
+    "dev:collaboration": "cross-env NODE_OPTIONS=--max-old-space-size=512 ENABLE_COLLABORATION=1 HOST=127.0.0.1 WS_PATH=ws://127.0.0.1:8000 NODE_ENV=development rspack dev --config rspack.config.ts"
+  },
+  "dependencies": {
+    "@opensumi/ide-ai-native": "workspace:*",
+    "@opensumi/ide-collaboration": "workspace:*",
+    "@opensumi/ide-core-browser": "workspace:*",
+    "@opensumi/ide-design": "workspace:*",
+    "@opensumi/ide-notebook": "workspace:*",
+    "@opensumi/ide-startup": "workspace:*"
+  },
+  "devDependencies": {
+    "@rspack/cli": "^2.1.10",
+    "@rspack/core": "^2.1.10",
+    "@rspack/dev-server": "^2.2.0",
+    "@opensumi/ide-dev-tool": "workspace:*",
+    "css-loader": "^7.1.4",
+    "cross-env": "^7.0.3",
+    "less": "^4.9.0",
+    "less-loader": "^13.0.0",
+    "style-loader": "^4.0.0",
+    "ts-loader": "^9.6.2",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=24.0.0 <25"
+  }
+}

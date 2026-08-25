@@ -9,7 +9,7 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "scripts": {
-    "prepublishOnly": "yarn run build",
+    "prepublishOnly": "pnpm run build",
     "build": "tsc -p ../../configs/ts/references/tsconfig.comments.json"
   },
   "repository": {
@@ -29,6 +29,10 @@
     "@opensumi/ide-monaco": "workspace:*",
     "@opensumi/ide-monaco-enhance": "workspace:*",
     "@opensumi/ide-theme": "workspace:*",
-    "@types/react-mentions": "^4.1.13"
+    "@types/react-mentions": "^4.4.1"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   }
 }

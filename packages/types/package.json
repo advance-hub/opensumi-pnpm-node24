@@ -8,7 +8,7 @@
     "url": "git@github.com:opensumi/core.git"
   },
   "scripts": {
-    "prepublishOnly": "yarn run build",
+    "prepublishOnly": "pnpm run build",
     "build": "tsx ./build.ts"
   },
   "dependencies": {
@@ -16,6 +16,6 @@
     "vscode-uri": "3.0.2"
   },
   "devDependencies": {
-    "@types/react": "^18.2.0"
+    "@types/react": "^18.3.28"
   }
 }

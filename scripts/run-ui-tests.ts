@@ -6,15 +6,15 @@ const folderName = 'tools/playwright';
 
 (async () => {
   if (argv.ci) {
-    await run(`cd ${folderName} && yarn run ui-tests-ci`);
+    await run(`pnpm --dir ${folderName} run ui-tests-ci`);
   } else if (argv.concurrentSmoke) {
-    await run(`cd ${folderName} && yarn run ui-tests-concurrent-smoke`);
+    await run(`pnpm --dir ${folderName} run ui-tests-concurrent-smoke`);
   } else if (argv.headful) {
     // 默认 playwright 会开启 headless
-    await run(`cd ${folderName} && yarn run ui-tests-headful`);
+    await run(`pnpm --dir ${folderName} run ui-tests-headful`);
   } else if (argv.report) {
-    await run(`cd ${folderName} && yarn run ui-tests-report`);
+    await run(`pnpm --dir ${folderName} run ui-tests-report`);
   } else {
-    await run(`cd ${folderName} && yarn run ui-tests`);
+    await run(`pnpm --dir ${folderName} run ui-tests`);
   }
 })();

@@ -18,68 +18,56 @@ jobs:
     strategy:
       matrix:
         os: [macos-latest, ubuntu-latest]
-        node-version: [20.x]
+        node-version: [24.x]
 
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-      - name: Get yarn cache directory path
-        id: yarn_cache_dir_path
-        run: echo "dir=$(yarn config get cacheFolder)" >> $GITHUB_OUTPUT
-
-      - uses: actions/cache@v4
-        id: yarn_cache
-        with:
-          path: ${{ steps.yarn_cache_dir_path.outputs.dir }}
-          key: ${{ runner.os }}-yarn-${{ hashFiles('./yarn.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-yarn-
+          cache: pnpm
 
       - name: Install
         run: |
-          yarn install --immutable
+          pnpm install --frozen-lockfile
 
       - name: Build
         run: |
-          yarn run init
-          yarn run bundle:lite
-          yarn run bundle:preview
+          pnpm run init
+          pnpm run build:client
+          pnpm run build:server
+          pnpm run bundle:lite
+          pnpm run bundle:preview
 
       - name: Lint
         run: |
-          yarn run lint --quiet
-          yarn run check:dep
+          pnpm run lint --quiet
+          pnpm run check:dep
+          pnpm run check:versions
 
   build-windows:
     runs-on: windows-2025
     steps:
       - uses: actions/checkout@v4
-      - name: Use Node.js 20.x
+      - uses: pnpm/action-setup@v4
+      - name: Use Node.js 24.x
         uses: actions/setup-node@v4
         with:
-          node-version: 20.x
-      - name: Get yarn cache directory path
-        id: yarn_cache_dir_path
-        run: echo "dir=$(yarn config get cacheFolder)" >> $Env:GITHUB_OUTPUT
-
-      - uses: actions/cache@v4
-        id: yarn_cache
-        with:
-          path: ${{ steps.yarn_cache_dir_path.outputs.dir }}
-          key: ${{ runner.os }}-yarn-${{ hashFiles('./yarn.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-yarn-
+          node-version: 24.x
+          cache: pnpm
       - name: Build
         run: |
-          yarn install --immutable
-          yarn run init
-          yarn run bundle:lite
-          yarn run bundle:preview
+          pnpm install --frozen-lockfile
+          pnpm run init
+          pnpm run build:client
+          pnpm run build:server
+          pnpm run bundle:lite
+          pnpm run bundle:preview
 
       - name: Lint
         run: |
-          yarn run lint --quiet
-          yarn run check:dep
+          pnpm run lint --quiet
+          pnpm run check:dep
+          pnpm run check:versions

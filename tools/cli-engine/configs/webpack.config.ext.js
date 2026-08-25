@@ -17,6 +17,7 @@ module.exports = {
   devtool: false,
   node: false,
   resolve: {
+    modules: ['node_modules', path.join(__dirname, '../node_modules'), path.join(__dirname, '../../../node_modules')],
     extensions: ['.ts', '.tsx', '.js', '.json', '.less'],
     plugins: [
       new TsconfigPathsPlugin({
@@ -40,7 +41,7 @@ module.exports = {
   },
   externals: [
     function ({ request }, callback) {
-      if (['node-pty', 'nsfw', 'spdlog', 'getmac'].indexOf(request) !== -1) {
+      if (['node-pty', 'nsfw', '@vscode/spdlog', 'getmac'].indexOf(request) !== -1) {
         return callback(null, `commonjs ${request}`);
       }
       callback();

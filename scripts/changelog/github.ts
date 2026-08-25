@@ -81,11 +81,10 @@ export async function extractChangelog(logs: ReadonlyArray<DefaultLogFields>): P
  */
 export async function getPrList(startTime: number = Date.now(), state = PR_STATE.CLOSED, projectId = 'opensumi/core') {
   const per_page = 100;
-  let page = 1;
   const start = new Date(startTime).getTime();
   const result: any[] = [];
   const _state = state === PR_STATE.ALL ? 'all' : state === PR_STATE.CLOSED ? 'closed' : 'open';
-  for (page = 1; ; page++) {
+  for (let page = 1; ; page++) {
     const res = await fetch(
       `https://api.github.com/repos/${projectId}/pulls?` +
         new URLSearchParams({

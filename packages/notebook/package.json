@@ -11,10 +11,10 @@
   ],
   "scripts": {
     "build": "tsc --build ../../configs/ts/references/tsconfig.notebook.json",
-    "prepublishOnly": "yarn run build"
+    "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
-    "@ant-design/icons": "^4.6.4",
+    "@ant-design/icons": "^5.6.1",
     "@difizen/libro-code-editor": "0.2.45",
     "@difizen/libro-common": "0.2.45",
     "@difizen/libro-core": "0.2.45",

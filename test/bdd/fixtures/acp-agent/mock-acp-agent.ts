@@ -1,14 +1,52 @@
 #!/usr/bin/env node
+/* eslint-disable no-console */
+
+import { Readable, Writable } from 'node:stream';
 
 import { AgentSideConnection, RequestError, ndJsonStream } from '@agentclientprotocol/sdk';
-import { Readable, Writable } from 'node:stream';
+
+import type {
+  Agent,
+  AvailableCommand,
+  ContentBlock,
+  NewSessionResponse,
+  PromptResponse,
+  SessionConfigOption,
+  SessionInfo,
+  SessionModeState,
+  SessionModelState,
+  SessionUpdate,
+  ToolCall,
+} from '@agentclientprotocol/sdk';
 
 const DEFAULT_DELAY_MS = 40;
 const DEFAULT_LONG_STREAM_TICKS = 80;
 const PROCESS_EXIT_FIXTURE_CODE = 17;
 const TASK_SESSION_MISSING_EXIT_CODE = 18;
 
-function parseArgs(argv) {
+interface CliOptions {
+  fixture: string;
+  delayMs: number;
+  longStreamTicks: number;
+  sessionPrefix: string;
+  verbose: boolean;
+  help: boolean;
+}
+
+interface SessionRecord {
+  sessionId: string;
+  cwd: string;
+  title: string;
+  updatedAt: string;
+  mode: string;
+  model: string;
+  thought: string;
+  webSearch: boolean;
+  promptCount: number;
+  historySeed?: string;
+}
+
+function parseArgs(argv: string[]): CliOptions {
   const options = {
     fixture: process.env.OPENSUMI_ACP_BDD_FIXTURE || 'stream-rich',
     delayMs: Number(process.env.OPENSUMI_ACP_BDD_DELAY_MS || DEFAULT_DELAY_MS),
@@ -59,7 +97,7 @@ if (options.help) {
   console.log(`OpenSumi BDD mock ACP agent
 
 Usage:
-  node test/bdd/fixtures/acp-agent/mock-acp-agent.mjs [--fixture stream-rich]
+  node test/bdd/fixtures/acp-agent/mock-acp-agent.ts [--fixture stream-rich]
 
 Options:
   --fixture <name>          Fixture mode. Also accepts OPENSUMI_ACP_BDD_FIXTURE.
@@ -85,17 +123,17 @@ Fixtures:
   process.exit(0);
 }
 
-const log = (...args) => {
+const log = (...args: unknown[]): void => {
   if (options.verbose) {
     console.error('[mock-acp-agent]', ...args);
   }
 };
 
-const sleep = (ms = options.delayMs) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms = options.delayMs): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 const nowIso = () => new Date().toISOString();
-const text = (value) => ({ type: 'text', text: value });
+const text = (value: string): ContentBlock => ({ type: 'text', text: value });
 
-function createConfigOptions(state = {}) {
+function createConfigOptions(state: Partial<SessionRecord> = {}): SessionConfigOption[] {
   const values = {
     mode: state.mode || 'agent',
     model: state.model || 'bdd-small',
@@ -148,7 +186,7 @@ function createConfigOptions(state = {}) {
   ];
 }
 
-function createModes(currentModeId = 'agent') {
+function createModes(currentModeId = 'agent'): SessionModeState {
   return {
     currentModeId,
     availableModes: [
@@ -158,7 +196,7 @@ function createModes(currentModeId = 'agent') {
   };
 }
 
-function createModels(currentModelId = 'bdd-small') {
+function createModels(currentModelId = 'bdd-small'): SessionModelState {
   return {
     currentModelId,
     availableModels: [
@@ -168,7 +206,7 @@ function createModels(currentModelId = 'bdd-small') {
   };
 }
 
-function createCommands() {
+function createCommands(): AvailableCommand[] {
   return [
     {
       name: 'bdd_echo',
@@ -188,7 +226,7 @@ function createCommands() {
   ];
 }
 
-function createSessionRecord(sessionId, cwd) {
+function createSessionRecord(sessionId: string, cwd: string): SessionRecord {
   return {
     sessionId,
     cwd,
@@ -202,7 +240,7 @@ function createSessionRecord(sessionId, cwd) {
   };
 }
 
-function createHistorySessionRecord(sessionId, cwd, seed, updatedAt) {
+function createHistorySessionRecord(sessionId: string, cwd: string, seed: string, updatedAt: string): SessionRecord {
   const session = createSessionRecord(sessionId, cwd);
   session.title = `BDD History ${seed}`;
   session.updatedAt = updatedAt;
@@ -211,7 +249,7 @@ function createHistorySessionRecord(sessionId, cwd, seed, updatedAt) {
   return session;
 }
 
-function responseForSession(session) {
+function responseForSession(session: SessionRecord): NewSessionResponse {
   return {
     sessionId: session.sessionId,
     modes: createModes(session.mode),
@@ -220,7 +258,7 @@ function responseForSession(session) {
   };
 }
 
-function sessionInfo(session) {
+function sessionInfo(session: SessionRecord): SessionInfo {
   return {
     sessionId: session.sessionId,
     cwd: session.cwd,
@@ -229,7 +267,7 @@ function sessionInfo(session) {
   };
 }
 
-function extractPromptText(prompt) {
+function extractPromptText(prompt: ContentBlock[]): string {
   if (!Array.isArray(prompt)) {
     return '';
   }
@@ -247,11 +285,11 @@ function extractPromptText(prompt) {
     .join('\n');
 }
 
-function createAgent(conn) {
-  const sessions = new Map();
-  const pendingPrompts = new Map();
+function createAgent(conn: AgentSideConnection): Agent {
+  const sessions = new Map<string, SessionRecord>();
+  const pendingPrompts = new Map<string, { cancel: () => void }>();
   let nextSessionNumber = 1;
-  let historySeedCwd;
+  let historySeedCwd: string | undefined;
 
   if (options.fixture === 'history' || options.fixture === 'load-failure') {
     const seeds = [
@@ -270,24 +308,24 @@ function createAgent(conn) {
     }
   }
 
-  const emit = async (sessionId, update) => {
+  const emit = async (sessionId: string, update: SessionUpdate): Promise<void> => {
     await conn.sessionUpdate({ sessionId, update });
   };
 
-  const emitAvailableCommandsUpdate = async (session) => {
+  const emitAvailableCommandsUpdate = async (session: SessionRecord): Promise<void> => {
     await emit(session.sessionId, {
       sessionUpdate: 'available_commands_update',
       availableCommands: createCommands(),
     });
   };
 
-  const scheduleAvailableCommandsUpdate = (session) => {
+  const scheduleAvailableCommandsUpdate = (session: SessionRecord): void => {
     setTimeout(() => {
       emitAvailableCommandsUpdate(session).catch((error) => log('available commands update failed', error));
     }, 0);
   };
 
-  const emitInitialSessionUpdates = async (session) => {
+  const emitInitialSessionUpdates = async (session: SessionRecord): Promise<void> => {
     await emit(session.sessionId, {
       sessionUpdate: 'session_info_update',
       title: session.title,
@@ -304,16 +342,17 @@ function createAgent(conn) {
     });
   };
 
-  const getOrCreateSession = (sessionId, cwd = process.cwd()) => {
-    if (sessions.has(sessionId)) {
-      return sessions.get(sessionId);
+  const getOrCreateSession = (sessionId: string, cwd = process.cwd()): SessionRecord => {
+    const existingSession = sessions.get(sessionId);
+    if (existingSession) {
+      return existingSession;
     }
     const session = createSessionRecord(sessionId, cwd);
     sessions.set(sessionId, session);
     return session;
   };
 
-  const runRichStream = async (session, promptText) => {
+  const runRichStream = async (session: SessionRecord, promptText: string): Promise<void> => {
     const configSnapshot = {
       mode: session.mode,
       model: session.model,
@@ -389,7 +428,7 @@ function createAgent(conn) {
     });
   };
 
-  const emitHistoryReplay = async (session) => {
+  const emitHistoryReplay = async (session: SessionRecord): Promise<void> => {
     if (options.fixture !== 'history' || !session.historySeed) {
       return;
     }
@@ -461,9 +500,9 @@ function createAgent(conn) {
     });
   };
 
-  const runLongStream = async (session) => {
-    let resolveCancel;
-    const cancelPromise = new Promise((resolve) => {
+  const runLongStream = async (session: SessionRecord): Promise<PromptResponse> => {
+    let resolveCancel!: () => void;
+    const cancelPromise = new Promise<void>((resolve) => {
       resolveCancel = resolve;
     });
     pendingPrompts.set(session.sessionId, { cancel: resolveCancel });
@@ -491,9 +530,9 @@ function createAgent(conn) {
     return { stopReason: 'end_turn' };
   };
 
-  const runPermission = async (session) => {
+  const runPermission = async (session: SessionRecord): Promise<PromptResponse> => {
     const toolCallId = `bdd-permission-${session.promptCount}`;
-    const toolCall = {
+    const toolCall: ToolCall = {
       toolCallId,
       title: 'BDD permission fixture',
       kind: 'edit',
@@ -533,7 +572,7 @@ function createAgent(conn) {
     return { stopReason: allowed ? 'end_turn' : 'cancelled' };
   };
 
-  const runProcessExit = async (session) => {
+  const runProcessExit = async (session: SessionRecord): Promise<never> => {
     await emit(session.sessionId, {
       sessionUpdate: 'agent_thought_chunk',
       content: text('BDD_PARTIAL_THOUGHT: prepared deterministic partial turn.'),
@@ -548,7 +587,7 @@ function createAgent(conn) {
     process.exit(PROCESS_EXIT_FIXTURE_CODE);
   };
 
-  const runFileLinkStream = async (session) => {
+  const runFileLinkStream = async (session: SessionRecord): Promise<void> => {
     await emit(session.sessionId, {
       sessionUpdate: 'agent_message_chunk',
       content: text(`BDD_FILE_LINK_READY
@@ -657,7 +696,7 @@ test/test.js
 
     async unstable_setSessionModel(params) {
       const session = getOrCreateSession(params.sessionId);
-      session.model = params.modelId || params.model || session.model;
+      session.model = params.modelId || session.model;
       session.updatedAt = nowIso();
       return {};
     },
@@ -669,13 +708,13 @@ test/test.js
 
       const session = getOrCreateSession(params.sessionId);
       if (params.configId === 'bdd-mode') {
-        session.mode = params.value;
+        session.mode = String(params.value);
       } else if (params.configId === 'bdd-model') {
-        session.model = params.value;
+        session.model = String(params.value);
       } else if (params.configId === 'bdd-thought-level') {
-        session.thought = params.value;
+        session.thought = String(params.value);
       } else if (params.configId === 'bdd-web-search') {
-        session.webSearch = params.value;
+        session.webSearch = Boolean(params.value);
       }
       session.updatedAt = nowIso();
       const configOptions = createConfigOptions(session);
@@ -734,7 +773,7 @@ test/test.js
       }
 
       await runRichStream(session, promptText);
-      const response = {
+      const response: PromptResponse = {
         stopReason: 'end_turn',
         usage: {
           inputTokens: Math.max(1, promptText.length),
@@ -785,8 +824,8 @@ test/test.js
   };
 }
 
-const input = Readable.toWeb(process.stdin);
-const output = Writable.toWeb(process.stdout);
+const input = Readable.toWeb(process.stdin) as ReadableStream<Uint8Array>;
+const output = Writable.toWeb(process.stdout) as WritableStream<Uint8Array>;
 const stream = ndJsonStream(output, input);
 const connection = new AgentSideConnection((conn) => createAgent(conn), stream);
 

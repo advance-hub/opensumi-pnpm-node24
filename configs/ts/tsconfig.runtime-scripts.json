@@ -1,0 +1,33 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "declaration": false,
+    "declarationMap": false,
+    "module": "Preserve",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "sourceMap": false,
+    "target": "ES2023",
+    "types": ["jest", "node"],
+    "allowImportingTsExtensions": true
+  },
+  "include": [
+    "../../configs/commitlint/commitlint.config.ts",
+    "../../configs/eslint/eslint.config.ts",
+    "../../configs/jest/jest.config.ts",
+    "../../configs/jest/setup-base.ts",
+    "../../configs/jest/setup-jsdom.ts",
+    "../../configs/jest/setup-node.ts",
+    "../../client/rspack.config.ts",
+    "../../packages/extension/rspack.config.worker.ts",
+    "../../scripts/build.ts",
+    "../../scripts/check-workspace-dependencies.ts",
+    "../../scripts/dev.ts",
+    "../../scripts/fn/memory.ts",
+    "../../scripts/lint.ts",
+    "../../scripts/ast-grep/replace-import-default.ts",
+    "../../scripts/eslint-rules/rules/classnames-import-rule.ts",
+    "../../packages/webview/scripts/bundle-webview.ts",
+    "../../test/bdd/fixtures/acp-agent/mock-acp-agent.ts"
+  ]
+}

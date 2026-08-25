@@ -62,6 +62,7 @@ export class OpenSumiCommandPalette extends OpenSumiViewBase {
         `Command palette item "${commandName}" was not found after filtering. Input: "${inputValue}". Visible items: ${labels.join(
           ', ',
         )}`,
+        { cause: err },
       );
     }
 

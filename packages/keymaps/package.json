@@ -9,7 +9,7 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "scripts": {
-    "prepublishOnly": "yarn run build",
+    "prepublishOnly": "pnpm run build",
     "build": "tsc --build ../../configs/ts/references/tsconfig.keymaps.json"
   },
   "repository": {
@@ -17,7 +17,6 @@
     "url": "git@github.com:opensumi/core.git"
   },
   "dependencies": {
-    "@opensumi/ide-core-common": "workspace:*",
     "ajv": "^6.10.0"
   },
   "devDependencies": {

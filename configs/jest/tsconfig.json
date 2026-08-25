@@ -1,0 +1,8 @@
+{
+  "extends": "../ts/tsconfig.resolve.json",
+  "compilerOptions": {
+    "isolatedModules": true,
+    "noEmit": true,
+    "types": ["jest", "node"]
+  }
+}

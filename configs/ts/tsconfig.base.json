@@ -1,5 +1,4 @@
 {
-  "baseUrl": "./",
   "compilerOptions": {
     "module": "NodeNext",
     "target": "ES2018",

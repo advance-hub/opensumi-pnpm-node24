@@ -8,7 +8,7 @@ const compressing = require('compressing');
 const log = require('debug')('InstallExtension');
 const fs = require('fs-extra');
 const nodeFetch = require('node-fetch');
-const rimraf = require('rimraf');
+const { rimrafSync } = require('rimraf');
 
 // 放置 extension 的目录
 const targetDir = path.resolve(__dirname, '../tools/extensions/');
@@ -138,7 +138,7 @@ const installExtension = async (namespace, name, version) => {
       async () => {
         const { targetDirName, tmpZipFile } = await downloadExtension(downloadUrl, namespace, name, version);
         await unzipFile(targetDir, targetDirName, tmpZipFile);
-        rimraf.sync(tmpZipFile);
+        rimrafSync(tmpZipFile);
       },
       { retries: 5 },
     );
@@ -147,7 +147,7 @@ const installExtension = async (namespace, name, version) => {
 
 const downloadVscodeExtensions = async () => {
   log('清空 extension 目录：%s', targetDir);
-  rimraf.sync(targetDir);
+  rimrafSync(targetDir);
   fs.mkdirpSync(targetDir);
 
   const promises = [];
@@ -176,6 +176,6 @@ const downloadVscodeExtensions = async () => {
 // 执行并捕捉异常
 downloadVscodeExtensions().catch((e) => {
   console.trace(e);
-  rimraf();
+  rimrafSync(targetDir);
   process.exit(128);
 });

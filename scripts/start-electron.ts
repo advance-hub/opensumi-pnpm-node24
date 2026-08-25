@@ -12,7 +12,10 @@ async function main() {
 
   if (!fse.existsSync(semaphore)) {
     await fse.remove(path.resolve(folderName, 'node_modules'));
-    await run('cd tools/electron && yarn && yarn run link-local && yarn run rebuild-native && yarn run build');
+    await run('pnpm --dir tools/electron install');
+    await run('pnpm --dir tools/electron run link-local');
+    await run('pnpm --dir tools/electron run rebuild-native');
+    await run('pnpm --dir tools/electron run build');
     fse.closeSync(fse.openSync(semaphore, 'a'));
   }
 

@@ -11,6 +11,7 @@ module.exports = {
     path: distDir,
   },
   resolve: {
+    modules: ['node_modules', path.join(__dirname, '../node_modules'), path.join(__dirname, '../../../node_modules')],
     extensions: ['.ts'],
   },
   bail: true,

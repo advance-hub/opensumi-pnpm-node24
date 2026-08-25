@@ -25,6 +25,8 @@ const extensions = strToArray(extensionCandidate);
 const opensumiDevConfigPath = path.resolve(extensions[0], 'sumi-dev.config.js');
 // read `sumi-dev.config.js`
 if (fs.existsSync(opensumiDevConfigPath)) {
+  // The extension directory owns this runtime config, so its path cannot be represented by a static import.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   const opensumiDevConfig = require(opensumiDevConfigPath);
   serverAppOpts = {
     ...serverAppOpts,

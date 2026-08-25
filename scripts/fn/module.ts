@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import * as path from 'path';
 
 import { packageName, packagesDir } from './dir-constants';
@@ -5,11 +6,11 @@ import { run } from './shell';
 
 export function getPkgFromFolder(folderName: string) {
   const packageJsonPath = path.join(packagesDir, `./${folderName}/${packageName}`);
-  return require(packageJsonPath);
+  return JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as { name: string };
 }
 
 export async function startFromFolder(folderName: string, scriptName: string = 'start') {
-  await run(`cd ${folderName} && yarn run ${scriptName}`);
+  await run(`pnpm --dir ${folderName} run ${scriptName}`);
 }
 
 export async function addNodeDep(folderName: string, depName: string) {
@@ -23,6 +24,6 @@ export async function addBrowserDep(depName: string) {
 }
 
 export async function addDep(depName: string, pkgName: string) {
-  await run(`npx lerna add ${depName} --scope ${pkgName}`);
-  await run('yarn run init');
+  await run(`pnpm --filter ${pkgName} add ${depName}`);
+  await run('pnpm run init');
 }

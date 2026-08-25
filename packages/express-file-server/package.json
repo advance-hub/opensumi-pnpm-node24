@@ -9,7 +9,7 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "scripts": {
-    "prepublishOnly": "yarn run build",
+    "prepublishOnly": "pnpm run build",
     "build": "tsc --build ../../configs/ts/references/tsconfig.express-file-server.json"
   },
   "repository": {
@@ -18,7 +18,6 @@
   },
   "dependencies": {
     "@opensumi/ide-core-browser": "workspace:*",
-    "@opensumi/ide-core-common": "workspace:*",
     "@opensumi/ide-core-node": "workspace:*",
     "koa-mount": "^4.0.0"
   },

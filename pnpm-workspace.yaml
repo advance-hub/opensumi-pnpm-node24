@@ -1,0 +1,96 @@
+packages:
+  - client
+  - packages/*
+  - server
+  - tools/dev-tool
+  - tools/playwright
+  - tools/cli-engine
+  - tools/electron
+
+# OpenSumi historically used Yarn's node-modules linker. Start with a hoisted
+# layout to preserve compatibility, then tighten package boundaries gradually.
+nodeLinker: hoisted
+sharedWorkspaceLockfile: true
+saveWorkspaceProtocol: rolling
+engineStrict: true
+
+# Resolve React and other shared peers from the versions pinned at the root.
+# This prevents isolated workspace importers from auto-installing a second
+# framework runtime just because an optional peer accepts a newer major.
+resolvePeersFromWorkspaceRoot: true
+
+# A script command must never start a surprise install on a memory-constrained
+# developer machine. Installation remains an explicit operation.
+verifyDepsBeforeRun: false
+
+# Native dependency builds are the only install phase that can create several
+# memory-heavy child processes. Keep those serial and bound registry fan-out;
+# dependency resolution itself remains shared through the workspace lockfile.
+childConcurrency: 1
+networkConcurrency: 8
+
+# mapbox-gl@0.32.1, pulled by the current notebook/Plotly stack, still has a
+# git subdependency. Keep it temporarily until that visualization stack moves
+# to a modern release.
+blockExoticSubdeps: false
+
+# @y/websocket-server 0.1.1 supports Yjs 13 but still declares y-leveldb 0.1
+# as an optional dependency. Pin the API-compatible 0.2 line to remove the
+# obsolete leveldown@5 native addon from the Node 24 collaboration runtime.
+overrides:
+  '@difizen/mana-app': 0.1.27
+  '@difizen/mana-common': 0.1.27
+  '@difizen/mana-core': 0.1.27
+  '@difizen/mana-l10n': 0.1.27
+  '@difizen/mana-observable': 0.1.27
+  '@difizen/mana-react': 0.1.27
+  '@difizen/mana-syringe': 0.1.27
+  '@types/react': 18.3.28
+  '@types/react-dom': 18.3.7
+  '@y/websocket-server>y-leveldb': 0.2.0
+
+# pnpm 11 blocks dependency build scripts by default. Native/runtime packages
+# are explicitly trusted; informational postinstall scripts stay disabled.
+allowBuilds:
+  '@opensumi/ripgrep': true
+  '@parcel/watcher': true
+  classic-level: true
+  core-js: false
+  electron: true
+  es5-ext: false
+  esbuild: true
+  keytar: true
+  leveldown: false
+  node-pty: true
+  nsfw: true
+  nx: true
+  '@vscode/spdlog': true
+  unrs-resolver: true
+
+minimumReleaseAgeExclude:
+  - '@rspack/binding-darwin-arm64@2.1.10'
+  - '@rspack/binding-darwin-x64@2.1.10'
+  - '@rspack/binding-linux-arm64-gnu@2.1.10'
+  - '@rspack/binding-linux-arm64-musl@2.1.10'
+  - '@rspack/binding-linux-ppc64-gnu@2.1.10'
+  - '@rspack/binding-linux-riscv64-gnu@2.1.10'
+  - '@rspack/binding-linux-riscv64-musl@2.1.10'
+  - '@rspack/binding-linux-s390x-gnu@2.1.10'
+  - '@rspack/binding-linux-x64-gnu@2.1.10'
+  - '@rspack/binding-linux-x64-musl@2.1.10'
+  - '@rspack/binding-wasm32-wasi@2.1.10'
+  - '@rspack/binding-win32-arm64-msvc@2.1.10'
+  - '@rspack/binding-win32-ia32-msvc@2.1.10'
+  - '@rspack/binding-win32-x64-msvc@2.1.10'
+  - '@rspack/binding@2.1.10'
+  - '@rspack/cli@2.1.10'
+  - '@rspack/core@2.1.10'
+  - '@commitlint/cli@21.2.2'
+  - '@commitlint/config-conventional@21.2.2'
+  - '@commitlint/format@21.2.2'
+  - '@commitlint/is-ignored@21.2.2'
+  - '@commitlint/lint@21.2.2'
+  - '@commitlint/load@21.2.2'
+  - '@commitlint/parse@21.2.2'
+  - '@commitlint/resolve-extends@21.2.2'
+  - '@commitlint/rules@21.2.2'

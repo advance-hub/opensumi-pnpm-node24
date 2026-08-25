@@ -80,7 +80,7 @@ const funcs = packagesDirNames.map((target) => async () => {
         if ((argv as any).strictPromise) {
           env['EXIT_ON_UNHANDLED_REJECTION'] = 'true';
         }
-        let cmd = `yarn test:module --module=${target} --project=${v}`;
+        let cmd = `pnpm run test:module --module=${target} --project=${v}`;
         if ((argv as any).serial) {
           cmd += ' --no-runInBand';
         }

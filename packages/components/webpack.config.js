@@ -1,8 +1,8 @@
 const path = require('path');
 
+const CssMinimizerPlugin = require('css-minimizer-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const NodePolyfillPlugin = require('node-polyfill-webpack-plugin');
-const OptimizeCSSAssetsPlugin = require('optimize-css-assets-webpack-plugin');
 const TsconfigPathsPlugin = require('tsconfig-paths-webpack-plugin');
 const { ProgressPlugin } = require('webpack');
 
@@ -17,7 +17,7 @@ module.exports = {
     path: path.join(__dirname, './dist'),
   },
   optimization: {
-    minimizer: [new OptimizeCSSAssetsPlugin({})],
+    minimizer: [new CssMinimizerPlugin()],
   },
   cache: {
     type: 'filesystem',

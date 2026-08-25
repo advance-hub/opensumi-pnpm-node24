@@ -9,13 +9,13 @@
     "dist"
   ],
   "scripts": {
-    "prepublishOnly": "yarn run build && yarn run build:dist",
+    "prepublishOnly": "pnpm run build && pnpm run build:dist",
     "build": "tsc --build ../../configs/ts/references/tsconfig.components.json",
     "build:dist": "webpack --config ./webpack.config.js --color",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {
-    "@ant-design/icons": "^4.6.4",
+    "@ant-design/icons": "^5.6.1",
     "@opensumi/ide-core-common": "workspace:*",
     "@opensumi/ide-utils": "workspace:*",
     "@opensumi/react-custom-scrollbars-2": "^4.3.4",
@@ -32,7 +32,6 @@
     "rc-notification": "~3.3.1",
     "rc-tooltip": "^6.3.2",
     "rc-util": "^5.44.3",
-    "react-ctxmenu-trigger": "^1.0.0",
     "react-lifecycles-compat": "^3.0.4",
     "react-virtualized-auto-sizer": "^1.0.2",
     "react-virtuoso": "^3.1.5",
@@ -41,6 +40,7 @@
   "devDependencies": {
     "@opensumi/ide-dev-tool": "workspace:*",
     "@types/react-window": "^1.8.5",
+    "css-minimizer-webpack-plugin": "^7.0.2",
     "prop-types": "^15.8.1"
   }
 }

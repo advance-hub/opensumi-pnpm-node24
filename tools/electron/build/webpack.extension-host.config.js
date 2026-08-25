@@ -47,7 +47,7 @@ const nodeTarget = {
   },
   externals: [
     function ({ request }, callback) {
-      if (['node-pty', '@parcel/watcher', 'spdlog'].indexOf(request) !== -1) {
+      if (['node-pty', '@parcel/watcher', '@vscode/spdlog'].indexOf(request) !== -1) {
         return callback(null, 'commonjs ' + request);
       }
       callback();
@@ -105,7 +105,7 @@ const workerTarget = {
   },
   externals: [
     function ({ request }, callback) {
-      if (['node-pty', '@parcel/watcher', 'spdlog', 'nfsw'].indexOf(request) !== -1) {
+      if (['node-pty', '@parcel/watcher', '@vscode/spdlog', 'nfsw'].indexOf(request) !== -1) {
         return callback(null, 'commonjs ' + request);
       }
       callback();

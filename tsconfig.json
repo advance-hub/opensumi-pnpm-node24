@@ -6,7 +6,7 @@
     "outDir": "./dist",
     "noUnusedLocals": false
   },
-  "include": ["./packages", "./tools", "./scripts", "./typings/**/*"],
+  "include": ["./client", "./packages", "./server", "./tools", "./scripts", "./typings/**/*"],
   "exclude": [
     "node_modules",
     "__mocks__",

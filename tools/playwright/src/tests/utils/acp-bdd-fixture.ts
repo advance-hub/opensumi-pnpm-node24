@@ -68,7 +68,7 @@ export interface AcpBddFixturePass extends AcpBddFixtureOptions {
 
 export const ACP_BDD_REPO_ROOT = path.resolve(__dirname, '../../../../..');
 export const ACP_BDD_DEFAULT_WORKSPACE = path.join(ACP_BDD_REPO_ROOT, 'tools/playwright/src/tests/workspaces/default');
-export const ACP_BDD_MOCK_ACP_AGENT = path.join(ACP_BDD_REPO_ROOT, 'test/bdd/fixtures/acp-agent/mock-acp-agent.mjs');
+export const ACP_BDD_MOCK_ACP_AGENT = path.join(ACP_BDD_REPO_ROOT, 'test/bdd/fixtures/acp-agent/mock-acp-agent.ts');
 const DEFAULT_AGENT_TYPE = 'claude-agent-acp';
 const LOCK_ROOT = path.join(os.tmpdir(), 'opensumi-bdd-acp-fixture-runtime');
 const LOCK_STALE_MS = 5 * 60 * 1000;

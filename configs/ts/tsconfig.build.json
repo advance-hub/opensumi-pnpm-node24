@@ -28,9 +28,6 @@
       "path": "./references/tsconfig.file-service.json"
     },
     {
-      "path": "./references/tsconfig.static-resource.json"
-    },
-    {
       "path": "./references/tsconfig.theme.json"
     },
     {

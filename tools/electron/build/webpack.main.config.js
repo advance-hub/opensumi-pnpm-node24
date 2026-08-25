@@ -52,7 +52,7 @@ module.exports = {
   },
   externals: [
     ({ request }, callback) => {
-      if (['node-pty', '@parcel/watcher', 'spdlog', 'nsfw', 'electron'].includes(request)) {
+      if (['node-pty', '@parcel/watcher', '@vscode/spdlog', 'nsfw', 'electron'].includes(request)) {
         return callback(null, 'commonjs ' + request);
       }
       callback();

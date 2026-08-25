@@ -1,0 +1,5 @@
+{
+  "name": "@opensumi/acp-bdd-fixture",
+  "private": true,
+  "type": "module"
+}

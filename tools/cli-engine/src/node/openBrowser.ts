@@ -1,11 +1,9 @@
 /* eslint-disable no-console */
-const chalk = require('chalk');
+import { execSync } from 'node:child_process';
 
-// eslint-disable-next-line import/order
-const execSync = require('child_process').execSync;
-
-const spawn = require('cross-spawn');
-const open = require('open');
+import chalk from 'chalk';
+import spawn from 'cross-spawn';
+import open from 'open';
 
 // https://github.com/sindresorhus/open#app
 const OSX_CHROME = 'google chrome';

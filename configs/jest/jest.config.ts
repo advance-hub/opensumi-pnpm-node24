@@ -1,13 +1,21 @@
-const { pathsToModuleNameMapper } = require('ts-jest');
+import fs from 'node:fs';
+import path from 'node:path';
 
-const tsconfig = require('./configs/ts/tsconfig.resolve.json');
+import { pathsToModuleNameMapper } from 'ts-jest';
+
+import type { Config } from 'jest';
+
+const repoRoot = process.cwd();
+const tsconfig = JSON.parse(fs.readFileSync(path.join(repoRoot, 'configs/ts/tsconfig.resolve.json'), 'utf8')) as {
+  compilerOptions: {
+    paths: Record<string, string[]>;
+  };
+};
 
 const tsModuleNameMapper = pathsToModuleNameMapper(tsconfig.compilerOptions.paths, { prefix: '<rootDir>/configs/' });
 
-/**
- * @type {import('@jest/types').Config.InitialOptions}
- */
-const baseConfig = {
+const baseConfig: Config = {
+  rootDir: repoRoot,
   preset: 'ts-jest',
   resolver: '<rootDir>/tools/dev-tool/src/jest-resolver.js',
   maxWorkers: 2,
@@ -30,6 +38,14 @@ const baseConfig = {
     '^vscode-languageserver-types$': '<rootDir>/node_modules/vscode-languageserver-types/lib/umd/main.js',
     '^ws$': '<rootDir>/node_modules/ws/index.js',
     '.*\\.(css|less)$': '<rootDir>/tools/dev-tool/src/mock-exports.js',
+  },
+  transform: {
+    '^.+\\.tsx?$': [
+      'ts-jest',
+      {
+        tsconfig: '<rootDir>/configs/jest/tsconfig.json',
+      },
+    ],
   },
   testPathIgnorePatterns: [
     '/dist/',
@@ -63,14 +79,12 @@ const baseConfig = {
   },
 };
 
-if (process.env.JEST_COVERAGE_PROVIDER) {
-  baseConfig.coverageProvider = process.env.JEST_COVERAGE_PROVIDER;
+const coverageProvider = process.env.JEST_COVERAGE_PROVIDER;
+if (coverageProvider === 'babel' || coverageProvider === 'v8') {
+  baseConfig.coverageProvider = coverageProvider;
 }
 
-/**
- * @type {import('@jest/types').Config.InitialOptions}
- */
-module.exports = {
+const config: Config = {
   ...baseConfig,
   coverageReporters: ['json', 'clover'],
   projects: [
@@ -78,7 +92,7 @@ module.exports = {
       ...baseConfig,
       displayName: 'node',
       testEnvironment: 'node',
-      setupFiles: ['./jest.setup.node.js'],
+      setupFiles: ['<rootDir>/configs/jest/setup-node.ts'],
       testMatch: [
         // 有个 webview 的 case 应该放在 electron 下测，也会被第一条规则匹配到
         // - packages/webview/__tests__/webview/webview.channel.test.ts
@@ -105,7 +119,7 @@ module.exports = {
           process.platform === 'darwin' ? 'Macintosh' : process.platform === 'win32' ? 'Windows' : 'Linux'
         }) AppleWebKit/537.36 (KHTML, like Gecko) jsdom/v16.7.0`,
       },
-      setupFiles: ['./jest.setup.jsdom.js'],
+      setupFiles: ['<rootDir>/configs/jest/setup-jsdom.ts'],
       testMatch: [
         '**/packages/*/__test?(s)__/browser/**/?(*.)+(spec|test).[jt]s?(x)',
         '**/packages/*/__test?(s)__/common/**/?(*.)+(spec|test).[jt]s?(x)',
@@ -113,8 +127,9 @@ module.exports = {
         '**/packages/extension/__tests__/{hosted,common}/**/?(*.)+(spec|test).[jt]s?(x)',
         '**/packages/{components,core-browser,core-common,electron-basic}/__tests__/**/?(*.)+(spec|test).[jt]s?(x)',
       ],
-      transformIgnorePatterns: ['/node_modules/(?!(@opensumi/monaco-editor-core)/)'],
+      transformIgnorePatterns: ['/node_modules/(?!(?:@opensumi/monaco-editor-core|nanoid)/)'],
       transform: {
+        ...baseConfig.transform,
         '^.+\\.(js)$': [
           'ts-jest',
           {
@@ -132,3 +147,5 @@ module.exports = {
     },
   ],
 };
+
+export default config;

@@ -10,8 +10,8 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "scripts": {
-    "prepublishOnly": "yarn build",
-    "build": "tsc --build ../../configs/ts/references/tsconfig.monaco.json && yarn build:worker",
+    "prepublishOnly": "pnpm run build",
+    "build": "tsc --build ../../configs/ts/references/tsconfig.monaco.json && pnpm run build:worker",
     "build:worker": "../../node_modules/.bin/webpack --config webpack.config.js"
   },
   "dependencies": {

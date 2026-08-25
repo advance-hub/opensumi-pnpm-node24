@@ -1,7 +1,7 @@
 import * as path from 'path';
 
 import * as fs from 'fs-extra';
-import * as glob from 'glob';
+import { globSync } from 'glob';
 import camelCase from 'lodash/camelCase';
 import upperFirst from 'lodash/upperFirst';
 
@@ -38,7 +38,7 @@ export async function createPackage(name: string) {
 
   const pkgName = `@opensumi/ide-${name}`;
 
-  const filePaths = glob.sync(templatePattern);
+  const filePaths = globSync(templatePattern);
   const replaceList = [
     createReplaceTuple('template-name', pkgName),
     createReplaceTuple('TemplateUpperName', upperFirst(camelCase(name))),
@@ -62,12 +62,12 @@ export async function createPackage(name: string) {
 
   // 创建 tsconfig.json
   const buildJsonPath = path.join(__dirname, '../../configs/ts/tsconfig.build.json');
-  const buildTsConfig = require(buildJsonPath);
+  const buildTsConfig = await fs.readJSON(buildJsonPath);
   buildTsConfig.references.push({ path: `./references/tsconfig.${name}.json` });
   await fs.writeFile(buildJsonPath, JSON.stringify(buildTsConfig, null, 2) + '\n');
 
   const resolveJsonPath = path.join(__dirname, '../../configs/ts/tsconfig.resolve.json');
-  const resolveTsConfig = require(resolveJsonPath);
+  const resolveTsConfig = await fs.readJSON(resolveJsonPath);
   const extendPaths = {
     [pkgName]: [`../packages/${name}/src/index.ts`],
     [`${pkgName}/lib/*`]: [`../packages/${name}/src/*`],
@@ -80,6 +80,6 @@ export async function createPackage(name: string) {
   await fs.writeFile(moduleTsJsonPath, JSON.stringify(moduleTsConfig, null, 2) + '\n');
 
   // 创建完模块之后执行一次初始化
-  await run('yarn');
-  await run('yarn run init');
+  await run('pnpm install');
+  await run('pnpm run init');
 }

@@ -11,7 +11,7 @@
     "access": "public"
   },
   "scripts": {
-    "prepublishOnly": "yarn run build",
+    "prepublishOnly": "pnpm run build",
     "build": "tsc --build ../../configs/ts/references/tsconfig.ai-native.json"
   },
   "repository": {
@@ -54,14 +54,13 @@
     "diff": "^7.0.0",
     "dom-align": "^1.7.0",
     "eventsource": "^3.0.5",
-    "node-pty": "1.0.0",
+    "node-pty": "1.1.0",
     "rc-collapse": "^4.0.0",
     "react-chat-elements": "^12.0.10",
     "react-highlight": "^0.15.0",
     "tiktoken": "1.0.12",
     "web-tree-sitter": "0.22.6",
-    "zod": "^3.25.0 || ^4.0.0",
-    "zod-to-json-schema": "^3.25.0"
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "@opensumi/ide-core-browser": "workspace:*"

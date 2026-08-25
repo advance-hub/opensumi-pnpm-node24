@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 
 import groupBy from 'lodash/groupBy';
-import simpleGit from 'simple-git';
+import createGitClient from 'simple-git';
 
 import * as Github from './github';
 import { ICommitLogFields } from './types';
@@ -12,7 +12,7 @@ const OTHER_CHANGE_FIELD_KEY = '其他改动';
 const RELEASE_VERSION_REGEX = /^v\d+\.\d+\.\d+$/;
 const VERSION_COMMIT_MAP = new Map();
 
-const git = simpleGit();
+const git = createGitClient();
 
 /**
  * 从 PULL_REQUEST_TEMPLATE 中读取 PR 类型的排序规则
@@ -22,11 +22,10 @@ const getTypeSorter = () => {
   const content = fs.readFileSync(templateMdPath, 'utf-8');
   const regex = /\[ \](.+)/g;
   const sorterDesc: string[] = [];
-  let myArray: RegExpExecArray | null = null;
   // 连续匹配取出 pr types
-  while ((myArray = regex.exec(content)) !== null) {
+  for (const match of content.matchAll(regex)) {
     // 去掉两端空格
-    let sorterKey = myArray[1].trim();
+    let sorterKey = match[1].trim();
     if (sorterKey.startsWith(OTHER_CHANGE_FIELD_KEY) || sorterKey.includes(OTHER_CHANGE_FIELD_KEY)) {
       sorterKey = OTHER_CHANGE_FIELD_KEY;
     }

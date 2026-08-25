@@ -1,0 +1,11 @@
+{
+  "extends": "../configs/ts/tsconfig.base.json",
+  "compilerOptions": {
+    "declaration": false,
+    "declarationMap": false,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "sourceMap": false
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx", "../packages/startup/entry/**/*.ts", "../packages/startup/entry/**/*.tsx"]
+}

@@ -11,7 +11,7 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "scripts": {
-    "prepublishOnly": "yarn run build",
+    "prepublishOnly": "pnpm run build",
     "build": "webpack --config=webpack.config.js"
   },
   "repository": {
@@ -21,7 +21,6 @@
   "dependencies": {
     "@opensumi/ide-utils": "workspace:*",
     "chalk": "^4.1.2",
-    "mri": "^1.2.0",
     "node-fetch": "^2.6.7"
   },
   "devDependencies": {

@@ -40,7 +40,7 @@ module.exports = {
   },
   externals: [
     function ({ request }, callback) {
-      if (['node-pty', '@parcel/watcher', 'spdlog', 'nsfw', 'electron'].indexOf(request) !== -1) {
+      if (['node-pty', '@parcel/watcher', '@vscode/spdlog', 'nsfw', 'electron'].indexOf(request) !== -1) {
         return callback(null, 'commonjs ' + request);
       }
       callback();

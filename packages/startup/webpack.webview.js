@@ -1,5 +1,5 @@
 const { createWebviewWebpackConfig } = require('@opensumi/ide-dev-tool/src/webpack');
-let entry = null;
+let entry;
 try {
   entry = require.resolve('@opensumi/ide-webview/src/webview-host/web-preload.ts');
 } catch (e) {

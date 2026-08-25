@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 const path = require('path');
 
 const ForkTsCheckerWebpackPlugin = require('fork-ts-checker-webpack-plugin');
@@ -51,6 +52,9 @@ exports.createWebpackConfig = function (dir, entry, extraConfig) {
       },
       resolve: {
         extensions: ['.ts', '.tsx', '.js', '.json', '.less'],
+        extensionAlias: {
+          '.js': ['.ts', '.tsx', '.js'],
+        },
         plugins: [
           new TsconfigPathsPlugin({
             configFile: tsConfigPath,
@@ -205,6 +209,11 @@ exports.createWebpackConfig = function (dir, entry, extraConfig) {
         }),
         new webpack.DefinePlugin({
           'process.env.IS_DEV': JSON.stringify(process.env.NODE_ENV === 'development' ? 1 : 0),
+          'process.env.ENABLE_AI': JSON.stringify(process.env.ENABLE_AI === '1' ? '1' : '0'),
+          'process.env.ENABLE_NOTEBOOK': JSON.stringify(process.env.ENABLE_NOTEBOOK === '1' ? '1' : '0'),
+          'process.env.ENABLE_COLLABORATION': JSON.stringify(process.env.ENABLE_COLLABORATION === '1' ? '1' : '0'),
+          'process.env.COLLABORATION_PORT': JSON.stringify(process.env.COLLABORATION_PORT || '12345'),
+          'process.env.NOTEBOOK_SERVER_HOST': JSON.stringify(process.env.NOTEBOOK_SERVER_HOST || 'localhost:8888'),
           'process.env.WORKSPACE_DIR': JSON.stringify(process.env.MY_WORKSPACE || defaultWorkspace),
           'process.env.SUPPORT_LOAD_WORKSPACE_BY_HASH': JSON.stringify(process.env.SUPPORT_LOAD_WORKSPACE_BY_HASH),
           'process.env.OPENSUMI_E2E_COMMANDS': JSON.stringify(process.env.OPENSUMI_E2E_COMMANDS),
@@ -416,10 +425,10 @@ exports.createNodeWebpackConfig = (entry, distDir) => ({
           'oniguruma',
           '@parcel/watcher',
           'nsfw',
-          'spdlog',
+          '@vscode/spdlog',
           'vm2',
           'canvas',
-          '@opensumi/vscode-ripgrep',
+          '@opensumi/ripgrep',
           'vertx',
           'keytar',
           'tsconfig-paths',

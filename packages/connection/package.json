@@ -9,7 +9,7 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "scripts": {
-    "prepublishOnly": "yarn run build",
+    "prepublishOnly": "pnpm run build",
     "build": "tsc --build ../../configs/ts/references/tsconfig.connection.json"
   },
   "repository": {
@@ -24,7 +24,7 @@
     "@opensumi/reconnecting-websocket": "^4.4.0",
     "@opensumi/vscode-jsonrpc": "^8.0.0-next.2",
     "path-to-regexp": "^6.2.1",
-    "ws": "^8.16.0"
+    "ws": "^8.21.3"
   },
   "devDependencies": {
     "@opensumi/ide-components": "workspace:*",

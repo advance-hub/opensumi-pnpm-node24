@@ -1,12 +1,15 @@
 let err = false;
 
-if (parseInt(process.versions.node.split('.')[0], 10) < 18) {
-  console.error('\x1b[1;31mPlease use Node.js >= 18.\x1b[0;0m');
+if (parseInt(process.versions.node.split('.')[0], 10) !== 24) {
+  console.error('\x1b[1;31mPlease use Node.js 24 LTS.\x1b[0;0m');
   err = true;
 }
 
-if (!/yarn$|yarn[\w-.]*\.c?js$|yarnpkg$/.test(process.env['npm_execpath'])) {
-  console.error('\x1b[1;31mPlease use yarn to install dependencies.\x1b[0;0m');
+const packageManager = process.env['npm_config_user_agent'] || '';
+const packageManagerExec = process.env['npm_execpath'] || '';
+
+if (!packageManager.startsWith('pnpm/') && !/pnpm(?:[\w.-]*\.c?js)?$/.test(packageManagerExec)) {
+  console.error('\x1b[1;31mPlease use pnpm to install dependencies.\x1b[0;0m');
   err = true;
 }
 

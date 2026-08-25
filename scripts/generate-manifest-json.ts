@@ -7,7 +7,7 @@ import { argv } from '../packages/core-common/src/node/cli';
 import { generateManifest } from './manifest';
 import Package, { readAllMainPackages } from './pkg';
 
-// yarn run manifest -v=2.19.0
+// pnpm run manifest -v=2.19.0
 const version = argv.v as string;
 const localManifest = join(__dirname, '../packages/types/manifest.json');
 if (!version) {

@@ -2,8 +2,8 @@
 import http from 'http';
 import path from 'path';
 
+import KoaRouter from '@koa/router';
 import Koa from 'koa';
-import KoaRouter from 'koa-router';
 import Static from 'koa-static';
 
 import { Injector } from '@opensumi/di';

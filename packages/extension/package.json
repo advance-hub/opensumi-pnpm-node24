@@ -9,11 +9,11 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "scripts": {
-    "prepublishOnly": "yarn run build",
-    "build": "yarn run build:pkg && yarn run build:ext-host && yarn run compile:worker",
+    "prepublishOnly": "pnpm run build",
+    "build": "pnpm run build:pkg && pnpm run build:ext-host && pnpm run compile:worker",
     "build:pkg": "tsc --build ../../configs/ts/references/tsconfig.extension.json",
-    "compile:worker": "webpack --config webpack.config.worker.js",
-    "watch:worker": "webpack -w --config webpack.config.worker.js",
+    "compile:worker": "cross-env NODE_OPTIONS=\"--max-old-space-size=512 --disable-warning=MODULE_TYPELESS_PACKAGE_JSON\" rspack build --config rspack.config.worker.ts",
+    "watch:worker": "cross-env NODE_OPTIONS=\"--max-old-space-size=512 --disable-warning=MODULE_TYPELESS_PACKAGE_JSON\" rspack build --watch --config rspack.config.worker.ts",
     "build:ext-host": "tsc -p ../../configs/ts/references/tsconfig.extension.json",
     "watch:ext-host": "tsc --watch -p ../../configs/ts/references/tsconfig.extension.json"
   },
@@ -38,13 +38,14 @@
     "address": "^1.1.2",
     "glob-to-regexp": "0.4.1",
     "is-running": "^2.1.0",
-    "lru-cache": "^6.0.0",
     "picomatch": "^2.2.1",
     "semver": "^7.5.2",
     "tree-kill": "^1.2.2",
     "v8-inspect-profiler": "^0.1.1"
   },
   "devDependencies": {
+    "@rspack/cli": "^2.1.10",
+    "@rspack/core": "^2.1.10",
     "@opensumi/ide-ai-native": "workspace:*",
     "@opensumi/ide-comments": "workspace:*",
     "@opensumi/ide-components": "workspace:*",
@@ -66,6 +67,8 @@
     "@opensumi/ide-theme": "workspace:*",
     "@opensumi/ide-toolbar": "workspace:*",
     "@opensumi/ide-workspace": "workspace:*",
-    "@opensumi/ide-workspace-edit": "workspace:*"
+    "@opensumi/ide-workspace-edit": "workspace:*",
+    "ts-loader": "^9.6.2",
+    "typescript": "^5.9.3"
   }
 }

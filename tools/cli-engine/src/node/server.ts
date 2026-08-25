@@ -110,7 +110,7 @@ export async function startServer(serverParams: ServerParams, ideAppOpts: IDESer
   await serverApp.start(server);
 
   app.use(
-    mount<{}>('/', async (ctx) => {
+    mount('/', async (ctx) => {
       console.log('REQUEST URL:', ctx.url);
       let staticPath;
       let _path = ctx.url;

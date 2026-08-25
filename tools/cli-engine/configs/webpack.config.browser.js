@@ -2,9 +2,9 @@ const path = require('path');
 
 const AssetsPlugin = require('assets-webpack-plugin');
 const CopyPlugin = require('copy-webpack-plugin');
+const CssMinimizerPlugin = require('css-minimizer-webpack-plugin');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const NodePolyfillPlugin = require('node-polyfill-webpack-plugin');
-const OptimizeCSSAssetsPlugin = require('optimize-css-assets-webpack-plugin');
 const TerserJSPlugin = require('terser-webpack-plugin');
 const TsconfigPathsPlugin = require('tsconfig-paths-webpack-plugin');
 
@@ -25,6 +25,7 @@ module.exports = {
     path: distDir,
   },
   resolve: {
+    modules: ['node_modules', path.join(__dirname, '../node_modules'), path.join(__dirname, '../../../node_modules')],
     extensions: ['.ts', '.tsx', '.js', '.json', '.less'],
     plugins: [
       new TsconfigPathsPlugin({
@@ -128,7 +129,7 @@ module.exports = {
       new TerserJSPlugin({
         minify: TerserJSPlugin.esbuildMinify,
       }),
-      new OptimizeCSSAssetsPlugin({}),
+      new CssMinimizerPlugin(),
     ],
   },
   plugins: [

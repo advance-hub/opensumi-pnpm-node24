@@ -62,8 +62,8 @@ export interface IWebviewChannel {
   fakeLoad: boolean;
 }
 
-function addslashes( str ) {
-  return (str + '').replace(/[\\"']/g, '\\$&').replace(/\u0000/g, '\\0');
+function addslashes(str) {
+  return (str + '').replace(/[\\"']/g, '\\$&').replaceAll('\u0000', '\\0');
 }
 
 export function getVsCodeApiScript(state) {

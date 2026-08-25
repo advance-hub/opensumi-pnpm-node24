@@ -14,13 +14,14 @@
     "url": "git@github.com:opensumi/core.git"
   },
   "scripts": {
-    "prepublishOnly": "yarn run build",
+    "prepublishOnly": "pnpm run build",
     "build": "tsc --build ../../configs/ts/references/tsconfig.core-browser.json"
   },
   "dependencies": {
     "@opensumi/ide-components": "workspace:*",
     "@opensumi/ide-connection": "workspace:*",
     "@opensumi/ide-core-common": "workspace:*",
+    "@opensumi/ide-utils": "workspace:*",
     "@opensumi/monaco-editor-core": "0.54.0-patch.2",
     "@opensumi/vscode-debugprotocol": "1.49.0-beta.1",
     "@vscode/codicons": "0.0.35",
@@ -31,16 +32,16 @@
     "keycode": "^2.2.0",
     "lodash": "^4.17.21",
     "marked": "15.0.11",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-is": "^18.2.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-is": "^18.3.1",
     "react-window": "^1.8.5",
     "resize-observer-polyfill": "1.5.1",
     "strip-json-comments": "3.0.1",
     "vscode-textmate": "7.0.1"
   },
   "peerDependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   }
 }
