@@ -92,8 +92,7 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
   private clientExtProcessThresholdExitTimerMap: Map<string, NodeJS.Timeout> = new Map();
   private clientServiceMap: Map<string, IExtensionNodeClientService> = new Map();
   private maybeZombieClients: Set<string> = new Set();
-  // 最新的插件进程的对应的进程 Id
-  private latestExtProcessId: number = -1;
+  private intentionallyStoppedExtProcesses: Set<number> = new Set();
 
   private inspectPort = 9889;
 
@@ -217,8 +216,7 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
 
       // 连接恢复后清除销毁的定时器
       if (this.clientExtProcessThresholdExitTimerMap.has(clientId)) {
-        const timer = this.clientExtProcessThresholdExitTimerMap.get(clientId) as NodeJS.Timeout;
-        clearTimeout(timer);
+        this.cancelExtProcessDisposal(clientId);
       }
 
       this.logger.log(`setExtProcessConnectionForward clientId ${clientId}`);
@@ -235,7 +233,7 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
     const maxExtProcessCount = this.appConfig.maxExtProcessCount || ExtensionNodeServiceImpl.MaxExtProcessCount;
     if (processClientIdArr.length >= maxExtProcessCount) {
       const killProcessClientId = processClientIdArr[0];
-      this.disposeClientExtProcess(killProcessClientId);
+      await this.disposeClientExtProcess(killProcessClientId);
       this.logger.error(
         `Process count is over limit, max count is ${maxExtProcessCount}, try kill`,
         killProcessClientId,
@@ -316,7 +314,7 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
     const forkArgs: string[] = [];
     const extServerListenOption = await this.getExtServerListenOption(clientId, options?.extensionConnectOption);
 
-    let extProcessPath = '';
+    let extProcessPath: string;
     forkOptions.execArgv = [];
 
     forkArgs.push(`--${KT_PROCESS_SOCK_OPTION_KEY}=${JSON.stringify(extServerListenOption)}`);
@@ -372,11 +370,12 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
     }
 
     const forkTimer = this.reporterService.time(`${clientId} fork ext process`);
+    const configuredForkOptions = this.appConfig.extHostForkOptions;
     const extProcessId = await this.extensionHostManager.fork(extProcessPath, forkArgs, {
       ...forkOptions,
-      ...this.appConfig.extHostForkOptions,
+      ...configuredForkOptions,
+      execArgv: [...forkOptions.execArgv, ...(configuredForkOptions?.execArgv || [])],
     });
-    this.latestExtProcessId = extProcessId;
     this.logger.log(`Fork extension host process with id ${extProcessId}`);
     // 监听进程输出，用于获取调试端口
     this.extensionHostManager.onOutput(extProcessId, (output) => {
@@ -397,7 +396,8 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
 
     this.extensionHostManager.onExit(extProcessId, async (code: number, signal: string) => {
       this.logger.log(`Extension host process ${extProcessId} exit by code ${code} signal ${signal}`);
-      if (this.clientExtProcessMap.get(clientId) === extProcessId) {
+      const intentionallyStopped = this.intentionallyStoppedExtProcesses.delete(extProcessId);
+      if (!intentionallyStopped && this.clientExtProcessMap.get(clientId) === extProcessId) {
         await this.disposeClientExtProcess(clientId, false, false);
         this.infoProcessCrash(clientId);
         this.reporterService.point(REPORT_NAME.EXTENSION_CRASH, clientId, {
@@ -516,22 +516,40 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
     if (this.clientExtProcessMap.has(connectionClientId)) {
       if (isElectronNode()) {
         // in electron, if current connection is closed, kill the ext process immediately
-        this.disposeClientExtProcess(connectionClientId);
+        void this.disposeClientExtProcess(connectionClientId);
       } else {
-        // 为了保证体验，最后一个创建的插件进程断连后不杀死
-        // https://github.com/opensumi/core/issues/3653
-        if (this.clientExtProcessMap.get(connectionClientId) === this.latestExtProcessId) {
-          return;
-        }
-        /**
-         * in web, if current connection is closed, kill the ext process after a threshold
-         */
+        this.cancelExtProcessDisposal(connectionClientId);
         const timer = setTimeout(() => {
+          this.clientExtProcessThresholdExitTimerMap.delete(connectionClientId);
           this.logger.log(`Dispose client by connectionClientId ${connectionClientId}`);
-          this.disposeClientExtProcess(connectionClientId);
+          void this.disposeClientExtProcess(connectionClientId);
         }, this.appConfig.processCloseExitThreshold ?? ExtensionNodeServiceImpl.ProcessCloseExitThreshold);
+        timer.unref?.();
         this.clientExtProcessThresholdExitTimerMap.set(connectionClientId, timer);
       }
+    }
+  }
+
+  private cancelExtProcessDisposal(clientId: string) {
+    const timer = this.clientExtProcessThresholdExitTimerMap.get(clientId);
+    if (timer) {
+      clearTimeout(timer);
+      this.clientExtProcessThresholdExitTimerMap.delete(clientId);
+    }
+  }
+
+  private async requestExtProcessShutdown(clientId: string, extProcessId: number) {
+    try {
+      if (!(await this.extensionHostManager.isRunning(extProcessId))) {
+        return;
+      }
+      await this.extensionHostManager.send(extProcessId, 'close');
+      const finishDeferred = this.clientExtProcessFinishDeferredMap.get(clientId);
+      if (finishDeferred) {
+        await Promise.race([finishDeferred.promise, timeout(this.appConfig.extensionHostShutdownTimeout ?? 5_000)]);
+      }
+    } catch (error) {
+      this.logger.warn(`Graceful extension host shutdown failed for ${clientId}`, error);
     }
   }
 
@@ -559,49 +577,57 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
   }
 
   public async disposeClientExtProcess(clientId: string, info = true, killProcess = true) {
+    this.cancelExtProcessDisposal(clientId);
     const extProcessId = this.clientExtProcessMap.get(clientId);
-    try {
-      if (!isUndefined(extProcessId)) {
-        if (await this.extensionHostManager.isRunning(extProcessId)) {
-          await this.extensionHostManager.send(extProcessId, 'close');
-          // deactivate
-          // subscription
-          if (this.clientExtProcessFinishDeferredMap.has(clientId)) {
-            await (this.clientExtProcessFinishDeferredMap.get(clientId) as Deferred<void>).promise;
-          }
-        }
-
-        // extServer 关闭
-        if (this.clientExtProcessExtConnectionServer.has(clientId)) {
-          this.clientExtProcessExtConnectionServer.get(clientId)!.close();
-          this.clientExtProcessExtConnectionServer.delete(clientId);
-        }
-
-        // connect 关闭
-        if (this.clientExtProcessExtConnection.has(clientId)) {
-          this.clientExtProcessExtConnection.get(clientId)!.dispose();
-          this.clientExtProcessExtConnection.get(clientId)!.destroy();
-          this.clientExtProcessExtConnection.delete(clientId);
-        }
-
-        this.clientExtProcessExtConnectionDeferredMap.delete(clientId);
-        this.clientExtProcessFinishDeferredMap.delete(clientId);
-        this.clientExtProcessInitDeferredMap.delete(clientId);
-        this.clientExtProcessMap.delete(clientId);
-        this.maybeZombieClients.delete(clientId);
-
-        if (killProcess) {
-          await this.extensionHostManager.treeKill(extProcessId);
-          await this.extensionHostManager.disposeProcess(extProcessId);
-        }
-        if (info) {
-          this.infoProcessNotExist(clientId);
-        }
-        this.logger.log(`Extension host process disposed by clientId ${clientId}`);
-      }
-    } catch (e) {
-      this.logger.error(`Close extension host process when connection throw error\n${e.message}`);
+    if (isUndefined(extProcessId)) {
+      return;
     }
+    if (killProcess) {
+      this.intentionallyStoppedExtProcesses.add(extProcessId);
+    }
+
+    await this.requestExtProcessShutdown(clientId, extProcessId);
+
+    const extServer = this.clientExtProcessExtConnectionServer.get(clientId);
+    if (extServer) {
+      try {
+        extServer.close();
+      } catch (error) {
+        this.logger.warn(`Close extension host IPC server failed for ${clientId}`, error);
+      }
+    }
+
+    const extConnection = this.clientExtProcessExtConnection.get(clientId);
+    if (extConnection) {
+      try {
+        extConnection.dispose();
+        extConnection.destroy();
+      } catch (error) {
+        this.logger.warn(`Close extension host connection failed for ${clientId}`, error);
+      }
+    }
+
+    this.clientExtProcessExtConnectionServer.delete(clientId);
+    this.clientExtProcessExtConnection.delete(clientId);
+    this.clientExtProcessExtConnectionDeferredMap.delete(clientId);
+    this.clientExtProcessFinishDeferredMap.delete(clientId);
+    this.clientExtProcessInitDeferredMap.delete(clientId);
+    this.clientExtProcessMap.delete(clientId);
+    this.maybeZombieClients.delete(clientId);
+
+    if (killProcess) {
+      try {
+        await this.extensionHostManager.treeKill(extProcessId);
+      } catch (error) {
+        this.logger.warn(`Force-stop extension host failed for ${clientId}`, error);
+      } finally {
+        await this.extensionHostManager.disposeProcess(extProcessId);
+      }
+    }
+    if (info) {
+      this.infoProcessNotExist(clientId);
+    }
+    this.logger.log(`Extension host process disposed by clientId ${clientId}`);
   }
 
   public async getExtProcessId(clientId: string): Promise<number | null> {
@@ -613,6 +639,9 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
   }
 
   public async disposeAllClientExtProcess(): Promise<void> {
+    await Promise.all(
+      Array.from(this.clientExtProcessMap.keys(), (clientId) => this.disposeClientExtProcess(clientId, false)),
+    );
     await this.extensionHostManager.dispose();
   }
 

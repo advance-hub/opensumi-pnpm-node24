@@ -70,6 +70,10 @@ interface Config {
    */
   processCloseExitThreshold?: number;
   /**
+   * 插件进程优雅关闭的最长等待时间，超时后强制结束
+   */
+  extensionHostShutdownTimeout?: number;
+  /**
    * 终端 pty 进程退出时间
    */
   terminalPtyCloseThreshold?: number;
@@ -94,6 +98,10 @@ interface Config {
    * Watcher Node 进程入口文件
    */
   watcherHost?: string;
+  /**
+   * 文件监听子进程 fork 配置
+   */
+  watcherHostForkOptions?: Partial<cp.ForkOptions>;
   /**
    * 插件 Node 进程入口文件
    */
@@ -125,6 +133,15 @@ export interface AppConfig extends Partial<Config> {
 
 export interface ICollaborationServerOpts {
   port?: number;
+  maxPayload?: number;
+  maxConnections?: number;
+  maxBufferedAmount?: number;
+  maxDocuments?: number;
+  maxDocumentBytes?: number;
+  maxStateBytes?: number;
+  maxPendingDocuments?: number;
+  idleTimeout?: number;
+  shouldAcceptConnection?: () => boolean;
 }
 
 export interface IServerAppOpts extends Partial<Config> {
@@ -133,6 +150,10 @@ export interface IServerAppOpts extends Partial<Config> {
   modulesInstances?: NodeModule[];
   webSocketHandler?: WebSocketHandler[];
   wsServerOptions?: ws.ServerOptions;
+  wsHeartbeatInterval?: number;
+  wsMaxConnections?: number;
+  wsMaxBufferedAmount?: number;
+  wsShouldAcceptConnection?: () => boolean;
   pathMatchOptions?: {
     // When true the regexp will match to the end of the string.
     end?: boolean;

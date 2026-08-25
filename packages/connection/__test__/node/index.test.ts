@@ -1,10 +1,10 @@
 import http from 'http';
 
-import WebSocket from 'ws';
+import WS from 'ws';
 
+import { WSWebSocketConnection } from '@opensumi/ide-connection/lib/common/connection';
+import { SumiConnection } from '@opensumi/ide-connection/lib/common/rpc/connection';
 import { furySerializer, wrapSerializer } from '@opensumi/ide-connection/lib/common/serializer';
-import { WSWebSocketConnection } from '@opensumi/ide-connection/src/common/connection';
-import { SumiConnection } from '@opensumi/ide-connection/src/common/rpc/connection';
 import { Deferred } from '@opensumi/ide-core-common';
 
 import { RPCService } from '../../src';
@@ -31,7 +31,35 @@ class MockFileService extends RPCService {
 const mockFileService = new MockFileService();
 
 describe('connection', () => {
+  it('rejects new websocket connections while admission control reports pressure', async () => {
+    expect.hasAssertions();
+    const server = http.createServer();
+    const socketRoute = new WebSocketServerRoute(server, console);
+    const channelHandler = new CommonChannelHandler('/service', commonChannelPathHandler, console, {
+      shouldAcceptConnection: () => false,
+    });
+    const disposeSpy = jest.spyOn(channelHandler, 'dispose');
+    socketRoute.registerHandler(channelHandler);
+    socketRoute.init();
+
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    const address = server.address();
+    if (!address || typeof address === 'string') {
+      throw new Error('Expected a TCP server address');
+    }
+
+    const connection = new WS(`ws://127.0.0.1:${address.port}/service`);
+    const error = await new Promise<Error>((resolve) => connection.once('error', resolve));
+    expect(error.message).toContain('Unexpected server response: 503');
+
+    await new Promise<void>((resolve, reject) => {
+      server.close((closeError) => (closeError ? reject(closeError) : resolve()));
+    });
+    expect(disposeSpy).toHaveBeenCalledTimes(1);
+  });
+
   it('websocket connection route', async () => {
+    expect.hasAssertions();
     const server = http.createServer();
     const socketRoute = new WebSocketServerRoute(server, console);
     const channelHandler = new CommonChannelHandler('/service', commonChannelPathHandler, console);
@@ -50,7 +78,7 @@ describe('connection', () => {
       dispose: () => {},
     });
 
-    const connection = new WebSocket(`ws://0.0.0.0:${wssPort}/service`);
+    const connection = new WS(`ws://0.0.0.0:${wssPort}/service`);
 
     connection.on('error', () => {
       connection.close();
@@ -93,6 +121,7 @@ describe('connection', () => {
   });
 
   it('get 401 error if websocket verification failed', async () => {
+    expect.hasAssertions();
     const server = http.createServer();
     const deferred = new Deferred();
     const socketRoute = new WebSocketServerRoute(server, console);
@@ -116,22 +145,25 @@ describe('connection', () => {
       dispose: () => {},
     });
 
-    const connection = new WebSocket(`ws://0.0.0.0:${wssPort}/service`);
+    const connection = new WS(`ws://0.0.0.0:${wssPort}/service`);
 
     connection.on('error', (e) => {
       deferred.reject(e);
       connection.close();
     });
     await expect(deferred.promise).rejects.toThrow('Unexpected server response: 401');
-    server.close();
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
   });
 
   it('RPCService', async () => {
-    const wss = new WebSocket.Server({ port: wssPort });
+    expect.hasAssertions();
+    const wss = new WS.Server({ port: wssPort });
     const notificationMock = jest.fn();
 
     let serviceCenter: RPCServiceCenter;
-    let clientConnection: WebSocket;
+    let clientConnection: WS;
 
     await Promise.all([
       new Promise<void>((resolve) => {
@@ -144,7 +176,7 @@ describe('connection', () => {
       }),
 
       new Promise<void>((resolve) => {
-        clientConnection = new WebSocket(`ws://0.0.0.0:${wssPort}/service`);
+        clientConnection = new WS(`ws://0.0.0.0:${wssPort}/service`);
         clientConnection.on('open', () => {
           resolve();
         });
@@ -177,11 +209,7 @@ describe('connection', () => {
     const remoteResult = await remoteService.getContent('1');
     const remoteDirsResult = await remoteService.fileDirs(['/a.txt', '/b.txt']);
 
-    try {
-      await remoteService.throwError();
-    } catch (e) {
-      expect(e.message).toBe('test error');
-    }
+    await expect(remoteService.throwError()).rejects.toThrow('test error');
 
     expect(remoteResult).toBe('file content 1');
     expect(remoteDirsResult).toBe(['/a.txt', '/b.txt'].join(','));
@@ -198,7 +226,9 @@ describe('connection', () => {
 
     expect(notificationMock.mock.calls.length).toBe(2);
 
-    wss.close();
     clientConnection!.close();
+    await new Promise<void>((resolve, reject) => {
+      wss.close((error) => (error ? reject(error) : resolve()));
+    });
   });
 });

@@ -103,6 +103,8 @@ export async function extProcessInit(config: ExtProcessConfig = {}) {
   patchConsole();
   const { extProtocol: protocol, logger } = await initRPCProtocol(extInjector);
   try {
+    // Keep this bootstrap lazy and compatible with both ts-node sources and compiled CommonJS output.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     let Preload = require('./ext.host');
     if (Preload.default) {
       Preload = Preload.default;

@@ -233,7 +233,9 @@ describe('TextModelBinding test for editor', () => {
 
     editor.setModel(textModel);
 
-    expect(editor.getModel() === textModel).toBeTruthy();
+    if (editor.getModel() !== textModel) {
+      throw new Error('The test editor did not retain its configured text model.');
+    }
   });
 
   it('should add editor and register corresponding events', () => {

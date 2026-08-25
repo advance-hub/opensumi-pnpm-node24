@@ -1,4 +1,4 @@
-// eslint-disable-next-line import/no-unresolved
+// eslint-disable-next-line import-x/no-unresolved
 import { CancellationToken } from 'vscode';
 
 import { DisposableStore, Uri as URI } from '@opensumi/ide-core-common';

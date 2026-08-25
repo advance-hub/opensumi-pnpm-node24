@@ -1,7 +1,5 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
 import { ICodeEditor } from '@opensumi/ide-monaco';
 
-// @ts-ignore
 import type { Text } from 'yjs';
 
 export const ICollaborationService = Symbol('ICollaborationService');
@@ -30,6 +28,7 @@ export const IYWebsocketServer = Symbol('IYWebsocketServer');
 
 export interface IYWebsocketServer {
   requestInitContent(uri: string): Promise<void>;
+  releaseContent(uri: string): void;
 }
 
 export const CollaborationServiceForClientPath = 'CollaborationServiceForClientPath';
@@ -38,6 +37,7 @@ export const ICollaborationServiceForClient = Symbol('ICollaborationServiceForCl
 
 export interface ICollaborationServiceForClient {
   requestInitContent(uri: string): Promise<void>;
+  releaseContent(uri: string): Promise<void>;
 }
 
 export const ROOM_NAME = 'y-room-opensumi';

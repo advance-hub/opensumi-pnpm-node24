@@ -197,12 +197,6 @@ describe('Extension service', () => {
       expect(tabbar?.containerId).toBe('test.sumi-extension:KaitianViewContribute');
     });
 
-    it('should register browserView', () => {
-      const layoutService: IMainLayoutService = injector.get(IMainLayoutService);
-      const tabbar = layoutService.getTabbarHandler('test.sumi-extension:KaitianViewContribute');
-      expect(tabbar).toBeDefined();
-    });
-
     it('should register keybinding for HelloKaitian command', () => {
       const keyBinding: KeybindingRegistryImpl = injector.get(KeybindingRegistry);
       const commandKeyBindings = keyBinding.getKeybindingsForCommand('HelloKaitian');

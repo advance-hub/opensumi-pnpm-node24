@@ -1,6 +1,6 @@
 import { CancellationToken, Event, IDisposable, Uri as URI, Uri, es5ClassCompat } from '@opensumi/ide-core-common';
 import { FileChange, FileSystemProviderCapabilities } from '@opensumi/ide-file-service';
-import { FileOperation } from '@opensumi/ide-workspace-edit';
+import { FileOperation } from '@opensumi/ide-workspace-edit/lib/common';
 
 import { Disposable } from './ext-types';
 import { IWorkspaceEditDto } from './model.api';
@@ -204,7 +204,7 @@ export class FileSystemError extends Error {
   constructor(
     uriOrMessage?: string | URI,
     code: FileSystemProviderErrorCode = FileSystemProviderErrorCode.Unknown,
-    terminator?: Function,
+    terminator?: (messageOrUri?: string | URI) => FileSystemError,
   ) {
     super(URI.isUri(uriOrMessage) ? uriOrMessage.toString(true) : uriOrMessage);
     this.code = terminator?.name ?? 'Unknown';

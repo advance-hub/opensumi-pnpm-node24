@@ -292,7 +292,7 @@ export default class ExtensionHostServiceImpl implements IExtensionHostService {
     }
 
     if (extensionModule.parent) {
-      return this.lookup(extensionModule.parent, (depth += 1));
+      return this.lookup(extensionModule.parent, depth + 1);
     }
 
     return undefined;

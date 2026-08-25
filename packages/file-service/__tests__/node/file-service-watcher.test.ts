@@ -315,7 +315,7 @@ const sleepTime = 1000;
     await fse.ensureFile(root.resolve('README.md').codeUri.fsPath.toString());
     await sleep(sleepTime);
 
-    expect(Array.from(addUris).some((val) => expectedAddUris.includes(val)));
+    expect(Array.from(addUris).some((val) => expectedAddUris.includes(val))).toBe(true);
     expect(Array.from(deleteUris)).toEqual(expectedDeleteUris);
     watcherServerList.push(watcherServer);
   });

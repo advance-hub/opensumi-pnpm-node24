@@ -248,7 +248,7 @@ export class TerminalProfileServiceNode {
       if (profile === null) {
         continue;
       }
-      let originalPaths: string[] = [];
+      let originalPaths: string[];
       let args: string[] | string | undefined;
       let icon: vscode.ThemeIcon | URI | { light: URI; dark: URI } | undefined;
       if ('source' in profile) {

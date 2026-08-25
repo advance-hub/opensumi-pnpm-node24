@@ -7,10 +7,15 @@ export abstract class WebSocketHandler {
   abstract handlerId: string;
   abstract handleUpgrade(pathname: string, request: any, socket: any, head: any): boolean;
   init?(): void;
+  dispose?(): void;
 }
 
 export interface CommonChannelHandlerOptions {
   wsServerOptions?: ws.ServerOptions;
+  heartbeatInterval?: number;
+  maxConnections?: number;
+  maxBufferedAmount?: number;
+  shouldAcceptConnection?: () => boolean;
   pathMatchOptions?: {
     // When true the regexp will match to the end of the string.
     end?: boolean;
@@ -21,6 +26,10 @@ export class WebSocketServerRoute {
   public server: http.Server;
   public port?: number;
   private wsServerHandlerArr: WebSocketHandler[];
+
+  private upgradeListener: ((request: http.IncomingMessage, socket: any, head: Buffer) => void) | undefined;
+
+  private disposed = false;
 
   constructor(
     server: http.Server,
@@ -56,7 +65,8 @@ export class WebSocketServerRoute {
     const handlerIndex = this.wsServerHandlerArr.findIndex((handler) => handler.handlerId === handlerId);
 
     if (handlerIndex !== -1) {
-      this.wsServerHandlerArr.splice(handlerIndex, 1);
+      const [removedHandler] = this.wsServerHandlerArr.splice(handlerIndex, 1);
+      removedHandler.dispose?.();
       return true;
     } else {
       return false;
@@ -84,10 +94,13 @@ export class WebSocketServerRoute {
     });
   }
   private handleUpgrade() {
+    if (this.upgradeListener) {
+      return;
+    }
     const server = this.server;
     const wsServerHandlerArr = this.wsServerHandlerArr;
 
-    server.on('upgrade', (request, socket, head) => {
+    this.upgradeListener = (request, socket, head) => {
       assert(request.url, 'cannot parse url from http request');
 
       // request.url: `/path?query=a#hash`
@@ -109,6 +122,20 @@ export class WebSocketServerRoute {
         this.logger.error(`request.url ${request.url} mismatch!`);
         socket.destroy();
       }
-    });
+    };
+    server.on('upgrade', this.upgradeListener);
+    server.once('close', () => this.dispose());
+  }
+
+  public dispose() {
+    if (this.disposed) {
+      return;
+    }
+    this.disposed = true;
+    if (this.upgradeListener) {
+      this.server.off('upgrade', this.upgradeListener);
+      this.upgradeListener = undefined;
+    }
+    this.wsServerHandlerArr.splice(0).forEach((handler) => handler.dispose?.());
   }
 }

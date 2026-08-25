@@ -14,4 +14,8 @@ export class CollaborationServiceForClient implements ICollaborationServiceForCl
   async requestInitContent(uri: string): Promise<void> {
     await this.server.requestInitContent(uri);
   }
+
+  async releaseContent(uri: string): Promise<void> {
+    this.server.releaseContent(uri);
+  }
 }

@@ -8,7 +8,7 @@ import { ISearchResult, ITerminalSearchService } from '../../common';
 
 import styles from './search.module.less';
 
-export const TerminalSearch: React.FC<{}> = React.memo((props) => {
+export const TerminalSearch: React.FC = React.memo(() => {
   const searchService = useInjectable<ITerminalSearchService>(ITerminalSearchService);
   const [UIState, setUIState] = React.useState(searchService.UIState);
   const [searchResult, setSearchResult] = React.useState<ISearchResult | null>(null);

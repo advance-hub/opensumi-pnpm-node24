@@ -78,10 +78,10 @@ describe('Extension Client Serivce', () => {
       const targetPath = path.join(extensionDir, `${publisher}.${name}-${version}`);
       const storagePath = (await extensionStorageServer.getLastStoragePath()) || '';
       await extensionNodeClient.updateLanguagePack('zh-CN', targetPath, storagePath);
-      expect(fs.existsSync(lpPath));
+      expect(fs.existsSync(lpPath)).toBe(true);
       // const content = fs.readFileSync(lpPath, { encoding: 'utf8' });
 
-      expect(!!process.env['VSCODE_NLS_CONFIG']);
+      expect(process.env['VSCODE_NLS_CONFIG']).toBeDefined();
       const nlsConfig = JSON.parse(process.env['VSCODE_NLS_CONFIG']!);
       expect(nlsConfig.locale).toBe('zh-cn');
     });

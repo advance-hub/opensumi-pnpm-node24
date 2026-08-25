@@ -98,7 +98,7 @@ describe('extension/__tests__/hosted/api/vscode/ext.host.command.test.ts', () =>
 
       const commandId = 'ext.test';
       extCommand.registerCommand(false, commandId, commandHandler);
-      expect(vscodeCommand.executeCommand(commandId)).rejects.toThrow(
+      await expect(vscodeCommand.executeCommand(commandId)).rejects.toThrow(
         new Error(`Extension vscode.vim has not permit to execute ${commandId}`),
       );
       expect(commandHandler.handler).toHaveBeenCalledTimes(0);
@@ -171,7 +171,7 @@ describe('extension/__tests__/hosted/api/vscode/ext.host.command.test.ts', () =>
     it('execute a builtin command will not permitted', async () => {
       extCommand.$registerBuiltInCommands();
       const commandId = 'test:builtinCommand:unpermitted';
-      expect(() => vscodeCommand.executeCommand(commandId)).rejects.toThrow(
+      await expect(vscodeCommand.executeCommand(commandId)).rejects.toThrow(
         new Error(`Extension vscode.vim has not permit to execute ${commandId}`),
       );
     });
@@ -204,9 +204,9 @@ describe('extension/__tests__/hosted/api/vscode/ext.host.command.test.ts', () =>
       expect(extTest).toHaveBeenCalledTimes(1);
     });
 
-    it('call $executeContributedCommand with no-exist command', () => {
+    it('call $executeContributedCommand with no-exist command', async () => {
       const commandId = 'ext.notfound';
-      expect(extCommand.$executeContributedCommand(commandId)).rejects.toThrow();
+      await expect(extCommand.$executeContributedCommand(commandId)).rejects.toThrow();
     });
 
     it('register argument processor', async () => {
@@ -230,13 +230,13 @@ describe('extension/__tests__/hosted/api/vscode/ext.host.command.test.ts', () =>
       expect(await extCommand.$executeCommandWithExtensionInfo(commandShouldAuth, extensionInfo)).toBeTruthy();
     });
 
-    it('execute requiring authentication command to frontend command when not permitted', () => {
+    it('execute requiring authentication command to frontend command when not permitted', async () => {
       const extensionInfo: IExtensionInfo = {
         id: 'vscode.vim',
         extensionId: 'cloud-ide.vim',
         isBuiltin: false,
       };
-      expect(extCommand.$executeCommandWithExtensionInfo(commandShouldAuth, extensionInfo)).rejects.toThrow(
+      await expect(extCommand.$executeCommandWithExtensionInfo(commandShouldAuth, extensionInfo)).rejects.toThrow(
         new Error('not permitted'),
       );
     });
@@ -253,7 +253,7 @@ describe('extension/__tests__/hosted/api/vscode/ext.host.command.test.ts', () =>
         isPermitted: () => false,
       };
       extCommand.registerCommand(false, commandId, commandHandler);
-      expect(extCommand.$executeCommandWithExtensionInfo(commandId, extensionInfo)).rejects.toThrow(
+      await expect(extCommand.$executeCommandWithExtensionInfo(commandId, extensionInfo)).rejects.toThrow(
         new Error(`Extension vscode.vim has not permit to execute ${commandId}`),
       );
     });
@@ -306,11 +306,6 @@ describe('extension/__tests__/hosted/api/vscode/ext.host.command.test.ts', () =>
       const file = Uri.file('/a.txt');
       await extCommand.executeCommand('vscode.executeTypeDefinitionProvider', file, new types.Position(1, 1));
       expect(mockMainThreadFunc.mock.calls[0][0]).toBe('_executeTypeDefinitionProvider');
-    });
-    it('vscode.executeDeclarationProvider', async () => {
-      const file = Uri.file('/a.txt');
-      await extCommand.executeCommand('vscode.executeDeclarationProvider', file, new types.Position(1, 1));
-      expect(mockMainThreadFunc.mock.calls[0][0]).toBe('_executeDeclarationProvider');
     });
     it('vscode.executeDeclarationProvider', async () => {
       const file = Uri.file('/a.txt');

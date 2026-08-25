@@ -28,7 +28,7 @@ describe('Process test', () => {
     await new Promise<IProcessStartEvent>(async (resolve, reject) => {
       const args = ['-e', 'process.exit(3)'];
       const rawProcess = processFactory.create({ command: process.execPath, args });
-      rawProcess.onStart(() => resolve(true));
+      rawProcess.onStart(() => resolve({}));
       rawProcess.onError(reject);
       rawProcess.onExit(reject);
     });

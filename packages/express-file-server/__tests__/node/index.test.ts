@@ -39,17 +39,17 @@ describe('template test', () => {
 
   it('can get png if path in whitelist', async () => {
     const res = await fetch(`http://0.0.0.0:50118/assets${path.join(resPath, 'icon.png')}`);
-    expect(res.status === 200);
+    expect(res.status).toBe(200);
   });
 
   it('response 403 if not in whitelist', async () => {
     const res = await fetch('http://0.0.0.0:50118/assets/test');
-    expect(res.status === 403);
+    expect(res.status).toBe(403);
   });
 
   it('response 403 if not allowed mime', async () => {
     const res = await fetch(`http://0.0.0.0:50118/assets${path.join(resPath, 'icon.exe')}`);
-    expect(res.status === 403);
+    expect(res.status).toBe(403);
   });
 
   afterAll(() => {

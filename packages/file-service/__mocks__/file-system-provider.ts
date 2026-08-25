@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { Injectable } from '@opensumi/di';
-import { Emitter, Event, BinaryBuffer, Uri, FileSystemProviderCapabilities } from '@opensumi/ide-core-common';
+import { BinaryBuffer, Emitter, Event, FileSystemProviderCapabilities, Uri } from '@opensumi/ide-core-common';
 
-import { FileChangeEvent, IDiskFileProvider, FileType } from '../src/common';
+import { FileChangeEvent, FileType, IDiskFileProvider } from '../src/common';
 
 @Injectable()
 export class MockFsProvider implements IDiskFileProvider {

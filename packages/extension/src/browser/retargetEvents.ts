@@ -79,15 +79,9 @@ export function retargetEvents(shadowRoot: ShadowRoot) {
       const path = event.path || (event.composedPath && event.composedPath()) || composedPath(event.target);
 
       for (const el of path) {
-        let props = null;
         const reactComponent = findReactComponent(el);
         const eventHandlers = findReactEventHandlers(el);
-
-        if (!eventHandlers) {
-          props = findReactProps(reactComponent);
-        } else {
-          props = eventHandlers;
-        }
+        const props = eventHandlers || findReactProps(reactComponent);
 
         if (reactComponent && props) {
           dispatchEvent(event, reactEventName, props);

@@ -106,8 +106,6 @@ describe('MainThreadTreeView API Test Suite', () => {
     mainThreadTreeView.$unregisterTreeDataProvider('testView1');
   });
 
-  it('$resolveDropFileData api should be worked', async () => {});
-
   it('$refresh api should be worked', async () => {
     await mainThreadTreeView.$refresh(treeViewId);
   });

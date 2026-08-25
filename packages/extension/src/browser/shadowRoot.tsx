@@ -20,10 +20,9 @@ import {
   getThemeTypeSelector,
 } from '@opensumi/ide-theme';
 
+import extensionPackage from '../../package.json';
 import { IExtension } from '../common';
 import { AbstractViewExtProcessService } from '../common/extension.service';
-
-const pkgJson = require('../../package.json');
 
 const ShadowContent = ({ root, children }) => ReactDOM.createPortal(children, root);
 
@@ -115,9 +114,9 @@ const ShadowRoot = ({
           proxiedHead.appendChild(getStyleSheet(styleSheet.componentUri));
           proxiedHead.appendChild(getStyleSheet(styleSheet.iconfontUri));
         } else {
-          proxiedHead.appendChild(getStyleSheet(getCDNHref('dist/index.css', pkgJson.version, cdnType)));
+          proxiedHead.appendChild(getStyleSheet(getCDNHref('dist/index.css', extensionPackage.version, cdnType)));
           proxiedHead.appendChild(
-            getStyleSheet(getCDNHref('lib/icon/iconfont/iconfont.css', pkgJson.version, cdnType)),
+            getStyleSheet(getCDNHref('lib/icon/iconfont/iconfont.css', extensionPackage.version, cdnType)),
           );
         }
 

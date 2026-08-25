@@ -11,7 +11,6 @@ export interface IPathHandler {
   dispose: (channel: WSChannel, connectionId: string) => void;
   handler: (channel: WSChannel, connectionId: string, params?: Record<string, string>) => void;
   reconnect?: (channel: WSChannel, connectionId: string) => void;
-  connection?: any;
 }
 
 export class CommonChannelPathHandler {
@@ -32,7 +31,6 @@ export class CommonChannelPathHandler {
     const handlerArr = this.handlerMap.get(channelToken) as IPathHandler[];
     const handlerFn = handler.handler.bind(handler);
     const setHandler = (channel: WSChannel, clientId: string, params: any) => {
-      handler.connection = channel;
       handlerFn(channel, clientId, params);
     };
     handler.handler = setHandler;
@@ -50,18 +48,20 @@ export class CommonChannelPathHandler {
     return params;
   }
   removeHandler(channelPath: string, handler: IPathHandler) {
-    const paramsIndex = channelPath.indexOf(':');
+    const paramsIndex = channelPath.indexOf('/:');
     const hasParams = paramsIndex >= 0;
-    let channelToken = channelPath;
-    if (hasParams) {
-      channelToken = channelPath.slice(0, paramsIndex);
-    }
+    const channelToken = hasParams ? channelPath.slice(0, paramsIndex) : channelPath;
     const handlerArr = this.handlerMap.get(channelToken) || [];
     const removeIndex = handlerArr.indexOf(handler);
     if (removeIndex !== -1) {
       handlerArr.splice(removeIndex, 1);
     }
-    this.handlerMap.set(channelPath, handlerArr);
+    if (handlerArr.length === 0) {
+      this.handlerMap.delete(channelToken);
+      this.paramsKey.delete(channelToken);
+    } else {
+      this.handlerMap.set(channelToken, handlerArr);
+    }
   }
   get(channelPath: string) {
     return this.handlerMap.get(channelPath);
@@ -102,6 +102,7 @@ export class CommonChannelPathHandler {
 
 export interface ChannelHandlerOptions {
   serializer?: ISerializer<ChannelMessage, any>;
+  heartbeatInterval?: number;
 }
 
 enum ServerChannelCloseCode {
@@ -112,7 +113,11 @@ enum ServerChannelCloseCode {
 export abstract class BaseCommonChannelHandler {
   protected channelMap: Map<string, WSServerChannel> = new Map();
 
-  protected heartbeatTimer: NodeJS.Timeout | null = null;
+  private readonly connections = new Set<IConnectionShape<Uint8Array>>();
+
+  private heartbeatTimer: NodeJS.Timeout | null = null;
+
+  private readonly heartbeatInterval: number;
 
   serializer: ISerializer<ChannelMessage, any> = furySerializer;
   constructor(
@@ -124,24 +129,39 @@ export abstract class BaseCommonChannelHandler {
     if (options.serializer) {
       this.serializer = options.serializer;
     }
+    this.heartbeatInterval = options.heartbeatInterval ?? 30_000;
   }
 
   abstract doHeartbeat(connection: any): void;
 
-  private heartbeat(connection: any) {
-    if (this.heartbeatTimer) {
-      clearTimeout(this.heartbeatTimer);
+  private startHeartbeat() {
+    if (this.heartbeatTimer || this.heartbeatInterval <= 0) {
+      return;
     }
 
-    this.heartbeatTimer = setTimeout(() => {
-      this.doHeartbeat(connection);
-      this.heartbeat(connection);
-    }, 5000);
+    this.heartbeatTimer = setInterval(() => {
+      this.connections.forEach((connection) => {
+        try {
+          this.doHeartbeat(connection);
+        } catch (error) {
+          this.logger.error('connection heartbeat failed', error);
+        }
+      });
+    }, this.heartbeatInterval);
+    this.heartbeatTimer.unref?.();
+  }
+
+  private stopHeartbeatIfIdle() {
+    if (this.connections.size === 0 && this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
   }
 
   receiveConnection(connection: IConnectionShape<Uint8Array>) {
     let clientId: string;
-    this.heartbeat(connection);
+    this.connections.add(connection);
+    this.startHeartbeat();
 
     const wrappedConnection = wrapSerializer(connection, this.serializer);
 
@@ -189,24 +209,41 @@ export abstract class BaseCommonChannelHandler {
     });
 
     connection.onceClose(() => {
-      this.logger.log(`connection ${clientId} is closed, dispose all channels`);
-      this.commonChannelPathHandler.disposeConnectionClientId(connection, clientId);
+      this.connections.delete(connection);
+      this.stopHeartbeatIfIdle();
+      this.logger.log(`connection ${clientId ?? '<unidentified>'} is closed, dispose its channels`);
 
       Array.from(this.channelMap.values())
-        .filter((channel) => channel.clientId === clientId)
+        // A reconnect reuses the same client/channel id. The old socket may
+        // close after the replacement channel has opened, so ownership must be
+        // checked by physical connection rather than client id.
+        .filter((channel) => channel.connection === wrappedConnection)
         .forEach((channel) => {
           channel.close(ServerChannelCloseCode.ConnectionClosed, 'connection closed');
           channel.dispose();
           this.channelMap.delete(channel.id);
           this.logger.log(`Remove connection channel ${channel.id}`);
         });
+
+      const hasReplacementChannel =
+        clientId !== undefined && Array.from(this.channelMap.values()).some((channel) => channel.clientId === clientId);
+      if (clientId !== undefined && !hasReplacementChannel) {
+        this.commonChannelPathHandler.disposeConnectionClientId(connection, clientId);
+      }
     });
   }
 
   dispose() {
     if (this.heartbeatTimer) {
-      clearTimeout(this.heartbeatTimer);
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
     }
+    this.channelMap.forEach((channel) => {
+      channel.close(ServerChannelCloseCode.ConnectionClosed, 'channel handler disposed');
+      channel.dispose();
+    });
+    this.channelMap.clear();
+    this.connections.clear();
   }
 }
 

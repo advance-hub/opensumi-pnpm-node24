@@ -78,13 +78,12 @@ export class Buffers {
     }
     let l = i;
     let bi = 0;
-    let bu: Uint8Array | null = null;
     for (;;) {
-      bu = this.buffers[bi];
-      if (l < bu.length) {
+      const buffer = this.buffers[bi];
+      if (l < buffer.length) {
         return { buf: bi, offset: l };
       } else {
-        l -= bu.length;
+        l -= buffer.length;
       }
       bi++;
     }

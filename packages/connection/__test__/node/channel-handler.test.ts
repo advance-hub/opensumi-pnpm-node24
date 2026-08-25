@@ -1,11 +1,11 @@
 import net from 'net';
 
-import { NetSocketConnection } from '@opensumi/ide-connection/src/common/connection';
-import { ElectronChannelHandler } from '@opensumi/ide-connection/src/electron';
+import { NetSocketConnection } from '@opensumi/ide-connection/lib/common/connection';
+import { ElectronChannelHandler } from '@opensumi/ide-connection/lib/electron';
 import { Deferred } from '@opensumi/ide-core-common';
 import { normalizedIpcHandlerPathAsync } from '@opensumi/ide-core-common/src/utils/ipc';
 
-// eslint-disable-next-line import/no-restricted-paths
+// eslint-disable-next-line import-x/no-restricted-paths
 import { WSChannelHandler } from '../../src/browser';
 import { CommonChannelPathHandler } from '../../src/common/server-handler';
 
@@ -21,11 +21,12 @@ describe('channel handler', () => {
     const ipcPath = await normalizedIpcHandlerPathAsync('test', true);
     server.listen(ipcPath);
 
-    const nodeChannelHandler = new ElectronChannelHandler(server, commonChannelPathHandler);
+    const logger = { log() {}, warn() {}, error() {} };
+    const nodeChannelHandler = new ElectronChannelHandler(server, commonChannelPathHandler, logger);
     nodeChannelHandler.listen();
 
     commonChannelPathHandler.register('test', {
-      handler(channel, connectionId, params) {
+      handler(channel) {
         channel.onMessage((msg) => {
           if (msg === 'hello') {
             channel.send('world');
@@ -36,7 +37,7 @@ describe('channel handler', () => {
     });
 
     commonChannelPathHandler.register('test2', {
-      handler(channel, connectionId, params) {
+      handler(channel) {
         channel.onMessage((msg) => {
           if (msg === 'ping') {
             channel.send('pong');
@@ -49,7 +50,7 @@ describe('channel handler', () => {
     const socket = new net.Socket();
     socket.connect(ipcPath);
     const connection = new NetSocketConnection(socket);
-    const browserChannel = new WSChannelHandler(connection, clientId);
+    const browserChannel = new WSChannelHandler(connection, clientId, { logger });
 
     await browserChannel.initHandler();
 
@@ -74,8 +75,14 @@ describe('channel handler', () => {
     await deferred.promise;
     await deferred2.promise;
 
-    connection.dispose();
+    browserChannel.dispose();
+    const socketClosed = new Promise<void>((resolve) => socket.once('close', () => resolve()));
     connection.destroy();
-    server.close();
+    await socketClosed;
+    connection.dispose();
+    nodeChannelHandler.dispose();
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
   });
 });

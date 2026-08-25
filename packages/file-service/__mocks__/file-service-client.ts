@@ -1,5 +1,5 @@
 import { Injectable } from '@opensumi/di';
-import { URI, Emitter, Event, FileUri, IDisposable, BinaryBuffer } from '@opensumi/ide-core-common';
+import { BinaryBuffer, Emitter, Event, FileUri, IDisposable, URI } from '@opensumi/ide-core-common';
 
 import { IFileServiceClient } from '../src/common/file-service-client';
 import {

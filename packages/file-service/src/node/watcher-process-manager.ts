@@ -4,7 +4,6 @@ import { Server, Socket, createServer } from 'net';
 import path from 'path';
 
 import { Autowired, Injectable } from '@opensumi/di';
-import { IRPCProtocol } from '@opensumi/ide-connection';
 import { NetSocketConnection } from '@opensumi/ide-connection/lib/common/connection/drivers/socket';
 import { SumiConnectionMultiplexer } from '@opensumi/ide-connection/lib/common/rpc/multiplexer';
 import { ILogServiceManager, SupportLogNamespace } from '@opensumi/ide-core-common/lib/log';
@@ -28,11 +27,15 @@ import {
   WatcherServiceProxy,
 } from '../common/watcher';
 
+import type { ForkOptions } from 'child_process';
+
 export const WatcherProcessManagerToken = Symbol('WatcherProcessManager');
 
 @Injectable({ multiple: true })
 export class WatcherProcessManagerImpl implements IWatcherProcessManager {
-  private protocol: IRPCProtocol;
+  private protocol?: SumiConnectionMultiplexer;
+
+  private watcherSocket?: Socket;
 
   private watcherProcess?: ChildProcess;
 
@@ -77,20 +80,32 @@ export class WatcherProcessManagerImpl implements IWatcherProcessManager {
   private clientWatcherConnectionServer: Map<string, Server> = new Map();
 
   private setProxyConnection(socket: Socket) {
+    this.watcherSocket?.destroy();
+    this.protocol?.dispose();
     const protocol = new SumiConnectionMultiplexer(new NetSocketConnection(socket), {
       timeout: -1,
     });
     protocol.set(WatcherProcessManagerProxy, this);
 
     this.protocol = protocol;
+    this.watcherSocket = socket;
     socket.on('close', () => {
       protocol.dispose();
+      if (this.protocol === protocol) {
+        this.protocol = undefined;
+      }
+      if (this.watcherSocket === socket) {
+        this.watcherSocket = undefined;
+      }
     });
 
     this._whenReadyDeferred.resolve();
   }
 
   private getProxy() {
+    if (!this.protocol) {
+      throw new Error('Watcher process is not connected');
+    }
     return this.protocol.getProxy<IWatcherHostService>(WatcherServiceProxy);
   }
 
@@ -111,8 +126,70 @@ export class WatcherProcessManagerImpl implements IWatcherProcessManager {
       this.setProxyConnection(socket);
     });
 
-    server.listen(listenOptions, () => {
-      this.logger.log(`watcher process listen on ${JSON.stringify(listenOptions)}`);
+    await new Promise<void>((resolve, reject) => {
+      const onError = (error: Error) => {
+        this.clientWatcherConnectionServer.delete(clientId);
+        reject(error);
+      };
+      server.once('error', onError);
+      server.listen(listenOptions, () => {
+        server.off('error', onError);
+        this.logger.log(`watcher process listen on ${JSON.stringify(listenOptions)}`);
+        resolve();
+      });
+    });
+  }
+
+  private async closeWatcherServers() {
+    this.watcherSocket?.destroy();
+    this.watcherSocket = undefined;
+    this.protocol?.dispose();
+    this.protocol = undefined;
+
+    const servers = Array.from(this.clientWatcherConnectionServer.values());
+    this.clientWatcherConnectionServer.clear();
+    await Promise.all(
+      servers.map(
+        (server) =>
+          new Promise<void>((resolve) => {
+            if (!server.listening) {
+              resolve();
+              return;
+            }
+            server.close(() => resolve());
+          }),
+      ),
+    );
+  }
+
+  private async stopWatcherProcess() {
+    const watcherProcess = this.watcherProcess;
+    this.watcherProcess = undefined;
+    if (!watcherProcess || watcherProcess.exitCode !== null || watcherProcess.signalCode !== null) {
+      return;
+    }
+
+    await new Promise<void>((resolve) => {
+      let forceKillTimer: NodeJS.Timeout | undefined;
+      let stopTimeout: NodeJS.Timeout | undefined;
+      const finish = () => {
+        if (forceKillTimer) {
+          clearTimeout(forceKillTimer);
+        }
+        if (stopTimeout) {
+          clearTimeout(stopTimeout);
+        }
+        watcherProcess.off('exit', finish);
+        resolve();
+      };
+      watcherProcess.once('exit', finish);
+      watcherProcess.kill('SIGTERM');
+      forceKillTimer = setTimeout(() => {
+        watcherProcess.kill('SIGKILL');
+      }, 2_000);
+      forceKillTimer.unref?.();
+      stopTimeout = setTimeout(finish, 3_000);
+      stopTimeout.unref?.();
     });
   }
 
@@ -211,6 +288,26 @@ export class WatcherProcessManagerImpl implements IWatcherProcessManager {
     return path.join(__dirname, '../../../..');
   }
 
+  private getWatcherProcessForkOptions(): ForkOptions {
+    const configuredOptions = this.appConfig.watcherHostForkOptions;
+    const configuredExecArgv = configuredOptions?.execArgv || [];
+    const overridesHeapLimit = configuredExecArgv.some(
+      (argument) => argument.startsWith('--max-old-space-size=') || argument.startsWith('--max_old_space_size='),
+    );
+    const inheritedExecArgv = this.getWatcherProcessExecArgv().filter(
+      (argument) =>
+        !overridesHeapLimit ||
+        (!argument.startsWith('--max-old-space-size=') && !argument.startsWith('--max_old_space_size=')),
+    );
+
+    return {
+      ...configuredOptions,
+      silent: true,
+      execArgv: [...inheritedExecArgv, ...configuredExecArgv],
+      cwd: configuredOptions?.cwd || this.getWatcherProcessCwd(),
+    };
+  }
+
   private async createWatcherProcess(clientId: string, ipcHandlerPath: string, backend?: RecursiveWatcherBackend) {
     const forkArgs = [
       `--${SUMI_WATCHER_PROCESS_SOCK_KEY}=${JSON.stringify({
@@ -225,34 +322,29 @@ export class WatcherProcessManagerImpl implements IWatcherProcessManager {
     ];
 
     this.logger.log('Watcher process path: ', this.watcherHost);
-    this.watcherProcess = fork(this.watcherHost, forkArgs, {
-      silent: true,
-      execArgv: this.getWatcherProcessExecArgv(),
-      cwd: this.getWatcherProcessCwd(),
-    });
+    this.watcherProcess = fork(this.watcherHost, forkArgs, this.getWatcherProcessForkOptions());
 
     this.logger.log('Watcher process fork success, pid: ', this.watcherProcess.pid);
 
-    this.watcherProcess.on('exit', async (code, signal) => {
+    const watcherProcess = this.watcherProcess;
+    watcherProcess.on('exit', async (code, signal) => {
       this.logger.warn('watcher process exit: ', code, signal);
+      if (this.watcherProcess === watcherProcess) {
+        this.watcherProcess = undefined;
+      }
     });
 
-    return this.watcherProcess.pid;
+    return watcherProcess.pid;
   }
 
   async createProcess(clientId: string, backend?: RecursiveWatcherBackend) {
+    await this.closeWatcherServers();
+    await this.stopWatcherProcess();
     this._whenReadyDeferred = new Deferred();
     this.logger.log('create watcher process for client: ', clientId);
     this.logger.log('appconfig watcherHost: ', this.watcherHost);
 
     const ipcHandlerPath = await this.getIPCHandlerPath('watcher_process');
-    // 如果存在连接，则关闭连接, 避免重复创建
-    const server = this.clientWatcherConnectionServer.get(clientId);
-    if (server) {
-      // 等待真正关闭后再移除引用，避免句柄和端口泄漏
-      await new Promise<void>((res) => server.close(() => res()));
-      this.clientWatcherConnectionServer.delete(clientId);
-    }
     await this.createWatcherServer(clientId, ipcHandlerPath);
 
     const pid = await this.createWatcherProcess(clientId, ipcHandlerPath, backend);
@@ -262,11 +354,23 @@ export class WatcherProcessManagerImpl implements IWatcherProcessManager {
 
   async dispose() {
     try {
-      await this._whenReadyDeferred.promise;
-      await this.getProxy().$dispose();
+      if (this.protocol) {
+        let timeout: NodeJS.Timeout | undefined;
+        await Promise.race([
+          this.getProxy().$dispose(),
+          new Promise<void>((resolve) => {
+            timeout = setTimeout(resolve, 1_000);
+            timeout.unref?.();
+          }),
+        ]);
+        if (timeout) {
+          clearTimeout(timeout);
+        }
+      }
     } catch {
     } finally {
-      this.watcherProcess?.kill();
+      await this.closeWatcherServers();
+      await this.stopWatcherProcess();
     }
   }
 

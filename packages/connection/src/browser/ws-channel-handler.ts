@@ -71,6 +71,14 @@ export class WSChannelHandler {
 
       this.heartbeatMessage();
     }, 10 * 1000);
+    (this.heartbeatMessageTimer as any).unref?.();
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatMessageTimer) {
+      clearTimeout(this.heartbeatMessageTimer);
+      this.heartbeatMessageTimer = null;
+    }
   }
 
   public async initHandler() {
@@ -103,6 +111,7 @@ export class WSChannelHandler {
     };
 
     this.connection.onClose((code, reason) => {
+      this.stopHeartbeat();
       this.channelMap.forEach((channel) => {
         channel.close(code, reason);
       });
@@ -198,9 +207,10 @@ export class WSChannelHandler {
   }
 
   public dispose() {
-    if (this.heartbeatMessageTimer) {
-      clearTimeout(this.heartbeatMessageTimer);
-    }
+    this.stopHeartbeat();
+    this.channelMap.forEach((channel) => channel.dispose());
+    this.channelMap.clear();
+    this.channelCloseEventMap.keys.forEach((key) => this.channelCloseEventMap.delete(key));
     this._disposables.dispose();
   }
 

@@ -56,8 +56,7 @@ export interface IProcessExitEvent {
 /**
  * Data emitted when a process has been successfully started.
  */
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface IProcessStartEvent {}
+export type IProcessStartEvent = Record<string, never>;
 
 /**
  * Data emitted when a process has failed to start.

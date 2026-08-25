@@ -40,14 +40,14 @@ describe('SearchHistory test', () => {
     expect(mockRecentStorage.cache.get(SEARCH_WORD_SCOPE).join(',')).toEqual('a,b,c,d');
   });
 
-  test('method: setRecentSearchWord', () => {
+  test('method: setRecentSearchWord triggers search', () => {
     const spy = jest.spyOn(searchServiceClient, 'searchDebounce');
     searchHistory.setRecentSearchWord();
     expect(searchServiceClient.searchValue).toEqual('d');
     expect(spy).toHaveBeenCalled();
   });
 
-  test('method: setRecentSearchWord', () => {
+  test('method: setRecentSearchWord cycles history', () => {
     searchHistory.setRecentSearchWord();
     searchHistory.setRecentSearchWord();
     searchHistory.setRecentSearchWord();
@@ -59,14 +59,14 @@ describe('SearchHistory test', () => {
     expect(searchServiceClient.searchValue).toEqual('a');
   });
 
-  test('method: setBackRecentSearchWord', () => {
+  test('method: setBackRecentSearchWord triggers search', () => {
     const spy = jest.spyOn(searchServiceClient, 'searchDebounce');
     searchHistory.setBackRecentSearchWord();
     expect(searchServiceClient.searchValue).toEqual('b');
     expect(spy).toHaveBeenCalled();
   });
 
-  test('method: setBackRecentSearchWord', () => {
+  test('method: setBackRecentSearchWord cycles history', () => {
     searchHistory.setBackRecentSearchWord();
     searchHistory.setBackRecentSearchWord();
     searchHistory.setBackRecentSearchWord();

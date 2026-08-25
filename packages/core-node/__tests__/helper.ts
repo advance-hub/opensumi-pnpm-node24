@@ -5,7 +5,7 @@ export async function expectThrowsAsync(
 ): Promise<void>;
 export async function expectThrowsAsync(
   actual: Promise<any>,
-  constructor: Error | Function,
+  constructor: Error | (new (...args: any[]) => Error),
   expected?: string | RegExp,
   message?: string,
 ): Promise<void>;

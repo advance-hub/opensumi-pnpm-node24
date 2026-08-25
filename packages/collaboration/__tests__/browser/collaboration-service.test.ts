@@ -145,12 +145,14 @@ describe('CollaborationService basic routines', () => {
   });
 
   it('should successfully initialize', () => {
+    expect.hasAssertions();
     const spy = jest.spyOn(service, 'initialize');
     service.initialize();
     expect(spy).toHaveBeenCalled();
   });
 
   it('should create a new binding when all things are ready', async () => {
+    expect.hasAssertions();
     const event = new EditorDocumentModelCreationEvent({
       uri: new URI(workbenchEditorService.uri.toString()),
     } as any);
@@ -159,6 +161,7 @@ describe('CollaborationService basic routines', () => {
   });
 
   it('should call undo and redo on current binding', () => {
+    expect.hasAssertions();
     const targetBinding = service['getBinding'](workbenchEditorService.uri.toString()) as TextModelBinding;
     expect(targetBinding).toBeInstanceOf(TextModelBinding);
     const undoSpy = jest.spyOn(targetBinding, 'undo');
@@ -170,8 +173,8 @@ describe('CollaborationService basic routines', () => {
   });
 
   it('should change YText when remote YText was changed', async () => {
+    expect.hasAssertions();
     // simulate YText delete and add
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     const binding = service['bindingMap'].get(workbenchEditorService.uri.toString())!;
     expect(binding).toBeInstanceOf(TextModelBinding);
     expect(binding['yText'].toJSON()).toBeTruthy();
@@ -188,15 +191,30 @@ describe('CollaborationService basic routines', () => {
     expect(binding['yText'].toJSON()).toBe('1919810');
   });
 
+  it('should finish initialization when the backend rejects a document', async () => {
+    expect.hasAssertions();
+    const failedUri = new URI('file://failed');
+    jest.spyOn(server, 'requestInitContent').mockRejectedValueOnce(new Error('document rejected'));
+
+    await eventBus.fireAndAwait(new EditorDocumentModelCreationEvent({ uri: failedUri } as any));
+
+    expect(service['bindingMap'].has(failedUri.toString())).toBeFalsy();
+    await expect(service['bindingReadyMap'].get(failedUri.toString())!.promise).resolves.toBeUndefined();
+  });
+
   it('should remove binding on EditorDocumentModelRemovalEvent', async () => {
+    expect.hasAssertions();
+    const releaseSpy = jest.spyOn(server, 'releaseContent');
     const event = new EditorDocumentModelRemovalEvent({
       codeUri: new URI(workbenchEditorService.uri.toString()),
     } as any);
     await eventBus.fireAndAwait(event);
     expect(service['bindingMap'].has(workbenchEditorService.uri.toString())).toBeFalsy();
+    expect(releaseSpy).toHaveBeenCalledWith(workbenchEditorService.uri.toString());
   });
 
   it('should reset yTextMap on file change', async () => {
+    expect.hasAssertions();
     const { yMapReady } = service['getDeferred'](workbenchEditorService.uri.toString());
 
     service['yTextMap'].delete(workbenchEditorService.uri.toString());
@@ -213,6 +231,34 @@ describe('CollaborationService basic routines', () => {
       changes: [{ type: FileChangeType.UPDATED, uri: workbenchEditorService.uri.toString() }],
     });
     expect(service['yTextMap'].has(workbenchEditorService.uri.toString())).toBeFalsy();
+  });
+
+  it('should release awareness styles when a remote client leaves', () => {
+    expect.hasAssertions();
+    const disposeStyle = jest.fn();
+    jest.spyOn(service['cssManager'], 'addClass').mockImplementation(() => ({ dispose: disposeStyle }));
+
+    service['updateCSSManagerWhenAwarenessUpdated']({ added: [42], updated: [], removed: [] });
+    expect(service['clientStyleDisposables'].has(42)).toBeTruthy();
+
+    service['updateCSSManagerWhenAwarenessUpdated']({ added: [], updated: [], removed: [42] });
+    expect(service['clientStyleDisposables'].has(42)).toBeFalsy();
+    expect(disposeStyle).toHaveBeenCalledTimes(3);
+  });
+
+  it('should release document, provider and per-file state when destroyed', () => {
+    expect.hasAssertions();
+    const providerDestroy = jest.spyOn(service['yWebSocketProvider'], 'destroy');
+    service['getDeferred']('file://temporary');
+
+    service.destroy();
+
+    expect(providerDestroy).toHaveBeenCalledTimes(1);
+    expect(service['bindingMap']).toHaveProperty('size', 0);
+    expect(service['cursorRegistryMap']).toHaveProperty('size', 0);
+    expect(service['clientStyleDisposables']).toHaveProperty('size', 0);
+    expect(service['bindingReadyMap']).toHaveProperty('size', 0);
+    expect(service['yMapReadyMap']).toHaveProperty('size', 0);
   });
 
   afterAll(() => {

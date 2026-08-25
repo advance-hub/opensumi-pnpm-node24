@@ -26,7 +26,7 @@ import {
   parseGlob,
 } from '@opensumi/ide-core-common/lib/utils';
 
-import { INsfw } from '../../../common/watcher';
+import { INsfw, INsfwFunction } from '../../../common/watcher';
 import { FileChangeCollection } from '../../file-change-collection';
 import { shouldIgnorePath } from '../shared';
 
@@ -772,8 +772,9 @@ export class RecursiveFileSystemWatcher extends Disposable implements IWatcher {
     );
   }
 
-  private async withNSFWModule(): Promise<typeof import('nsfw')> {
-    return require('nsfw');
+  private async withNSFWModule(): Promise<INsfwFunction> {
+    const { default: nsfw } = await import('nsfw');
+    return nsfw;
   }
 
   protected pushAdded(path: string): void {

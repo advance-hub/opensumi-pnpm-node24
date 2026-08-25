@@ -7,10 +7,10 @@ import {
   IUndoStopOptions,
 } from '@opensumi/ide-editor';
 
-// eslint-disable-next-line import/no-restricted-paths
+// eslint-disable-next-line import-x/no-restricted-paths
 import { ViewColumn } from './enums';
 
-// eslint-disable-next-line import/no-restricted-paths
+// eslint-disable-next-line import-x/no-restricted-paths
 import type { EndOfLineSequence, RenderLineNumbersType } from './models';
 
 export * from './custom-editor';

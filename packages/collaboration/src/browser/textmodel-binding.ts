@@ -1,5 +1,10 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
-import { createMutex } from 'lib0/mutex';
+// lib0 publishes dual ESM/CJS runtime entries but only ESM-flavoured typings.
+// Keep this package CommonJS and let Node select lib0's `require` export.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { createMutex } = require('lib0/mutex') as {
+  createMutex: () => (callback: () => void, fallback?: () => void) => unknown;
+};
 // @ts-ignore
 import { Awareness } from 'y-protocols/awareness';
 import {

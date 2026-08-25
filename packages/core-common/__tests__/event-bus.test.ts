@@ -47,7 +47,7 @@ describe('event-bus', () => {
     expect(res[1].result).toBe('result');
     expect(res[1].err).toBeUndefined();
     expect(res[2].err).toBe(error);
-    expect(res[2].result).toBeUndefined;
+    expect(res[2].result).toBeUndefined();
   });
 
   it('event bus can be triggered multiple times', () => {

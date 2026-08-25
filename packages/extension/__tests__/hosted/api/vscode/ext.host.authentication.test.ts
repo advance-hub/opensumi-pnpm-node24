@@ -199,7 +199,7 @@ describe('extension/__tests__/hosted/api/vscode/ext.host.authentication.test.ts'
     expect($loginPrompt.mock.calls[0][2]).toBe(true);
   });
 
-  it.only('get session with silent', async () => {
+  it('get session with silent', async () => {
     const session = {
       id: 'test',
       accessToken: 'this_is_gitlab_token',

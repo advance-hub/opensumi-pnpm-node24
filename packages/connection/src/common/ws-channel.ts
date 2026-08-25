@@ -44,17 +44,20 @@ class StateTracer {
   }
 
   success(traceId: string) {
-    this.map.set(traceId, MessageDeliveryState.Success);
     const timer = this.timerMap.get(traceId);
     if (timer) {
       clearTimeout(timer);
     }
+    this.timerMap.delete(traceId);
+    this.map.delete(traceId);
   }
 
   dispose() {
     this.timerMap.forEach((timer) => {
       clearTimeout(timer);
     });
+    this.timerMap.clear();
+    this.map.clear();
   }
 
   stop(traceId: string) {
@@ -62,6 +65,8 @@ class StateTracer {
     if (timer) {
       clearTimeout(timer);
     }
+    this.timerMap.delete(traceId);
+    this.map.delete(traceId);
   }
 
   send(
@@ -86,6 +91,7 @@ class StateTracer {
     }
 
     const newTimer = setTimeout(() => {
+      this.timerMap.delete(traceId);
       this.set(traceId, MessageDeliveryState.ReSend);
       options.whenRetry();
     }, this.deliveryTimeout);
@@ -122,7 +128,10 @@ export class WSChannel {
 
   logger: ILogger = console;
 
-  constructor(public connection: IConnectionShape<ChannelMessage>, options: IWSChannelCreateOptions) {
+  constructor(
+    public connection: IConnectionShape<ChannelMessage>,
+    options: IWSChannelCreateOptions,
+  ) {
     const { id, logger, ensureServerReady } = options;
     this.id = id;
     this.LOG_TAG = `[WSChannel id:${this.id}]`;
@@ -332,7 +341,10 @@ export class WSServerChannel extends WSChannel {
   messageQueue: ChannelMessage[] = [];
 
   clientId: string;
-  constructor(public connection: IConnectionShape<ChannelMessage>, options: IWSServerChannelCreateOptions) {
+  constructor(
+    public connection: IConnectionShape<ChannelMessage>,
+    options: IWSServerChannelCreateOptions,
+  ) {
     super(connection, options);
     this.clientId = options.clientId;
   }

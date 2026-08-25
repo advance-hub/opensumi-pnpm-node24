@@ -37,7 +37,7 @@ describe('extension/__tests__/hosted/api/sumi/ext.host.command.test.ts', () => {
       const extTest = jest.fn();
       const commandId = 'ext.test';
       sumiCommand.registerCommandWithPermit(commandId, extTest, (extension) => extension.isBuiltin);
-      expect(sumiCommand.executeCommand(commandId)).rejects.toThrow(
+      await expect(sumiCommand.executeCommand(commandId)).rejects.toThrow(
         new Error(`Extension vscode.vim has not permit to execute ${commandId}`),
       );
       // 实际命令执行注册一次

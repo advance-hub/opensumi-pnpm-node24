@@ -42,7 +42,7 @@ describe('Pty Manager Test Local', () => {
   });
 });
 
-describe('Pty Manager Test Local', () => {
+describe('Pty Manager Test Remote', () => {
   let injector: Injector;
   let ptyServiceManager: IPtyServiceManager;
 

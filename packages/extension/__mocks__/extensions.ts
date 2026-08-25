@@ -3,7 +3,7 @@ import path from 'path';
 import { Uri } from '@opensumi/ide-core-common';
 
 import { IExtension, IExtensionProps } from '../src/common';
-import { IExtensionDescription, ExtensionIdentifier } from '../src/common/vscode';
+import { ExtensionIdentifier, IExtensionDescription } from '../src/common/vscode';
 
 // 临时绕过
 export const mockExtensionProps: IExtensionProps & { uri?: Uri } = {

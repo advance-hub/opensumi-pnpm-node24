@@ -5,7 +5,7 @@ import isRunning from 'is-running';
 import treeKill from 'tree-kill';
 
 import { Injectable } from '@opensumi/di';
-import { Event, MaybePromise } from '@opensumi/ide-core-common';
+import { Event, IDisposable, MaybePromise } from '@opensumi/ide-core-common';
 import { findFreePort } from '@opensumi/ide-core-common/lib/node/port';
 
 import { IExtensionHostManager, Output, OutputType } from '../common';
@@ -13,6 +13,13 @@ import { IExtensionHostManager, Output, OutputType } from '../common';
 @Injectable()
 export class ExtensionHostManager implements IExtensionHostManager {
   private readonly processMap = new Map<number, cp.ChildProcess>();
+
+  private readonly processDisposables = new Map<number, IDisposable[]>();
+
+  private readonly maxProcessCount = (() => {
+    const configured = Number(process.env.MAX_MANAGED_EXTENSION_PROCESSES);
+    return Number.isSafeInteger(configured) && configured > 0 ? configured : 8;
+  })();
 
   constructor() {
     this.init();
@@ -25,10 +32,34 @@ export class ExtensionHostManager implements IExtensionHostManager {
   }
 
   fork(modulePath: string, ...args: any[]) {
+    if (this.processMap.size >= this.maxProcessCount) {
+      throw new Error(`Managed extension child process limit (${this.maxProcessCount}) reached`);
+    }
     const extProcess = cp.fork(modulePath, ...args);
     assert(extProcess.pid, `fork ${modulePath} error`);
     this.processMap.set(extProcess.pid, extProcess);
+    this.processDisposables.set(extProcess.pid, []);
+    extProcess.once('exit', () => this.releaseProcess(extProcess.pid!, extProcess));
     return extProcess.pid;
+  }
+
+  private trackProcessDisposable(pid: number, disposable: IDisposable) {
+    const disposables = this.processDisposables.get(pid);
+    if (disposables) {
+      disposables.push(disposable);
+    } else {
+      disposable.dispose();
+    }
+  }
+
+  private releaseProcess(pid: number, expectedProcess?: cp.ChildProcess) {
+    if (expectedProcess && this.processMap.get(pid) !== expectedProcess) {
+      return;
+    }
+    this.processMap.delete(pid);
+    const disposables = this.processDisposables.get(pid) || [];
+    this.processDisposables.delete(pid);
+    disposables.forEach((disposable) => disposable.dispose());
   }
 
   send(pid: number, message: string) {
@@ -113,7 +144,7 @@ export class ExtensionHostManager implements IExtensionHostManager {
       100,
     );
 
-    onDebouncedOutput(listener);
+    this.trackProcessDisposable(pid, onDebouncedOutput(listener));
   }
 
   onExit(pid: number, listener: (code: number, signal: string) => void) {
@@ -130,6 +161,9 @@ export class ExtensionHostManager implements IExtensionHostManager {
       return;
     }
     extProcess.on('message', listener);
+    this.trackProcessDisposable(pid, {
+      dispose: () => extProcess.off('message', listener),
+    });
   }
 
   disposeProcess(pid: number) {
@@ -138,12 +172,12 @@ export class ExtensionHostManager implements IExtensionHostManager {
       if (this.isRunning(pid)) {
         extProcess.kill();
       }
-      this.processMap.delete(pid);
+      this.releaseProcess(pid, extProcess);
     }
   }
 
   async dispose(): Promise<void> {
-    await Promise.all(
+    await Promise.allSettled(
       [...this.processMap.keys()].map(async (pid) => {
         const isRunning = await this.isRunning(pid);
         if (isRunning) {
@@ -151,7 +185,6 @@ export class ExtensionHostManager implements IExtensionHostManager {
         }
       }),
     );
-
-    this.processMap.clear();
+    [...this.processMap.entries()].forEach(([pid, process]) => this.releaseProcess(pid, process));
   }
 }

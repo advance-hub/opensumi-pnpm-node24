@@ -2,8 +2,6 @@ import os from 'os';
 import path from 'path';
 import process from 'process';
 
-import spdlog from 'spdlog';
-
 import { Autowired, Injectable } from '@opensumi/di';
 import { RPCService } from '@opensumi/ide-connection';
 
@@ -20,9 +18,11 @@ import {
   format,
 } from '../common/';
 
+import type { Logger } from '@vscode/spdlog';
+
 export const DEFAULT_LOG_FOLDER = path.join(os.homedir(), '.sumi/logs/');
 
-type SpdLogger = spdlog.RotatingLogger;
+type SpdLogger = Logger;
 interface ILog {
   level: LogLevel;
   message: string;
@@ -160,11 +160,10 @@ export class BaseLogService implements IBaseLogService {
   protected async createSpdLogLoggerPromise(namespace: string, logsFolder: string): Promise<SpdLogger | null> {
     // Do not crash if spdlog cannot be loaded
     try {
-      const _spdlog = require('spdlog');
-      _spdlog.setAsyncMode(8192, 500);
+      const spdlog = await import('@vscode/spdlog');
       const logFilePath = path.join(logsFolder, `${namespace}.log`);
-      return _spdlog
-        .createRotatingLoggerAsync(namespace, logFilePath, 1024 * 1024 * 5, 6)
+      return spdlog
+        .createAsyncRotatingLogger(namespace, logFilePath, 1024 * 1024 * 5, 6)
         .then((logger) => {
           if (logger) {
             this.logger = logger;
@@ -175,9 +174,11 @@ export class BaseLogService implements IBaseLogService {
             }
             this.buffer = [];
           }
+          return logger;
         })
         .catch((e) => {
           this.debugLog.error(e);
+          return null;
         });
     } catch (e) {
       this.debugLog.error(e);

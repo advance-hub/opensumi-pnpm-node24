@@ -4,7 +4,7 @@ import type {
   IToolbarButtonContribution,
   IToolbarDropdownButtonContribution,
   IToolbarSelectContribution,
-  // eslint-disable-next-line import/no-restricted-paths
+  // eslint-disable-next-line import-x/no-restricted-paths
 } from '../../browser/sumi/types';
 
 export interface IToolbarButtonActionHandle {

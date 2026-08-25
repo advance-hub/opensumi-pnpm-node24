@@ -1,5 +1,10 @@
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
-import { WebsocketProvider } from 'y-websocket';
+// The package exposes a native `require` runtime entry, but its declaration
+// condition is ESM-only. Keep this narrow compatibility boundary while the
+// OpenSumi framework packages still emit CommonJS.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { WebsocketProvider } = require('y-websocket') as {
+  WebsocketProvider: new (serverUrl: string, roomName: string, doc: YDoc) => IWebsocketProvider;
+};
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
 import { Doc as YDoc, Map as YMap, YMapEvent, Text as YText } from 'yjs';
@@ -38,6 +43,23 @@ import { TextModelBinding } from './textmodel-binding';
 
 import './styles.less';
 
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore ESM declarations are used only as an erased type in this CommonJS package.
+import type { Awareness } from 'y-protocols/awareness';
+
+interface AwarenessChanges {
+  added: number[];
+  updated: number[];
+  removed: number[];
+}
+
+const DOCUMENT_INITIALIZATION_TIMEOUT = 15_000;
+
+interface IWebsocketProvider {
+  awareness: Awareness;
+  destroy(): void;
+}
+
 @Injectable()
 export class CollaborationService extends WithEventBus implements ICollaborationService {
   @Autowired(INJECTOR_TOKEN)
@@ -61,7 +83,7 @@ export class CollaborationService extends WithEventBus implements ICollaboration
   @Autowired(AppConfig)
   private appConfig: AppConfig;
 
-  private clientIDStyleAddedSet: Set<number> = new Set();
+  private clientStyleDisposables = new Map<number, DisposableStore>();
 
   private cursorRegistryMap: Map<ICodeEditor, CursorWidgetRegistry> = new Map();
 
@@ -69,7 +91,7 @@ export class CollaborationService extends WithEventBus implements ICollaboration
 
   private yDoc: YDoc;
 
-  private yWebSocketProvider: WebsocketProvider;
+  private yWebSocketProvider: IWebsocketProvider;
 
   private yTextMap: YMap<YText>;
 
@@ -80,8 +102,6 @@ export class CollaborationService extends WithEventBus implements ICollaboration
   private bindingReadyMap: Map<string, Deferred<void>> = new Map();
 
   protected readonly toDisposableCollection: DisposableCollection = new DisposableCollection();
-  protected cssStyleSheetsDisposables = new DisposableStore();
-
   private yMapObserver = (event: YMapEvent<YText>) => {
     const changes = event.changes.keys;
     changes.forEach((change, key) => {
@@ -150,11 +170,18 @@ export class CollaborationService extends WithEventBus implements ICollaboration
 
   destroy() {
     this.yWebSocketProvider.awareness.off('update', this.updateCSSManagerWhenAwarenessUpdated);
-    this.cssStyleSheetsDisposables.clear();
     this.yTextMap.unobserve(this.yMapObserver);
-    this.yWebSocketProvider.disconnect();
     this.bindingMap.forEach((binding) => binding.destroy());
+    this.bindingMap.clear();
+    this.cursorRegistryMap.forEach((registry) => registry.destroy());
+    this.cursorRegistryMap.clear();
+    this.clientStyleDisposables.forEach((disposables) => disposables.dispose());
+    this.clientStyleDisposables.clear();
+    this.bindingReadyMap.clear();
+    this.yMapReadyMap.clear();
     this.toDisposableCollection.dispose();
+    this.yWebSocketProvider.destroy();
+    this.yDoc.destroy();
   }
 
   registerContribution(contribution: CollaborationModuleContribution) {
@@ -186,7 +213,11 @@ export class CollaborationService extends WithEventBus implements ICollaboration
       this.bindingReadyMap.set(uri, new Deferred());
     }
     if (!this.yMapReadyMap.has(uri)) {
-      this.yMapReadyMap.set(uri, new Deferred());
+      const yMapReady = new Deferred<void>();
+      if (this.yTextMap?.has(uri)) {
+        yMapReady.resolve();
+      }
+      this.yMapReadyMap.set(uri, yMapReady);
     }
 
     const bindingReady = this.bindingReadyMap.get(uri)!;
@@ -201,9 +232,22 @@ export class CollaborationService extends WithEventBus implements ICollaboration
     }
   }
 
-  private resetDeferredBinding(uri: string) {
-    if (this.bindingReadyMap.has(uri)) {
-      this.bindingReadyMap.set(uri, new Deferred());
+  private async waitForYMap(uri: string, promise: Promise<void>): Promise<void> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        promise,
+        new Promise<void>((_, reject) => {
+          timer = setTimeout(
+            () => reject(new Error(`Timed out waiting for collaboration document: ${uri}`)),
+            DOCUMENT_INITIALIZATION_TIMEOUT,
+          );
+        }),
+      ]);
+    } finally {
+      if (timer) {
+        clearTimeout(timer);
+      }
     }
   }
 
@@ -246,23 +290,20 @@ export class CollaborationService extends WithEventBus implements ICollaboration
     return this.cursorRegistryMap.get(editor);
   }
 
-  private updateCSSManagerWhenAwarenessUpdated = (changes: {
-    added: number[];
-    updated: number[];
-    removed: number[];
-  }) => {
+  private updateCSSManagerWhenAwarenessUpdated = (changes: AwarenessChanges) => {
     if (changes.added.length > 0) {
       changes.added.forEach((clientID) => {
-        if (!this.clientIDStyleAddedSet.has(clientID)) {
+        if (!this.clientStyleDisposables.has(clientID)) {
           const [foregroundColor, backgroundColor] = getColorByClientID(clientID);
-          this.cssStyleSheetsDisposables.add(
+          const styles = new DisposableStore();
+          styles.add(
             this.cssManager.addClass(`${Y_REMOTE_SELECTION}-${clientID}`, {
               backgroundColor,
               opacity: '0.25',
               color: foregroundColor,
             }),
           );
-          this.cssStyleSheetsDisposables.add(
+          styles.add(
             this.cssManager.addClass(`${Y_REMOTE_SELECTION_HEAD}-${clientID}`, {
               position: 'absolute',
               borderLeft: `${backgroundColor} solid 2px`,
@@ -272,7 +313,7 @@ export class CollaborationService extends WithEventBus implements ICollaboration
               boxSizing: 'border-box',
             }),
           );
-          this.cssStyleSheetsDisposables.add(
+          styles.add(
             this.cssManager.addClass(`${Y_REMOTE_SELECTION_HEAD}-${clientID}::after`, {
               position: 'absolute',
               content: ' ',
@@ -281,10 +322,15 @@ export class CollaborationService extends WithEventBus implements ICollaboration
               top: '-5px',
             }),
           );
-          this.clientIDStyleAddedSet.add(clientID);
+          this.clientStyleDisposables.set(clientID, styles);
         }
       });
     }
+
+    changes.removed.forEach((clientID) => {
+      this.clientStyleDisposables.get(clientID)?.dispose();
+      this.clientStyleDisposables.delete(clientID);
+    });
   };
 
   private handleFileChange(e: FileChangeEvent) {
@@ -313,16 +359,27 @@ export class CollaborationService extends WithEventBus implements ICollaboration
     (e as any) = undefined;
 
     const { bindingReady, yMapReady } = this.getDeferred(uriString);
-    await this.backService.requestInitContent(uriString);
-    await yMapReady.promise;
-    // get monaco model from model ref by uri
-    const ref = this.docModelManager.getModelReference(uri);
-    const monacoModel = ref?.instance.getMonacoModel();
-    ref?.dispose();
-    if (monacoModel) {
-      this.createAndSetBinding(uriString, monacoModel);
+    try {
+      await this.backService.requestInitContent(uriString);
+      await this.waitForYMap(uriString, yMapReady.promise);
+      // get monaco model from model ref by uri
+      const ref = this.docModelManager.getModelReference(uri);
+      const monacoModel = ref?.instance.getMonacoModel();
+      ref?.dispose();
+      if (monacoModel) {
+        this.createAndSetBinding(uriString, monacoModel);
+      }
+    } catch (error) {
+      this.logger.error(`Failed to initialize collaboration for ${uriString}`, error);
+      this.yMapReadyMap.delete(uriString);
+      await this.backService.releaseContent(uriString).catch((releaseError) => {
+        this.logger.error(`Failed to release collaboration content for ${uriString}`, releaseError);
+      });
+    } finally {
+      // Always resolve so editor open/close handlers cannot retain the model
+      // forever after a backend read error or a disconnected Yjs provider.
+      bindingReady.resolve();
     }
-    bindingReady.resolve();
   }
 
   @OnEvent(EditorDocumentModelRemovalEvent)
@@ -335,7 +392,11 @@ export class CollaborationService extends WithEventBus implements ICollaboration
     const { bindingReady } = this.getDeferred(uriString);
     await bindingReady.promise;
     this.removeBinding(uriString);
-    this.resetDeferredBinding(uriString);
+    this.bindingReadyMap.delete(uriString);
+    this.yMapReadyMap.delete(uriString);
+    await this.backService.releaseContent(uriString).catch((error) => {
+      this.logger.error(`Failed to release collaboration content for ${uriString}`, error);
+    });
   }
 
   @OnEvent(EditorGroupOpenEvent)

@@ -16,9 +16,9 @@ import { ISingleEditOperation } from '@opensumi/ide-editor';
 import { IndentAction, SymbolKind } from './ext-types';
 
 import type { editor, languages } from '@opensumi/ide-monaco';
-// eslint-disable-next-line import/no-restricted-paths
+// eslint-disable-next-line import-x/no-restricted-paths
 import type { CallHierarchyItem } from '@opensumi/ide-monaco/lib/browser/contrib/callHierarchy';
-// eslint-disable-next-line import/no-restricted-paths
+// eslint-disable-next-line import-x/no-restricted-paths
 import type { TypeHierarchyItem } from '@opensumi/ide-monaco/lib/browser/contrib/typeHierarchy';
 import type { CompletionItemLabel } from '@opensumi/monaco-editor-core/esm/vs/editor/common/languages';
 // 内置的api类型声明
@@ -400,7 +400,7 @@ export interface DefinitionLink {
   selectionRange?: Range;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- Matches VS Code's augmentable public API.
 export interface FoldingContext {}
 
 export interface FoldingRange {

@@ -45,7 +45,7 @@ export async function cleanOldLogs(logsRoot: string) {
  */
 export async function cleanAllLogs(logsRoot: string) {
   try {
-    // eslint-disable-next-line import/namespace
+    // eslint-disable-next-line import-x/namespace
     const children = fs.readdirSync(logsRoot);
     for (const name of children) {
       if (!/^\d{8}$/.test(name)) {
@@ -64,7 +64,7 @@ export async function cleanAllLogs(logsRoot: string) {
  */
 export function cleanExpiredLogs(day: number, logsRoot: string) {
   try {
-    // eslint-disable-next-line import/namespace
+    // eslint-disable-next-line import-x/namespace
     const children = fs.readdirSync(logsRoot);
     const toDelete = children.filter((name) => /^\d{8}$/.test(name) && Number(name) < day);
     for (const name of toDelete) {
@@ -83,7 +83,7 @@ export async function getLogZipArchiveByFolder(foldPath: string, waitPromise?: P
   if (waitPromise) {
     await waitPromise;
   }
-  // eslint-disable-next-line import/namespace
+  // eslint-disable-next-line import-x/namespace
   if (!fs.existsSync(foldPath)) {
     throw new Error(`The log directory does not exist: ${foldPath}`);
   }

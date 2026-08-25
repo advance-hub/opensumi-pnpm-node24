@@ -412,7 +412,7 @@ interface ExtendedFileFns {
  * @param obj object
  * @param prop string
  */
-export function containsExtraFileMethod<X extends {}, Y extends keyof ExtendedFileFns>(
+export function containsExtraFileMethod<X extends object, Y extends keyof ExtendedFileFns>(
   obj: X,
   prop: Y,
 ): obj is X & Record<Y, ExtendedFileFns[Y]> {

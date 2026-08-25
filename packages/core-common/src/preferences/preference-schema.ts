@@ -29,13 +29,9 @@ export namespace PreferenceSchema {
     return !!obj && 'properties' in obj && PreferenceSchemaProperties.is(obj['properties']);
   }
   export function getDefaultScope(schema: PreferenceSchema): PreferenceScope {
-    let defaultScope: PreferenceScope = PreferenceScope.Workspace;
-    if (!PreferenceScope.is(schema.scope)) {
-      defaultScope = PreferenceScope.fromString(schema.scope as string) || PreferenceScope.Workspace;
-    } else {
-      defaultScope = schema.scope;
-    }
-    return defaultScope;
+    return PreferenceScope.is(schema.scope)
+      ? schema.scope
+      : PreferenceScope.fromString(schema.scope as string) || PreferenceScope.Workspace;
   }
 }
 

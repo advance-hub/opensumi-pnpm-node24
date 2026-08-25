@@ -15,7 +15,7 @@ import { ITerminalProfile } from './profile';
 import { ICreateTerminalOptions, IShellLaunchConfig, ITerminalInfo, TerminalOptions } from './pty';
 import { IWidget, IWidgetGroup } from './resize';
 
-// eslint-disable-next-line import/no-restricted-paths
+// eslint-disable-next-line import-x/no-restricted-paths
 import type { ILinkHoverTargetOptions } from '../browser/links/link-manager';
 
 export interface ITerminalExternalClient {

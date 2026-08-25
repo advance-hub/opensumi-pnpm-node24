@@ -133,12 +133,9 @@ export const SearchNodeRendered: React.FC<ISearchNodeRenderedProps> = ({
             );
           }
         } else {
-          let index = -1;
-          if (isMatchCase) {
-            index = node.description.indexOf(search);
-          } else {
-            index = node.description.toLocaleLowerCase().indexOf(search.toLocaleLowerCase());
-          }
+          const index = isMatchCase
+            ? node.description.indexOf(search)
+            : node.description.toLocaleLowerCase().indexOf(search.toLocaleLowerCase());
           if (index >= 0) {
             return (
               <div className={cls(styles.segment_grow, styles.description)}>

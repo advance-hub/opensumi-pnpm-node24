@@ -54,6 +54,10 @@ export function createServerConnection2(
   const commonChannelPathHandler = injector.get(CommonChannelPathHandler);
   const socketRoute = new WebSocketServerRoute(server, logger);
   const channelHandler = new CommonChannelHandler('/service', commonChannelPathHandler, logger, {
+    heartbeatInterval: serverAppOpts.wsHeartbeatInterval,
+    maxBufferedAmount: serverAppOpts.wsMaxBufferedAmount,
+    maxConnections: serverAppOpts.wsMaxConnections,
+    shouldAcceptConnection: serverAppOpts.wsShouldAcceptConnection,
     pathMatchOptions: serverAppOpts.pathMatchOptions,
     wsServerOptions: serverAppOpts.wsServerOptions,
   });

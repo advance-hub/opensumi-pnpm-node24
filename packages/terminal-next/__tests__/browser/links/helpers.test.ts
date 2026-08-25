@@ -149,7 +149,7 @@ describe('convertLinkRangeToBuffer', () => {
       end: { x: 7 + 1, y: 3 },
     });
   });
-  test('should convert ranges for wide characters before and inside the link', () => {
+  test('should convert ranges for wide characters before and inside the link (link starts on wrapped)', () => {
     const lines = createBufferLineArray([
       { text: 'AAAAAAAAAAA', width: 11 },
       { text: 'A文 http://', width: 11 },

@@ -2,10 +2,10 @@ import path from 'path';
 
 import { WatcherProcessManagerImpl } from '../../src/node/watcher-process-manager';
 
-const createManager = (watcherHost?: string) => {
+const createManager = (watcherHost?: string, watcherHostForkOptions?: Record<string, unknown>) => {
   const manager = Object.create(WatcherProcessManagerImpl.prototype) as WatcherProcessManagerImpl;
   Object.defineProperty(manager, 'appConfig', {
-    value: { watcherHost },
+    value: { watcherHost, watcherHostForkOptions },
   });
   return manager;
 };
@@ -24,6 +24,7 @@ describe('WatcherProcessManagerImpl', () => {
   });
 
   it('uses source watcher host in js mode when configured host is the default built host', () => {
+    expect.hasAssertions();
     process.env.EXT_MODE = 'js';
     const defaultBuiltWatcherHost = path.join(__dirname, '../../lib/node/hosted/watcher.process.js');
     const manager = createManager(defaultBuiltWatcherHost);
@@ -32,6 +33,7 @@ describe('WatcherProcessManagerImpl', () => {
   });
 
   it('keeps custom configured watcher host in js mode', () => {
+    expect.hasAssertions();
     process.env.EXT_MODE = 'js';
     const customWatcherHost = path.join(__dirname, 'custom-watcher.process.js');
     const manager = createManager(customWatcherHost);
@@ -40,6 +42,7 @@ describe('WatcherProcessManagerImpl', () => {
   });
 
   it('keeps configured watcher host outside js mode', () => {
+    expect.hasAssertions();
     delete process.env.EXT_MODE;
     const defaultBuiltWatcherHost = path.join(__dirname, '../../lib/node/hosted/watcher.process.js');
     const manager = createManager(defaultBuiltWatcherHost);
@@ -48,6 +51,7 @@ describe('WatcherProcessManagerImpl', () => {
   });
 
   it('starts js-mode watcher process with clean transpile-only ts-node hooks', () => {
+    expect.hasAssertions();
     process.env.EXT_MODE = 'js';
     process.execArgv.splice(
       0,
@@ -69,5 +73,20 @@ describe('WatcherProcessManagerImpl', () => {
       '--require',
       'source-map-support/register',
     ]);
+  });
+
+  it('gives the watcher process an independent heap limit', () => {
+    expect.hasAssertions();
+    process.env.EXT_MODE = 'js';
+    process.execArgv.splice(0, process.execArgv.length, '--max-old-space-size=512');
+    const manager = createManager(undefined, {
+      execArgv: ['--max-old-space-size=256'],
+    });
+
+    const options = (manager as any).getWatcherProcessForkOptions();
+
+    expect(options.execArgv).toContain('--max-old-space-size=256');
+    expect(options.execArgv).not.toContain('--max-old-space-size=512');
+    expect(options.silent).toBe(true);
   });
 });

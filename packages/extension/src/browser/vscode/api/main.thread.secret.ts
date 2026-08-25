@@ -44,8 +44,8 @@ export class MainThreadSecret extends Disposable implements IMainThreadSecret {
         if (value.extensionId === extensionId) {
           return value.content;
         }
-      } catch (_) {
-        throw new Error('Cannot get password');
+      } catch (error) {
+        throw new Error('Cannot get password', { cause: error });
       }
     }
 
@@ -66,8 +66,8 @@ export class MainThreadSecret extends Disposable implements IMainThreadSecret {
     try {
       const fullKey = this.getFullKey(extensionId);
       await this.credentialsService.deletePassword(fullKey, key);
-    } catch (_) {
-      throw new Error('Cannot delete password');
+    } catch (error) {
+      throw new Error('Cannot delete password', { cause: error });
     }
   }
 }

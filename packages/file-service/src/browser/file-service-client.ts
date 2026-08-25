@@ -406,7 +406,7 @@ export class FileServiceClient implements IFileServiceClient, IDisposable {
 
     const _uri = this.convertUri(uri.toString());
 
-    let id = 0;
+    let id: number;
     const provider = await this.getProvider(_uri.scheme);
     const schemaWatchIdList = this.watcherWithSchemaMap.get(_uri.scheme) || [];
 

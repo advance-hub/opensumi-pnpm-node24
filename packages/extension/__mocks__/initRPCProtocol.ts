@@ -1,7 +1,7 @@
 import { RPCServiceCenter, initRPCService } from '@opensumi/ide-connection';
 import { SimpleConnection } from '@opensumi/ide-connection/lib/common/connection/drivers/simple';
-import { SumiConnectionMultiplexer } from '@opensumi/ide-connection/lib/common/rpc/multiplexer';
 import { SumiConnection } from '@opensumi/ide-connection/lib/common/rpc/connection';
+import { SumiConnectionMultiplexer } from '@opensumi/ide-connection/lib/common/rpc/multiplexer';
 import { Emitter } from '@opensumi/ide-core-common';
 
 export async function initMockRPCProtocol(client): Promise<SumiConnectionMultiplexer> {

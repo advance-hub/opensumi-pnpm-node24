@@ -303,20 +303,14 @@ export class TerminalLinkManager extends Disposable {
   private _getLinkHoverString(uri: string, label: string | undefined): string {
     const multiCursorModifier = this.preferenceService.get<'ctrlCmd' | 'alt'>('editor.multiCursorModifier');
 
-    let clickLabel = '';
-    if (multiCursorModifier === 'ctrlCmd') {
-      if (isMacintosh) {
-        clickLabel = localize('terminalLinkHandler.followLinkAlt.mac', 'option + click');
-      } else {
-        clickLabel = localize('terminalLinkHandler.followLinkAlt', 'alt + click');
-      }
-    } else {
-      if (isMacintosh) {
-        clickLabel = localize('terminalLinkHandler.followLinkCmd', 'cmd + click');
-      } else {
-        clickLabel = localize('terminalLinkHandler.followLinkCtrl', 'ctrl + click');
-      }
-    }
+    const clickLabel =
+      multiCursorModifier === 'ctrlCmd'
+        ? isMacintosh
+          ? localize('terminalLinkHandler.followLinkAlt.mac', 'option + click')
+          : localize('terminalLinkHandler.followLinkAlt', 'alt + click')
+        : isMacintosh
+          ? localize('terminalLinkHandler.followLinkCmd', 'cmd + click')
+          : localize('terminalLinkHandler.followLinkCtrl', 'ctrl + click');
 
     const fallbackLabel = localize('followLink', 'Follow link');
     label = label || fallbackLabel;

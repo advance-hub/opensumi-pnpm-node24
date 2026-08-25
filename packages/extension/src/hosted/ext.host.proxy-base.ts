@@ -46,12 +46,26 @@ class ExtHostProxyRPCService extends RPCService implements IExtHostProxyRPCServi
   }
 
   async $fork(modulePath: string, args: string[] = [], options: ForkOptions = {}) {
+    const configuredHeapLimit = Number(process.env.EXTENSION_HOST_MAX_OLD_SPACE_SIZE);
+    const hardHeapLimit =
+      Number.isSafeInteger(configuredHeapLimit) && configuredHeapLimit > 0 ? configuredHeapLimit : 512;
+    const sourceExecArgv = options.execArgv || process.execArgv;
+    const requestedHeapLimit = sourceExecArgv
+      .map((argument) => argument.match(/^--max[-_]old[-_]space[-_]size=(\d+)$/)?.[1])
+      .filter(Boolean)
+      .map(Number)
+      .find((value) => Number.isSafeInteger(value) && value > 0);
+    const heapLimit = Math.min(requestedHeapLimit || hardHeapLimit, hardHeapLimit);
+    const inheritedExecArgv = sourceExecArgv.filter(
+      (argument) => !argument.startsWith('--max-old-space-size=') && !argument.startsWith('--max_old_space_size='),
+    );
     // 需要 merge ide server 的环境变量和插件运行的环境变量
     const forkOptions = {
       ...options,
+      execArgv: [...inheritedExecArgv, `--max-old-space-size=${heapLimit}`],
       env: {
-        ...options.env,
         ...process.env,
+        ...options.env,
       },
     };
     return this.extensionHostManager.fork(modulePath, args, forkOptions);
@@ -104,6 +118,8 @@ export class ExtHostProxy extends Disposable implements IExtHostProxy {
   LOG_TAG = '[ExtHostProxy]';
   disposer: Disposable;
 
+  private stopping = false;
+
   constructor(options?: IExtHostProxyOptions) {
     super();
     this.options = {
@@ -120,6 +136,9 @@ export class ExtHostProxy extends Disposable implements IExtHostProxy {
   }
 
   private createSocket() {
+    if (this.stopping) {
+      return;
+    }
     if (this.previouslyDisposer) {
       this.previouslyDisposer.dispose();
     }
@@ -131,7 +150,6 @@ export class ExtHostProxy extends Disposable implements IExtHostProxy {
     this.disposer.addDispose(this.connect());
 
     this.previouslyDisposer = this.disposer;
-    this.addDispose(this.previouslyDisposer);
   }
 
   private setRPCMethods() {
@@ -153,6 +171,9 @@ export class ExtHostProxy extends Disposable implements IExtHostProxy {
   }
 
   private reconnectOnEvent = () => {
+    if (this.stopping) {
+      return;
+    }
     clearTimeout(this.reconnectingTimer);
     this.reconnectingTimer = setTimeout(() => {
       this.logger.warn(this.LOG_TAG, 'reconnecting ext host server');
@@ -198,4 +219,11 @@ export class ExtHostProxy extends Disposable implements IExtHostProxy {
       },
     };
   };
+
+  override dispose() {
+    this.stopping = true;
+    clearTimeout(this.reconnectingTimer);
+    this.previouslyDisposer?.dispose();
+    super.dispose();
+  }
 }

@@ -1,4 +1,4 @@
-// eslint-disable-next-line import/no-unresolved
+// eslint-disable-next-line import-x/no-unresolved
 import vscode from 'vscode';
 
 import { CancellationToken, IRange } from '@opensumi/ide-core-common';

@@ -2,14 +2,48 @@ import { IDisposable } from '@opensumi/ide-core-common';
 
 import { BaseConnection } from './base';
 
-import type WebSocket from 'ws';
+import type WS from 'ws';
+
+export interface WSWebSocketConnectionOptions {
+  maxBufferedAmount?: number;
+  onBackpressure?(bufferedAmount: number, messageSize: number): void;
+  onSendError?(error: Error): void;
+}
 
 export class WSWebSocketConnection extends BaseConnection<Uint8Array> {
-  constructor(public socket: WebSocket) {
+  private terminatedByBackpressure = false;
+
+  constructor(
+    public socket: WS,
+    private readonly options: WSWebSocketConnectionOptions = {},
+  ) {
     super();
   }
+
   send(data: Uint8Array): void {
-    this.socket.send(data);
+    if (this.socket.readyState !== this.socket.OPEN || this.terminatedByBackpressure) {
+      return;
+    }
+
+    const maxBufferedAmount = this.options.maxBufferedAmount;
+    if (maxBufferedAmount !== undefined && this.socket.bufferedAmount + data.byteLength > maxBufferedAmount) {
+      this.terminatedByBackpressure = true;
+      this.options.onBackpressure?.(this.socket.bufferedAmount, data.byteLength);
+      this.socket.terminate();
+      return;
+    }
+
+    try {
+      this.socket.send(data, (error) => {
+        if (error) {
+          this.options.onSendError?.(error);
+          this.socket.terminate();
+        }
+      });
+    } catch (error) {
+      this.options.onSendError?.(error instanceof Error ? error : new Error(String(error)));
+      this.socket.terminate();
+    }
   }
 
   onMessage(cb: (data: Uint8Array) => void): IDisposable {

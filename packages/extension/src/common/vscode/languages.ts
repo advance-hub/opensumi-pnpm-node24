@@ -4,10 +4,10 @@ import { SymbolInformation } from 'vscode-languageserver-types';
 import { IMarkdownString, IMarkerData, IRange, UriComponents } from '@opensumi/ide-core-common';
 import { IEvaluatableExpression } from '@opensumi/ide-debug/lib/common/evaluatable-expression';
 import { InlineValue, InlineValueContext } from '@opensumi/ide-debug/lib/common/inline-values';
-// eslint-disable-next-line import/order
+// eslint-disable-next-line import-x/order
 import { ILanguageStatus, ISingleEditOperation } from '@opensumi/ide-editor';
 
-// eslint-disable-next-line import/no-restricted-paths
+// eslint-disable-next-line import-x/no-restricted-paths
 
 import { IDocumentFilterDto } from './converter';
 import { Disposable } from './ext-types';
@@ -55,11 +55,11 @@ import {
   WorkspaceEditDto,
 } from './model.api';
 
-// eslint-disable-next-line import/no-restricted-paths
+// eslint-disable-next-line import-x/no-restricted-paths
 import type { ITextModel, NewSymbolName } from '@opensumi/ide-monaco/lib/browser/monaco-api/types';
 import type { URI as Uri } from '@opensumi/monaco-editor-core/esm/vs/base/common/uri';
 import type * as languages from '@opensumi/monaco-editor-core/esm/vs/editor/common/languages';
-// eslint-disable-next-line import/no-restricted-paths
+// eslint-disable-next-line import-x/no-restricted-paths
 import type {
   CodeActionContext,
   Command,

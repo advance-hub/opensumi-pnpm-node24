@@ -90,8 +90,6 @@ function compareResourceStatesDecorations(
   a: vscode.SourceControlResourceDecorations,
   b: vscode.SourceControlResourceDecorations,
 ): number {
-  let result = 0;
-
   if (a.strikeThrough !== b.strikeThrough) {
     return a.strikeThrough ? 1 : -1;
   }
@@ -104,7 +102,7 @@ function compareResourceStatesDecorations(
     return (a.tooltip || '').localeCompare(b.tooltip || '');
   }
 
-  result = compareResourceThemableDecorations(a, b);
+  let result = compareResourceThemableDecorations(a, b);
 
   if (result !== 0) {
     return result;

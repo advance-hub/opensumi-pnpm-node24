@@ -3,7 +3,7 @@ import net from 'net';
 import { Autowired, Injectable, Optional } from '@opensumi/di';
 import { SumiConnectionMultiplexer } from '@opensumi/ide-connection';
 import { NetSocketConnection } from '@opensumi/ide-connection/lib/common/connection';
-import { Disposable, IDisposable, MaybePromise, toDisposable } from '@opensumi/ide-core-common';
+import { Disposable, MaybePromise, toDisposable } from '@opensumi/ide-core-common';
 import { AppConfig, INodeLogger } from '@opensumi/ide-core-node';
 
 import {
@@ -31,7 +31,7 @@ export class ExtensionHostProxyManager implements IExtensionHostManager {
 
   private callbackMap = new Map<number, (...args: any[]) => void>();
 
-  private processDisposeMap = new Map<number, IDisposable>();
+  private processDisposeMap = new Map<number, Disposable>();
 
   private disposer = new Disposable();
 
@@ -83,6 +83,8 @@ export class ExtensionHostProxyManager implements IExtensionHostManager {
   }
 
   private setExtHostProxyRPCProtocol() {
+    this.extHostProxyProtocol?.dispose();
+    this.disposeAllProcessCallbacks();
     this.extHostProxyProtocol = new SumiConnectionMultiplexer(this.connection, {
       timeout: this.appConfig.rpcMessageTimeout,
     });
@@ -103,19 +105,29 @@ export class ExtensionHostProxyManager implements IExtensionHostManager {
   private addNewCallback(pid: number, callback: (...args: any[]) => void) {
     const callId = this.callId++;
     this.callbackMap.set(callId, callback);
-    this.processDisposeMap.set(
-      pid,
+    let processDisposer = this.processDisposeMap.get(pid);
+    if (!processDisposer) {
+      processDisposer = new Disposable();
+      this.processDisposeMap.set(pid, processDisposer);
+      this.disposer.addDispose(processDisposer);
+    }
+    processDisposer.addDispose(
       toDisposable(() => {
-        this.callbackMap.delete(callId);
-      }),
-    );
-    this.disposer.addDispose(
-      toDisposable(() => {
-        this.processDisposeMap.delete(pid);
         this.callbackMap.delete(callId);
       }),
     );
     return callId;
+  }
+
+  private disposeProcessCallbacks(pid: number) {
+    this.processDisposeMap.get(pid)?.dispose();
+    this.processDisposeMap.delete(pid);
+  }
+
+  private disposeAllProcessCallbacks() {
+    this.processDisposeMap.forEach((disposer) => disposer.dispose());
+    this.processDisposeMap.clear();
+    this.callbackMap.clear();
   }
 
   fork(modulePath: string, ...args: any[]) {
@@ -144,7 +156,13 @@ export class ExtensionHostProxyManager implements IExtensionHostManager {
     return this.extHostProxy.$onOutput(callId, pid);
   }
   onExit(pid: number, listener: (code: number, signal: string) => void): MaybePromise<void> {
-    const callId = this.addNewCallback(pid, listener);
+    const callId = this.addNewCallback(pid, (code, signal) => {
+      try {
+        listener(code, signal);
+      } finally {
+        this.disposeProcessCallbacks(pid);
+      }
+    });
     return this.extHostProxy.$onExit(callId, pid);
   }
 
@@ -154,11 +172,7 @@ export class ExtensionHostProxyManager implements IExtensionHostManager {
   }
 
   disposeProcess(pid: number): MaybePromise<void> {
-    const disposer = this.processDisposeMap.get(pid);
-    if (disposer) {
-      disposer.dispose();
-      this.processDisposeMap.delete(pid);
-    }
+    this.disposeProcessCallbacks(pid);
     return this.extHostProxy.$disposeProcess(pid);
   }
 
@@ -166,6 +180,7 @@ export class ExtensionHostProxyManager implements IExtensionHostManager {
     if (!this.disposer.disposed) {
       this.logger.log(this.LOG_TAG, 'dispose ext host proxy');
       await this.extHostProxy?.$dispose();
+      this.disposeAllProcessCallbacks();
       this.disposer.dispose();
     }
   }

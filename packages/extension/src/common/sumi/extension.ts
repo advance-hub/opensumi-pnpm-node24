@@ -3,12 +3,12 @@ import { IMenubarItem, ISubmenuItem } from '@opensumi/ide-core-browser/lib/menu/
 import { ISumiMenuExtendInfo } from '@opensumi/ide-core-common';
 import { ThemeType } from '@opensumi/ide-theme';
 
-// eslint-disable-next-line import/no-restricted-paths
+// eslint-disable-next-line import-x/no-restricted-paths
 import { IExtensionContributions } from '../vscode/extension';
 
-// eslint-disable-next-line import/no-restricted-paths
+// eslint-disable-next-line import-x/no-restricted-paths
 import type { IToolbarButtonContribution, IToolbarSelectContribution } from '../../browser/sumi/types';
-// eslint-disable-next-line import/no-restricted-paths
+// eslint-disable-next-line import-x/no-restricted-paths
 import type { ITabBarViewContribution } from '../../browser/sumi-browser/types';
 
 export interface IContributeMenubarItem extends Omit<IMenubarItem, 'label'> {

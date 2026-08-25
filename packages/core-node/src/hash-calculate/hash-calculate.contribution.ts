@@ -13,7 +13,7 @@ export class HashCalculateContribution implements ServerAppContribution {
     try {
       await this.hashCalculateService.initialize();
     } catch (err) {
-      throw new Error(`hashCalculateService init fail: \n ${err.message}`);
+      throw new Error(`hashCalculateService init fail: \n ${err.message}`, { cause: err });
     }
   }
 }

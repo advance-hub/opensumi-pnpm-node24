@@ -92,7 +92,13 @@ describe('connection legacy', () => {
 
     expect(notificationMock.mock.calls.length).toBe(2);
 
-    wss.close();
+    await new Promise<void>((resolve) => {
+      clientConnection.once('close', resolve);
+      clientConnection.close();
+    });
+    await new Promise<void>((resolve, reject) => {
+      wss.close((error) => (error ? reject(error) : resolve()));
+    });
   });
 
   it('RPCProtocol', async () => {

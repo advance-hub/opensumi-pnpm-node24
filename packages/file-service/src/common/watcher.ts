@@ -42,7 +42,7 @@ export namespace INsfw {
 
   export interface Options {
     debounceMS?: number;
-    errorCallback?: (error: string) => void;
+    errorCallback?: (error: unknown) => void;
   }
 
   export interface ChangeEvent {

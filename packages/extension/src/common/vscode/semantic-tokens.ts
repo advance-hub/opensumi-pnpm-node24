@@ -83,7 +83,6 @@ export function encodeSemanticTokensDto(semanticTokens: ISemanticTokensDto): Uin
     dest[offset++] = EncodedSemanticTokensType.Full;
     dest[offset++] = semanticTokens.data.length;
     dest.set(semanticTokens.data, offset);
-    offset += semanticTokens.data.length;
   } else {
     dest[offset++] = EncodedSemanticTokensType.Delta;
     dest[offset++] = semanticTokens.deltas.length;
@@ -135,7 +134,6 @@ export function decodeSemanticTokensDto(_buff: Uint8Array): ISemanticTokensDto {
   if (type === EncodedSemanticTokensType.Full) {
     const length = src[offset++];
     const data = src.subarray(offset, offset + length);
-    offset += length;
     return {
       id,
       type: 'full',

@@ -44,16 +44,11 @@ export class TextEditorEdit {
   }
 
   replace(location: Position | Range | Selection, value: string): void {
-    let range: Range | null = null;
-
-    if (location instanceof Position) {
-      range = new Range(location, location);
-    } else if (location instanceof Range) {
-      range = location;
-    } else {
+    if (!(location instanceof Position) && !(location instanceof Range)) {
       throw new Error('Unrecognized location');
     }
 
+    const range = location instanceof Position ? new Range(location, location) : location;
     this._pushEdit(range, value, false);
   }
 
@@ -62,15 +57,11 @@ export class TextEditorEdit {
   }
 
   delete(location: Range | Selection): void {
-    let range: Range | null = null;
-
-    if (location instanceof Range) {
-      range = location;
-    } else {
+    if (!(location instanceof Range)) {
       throw new Error('Unrecognized location');
     }
 
-    this._pushEdit(range, null, true);
+    this._pushEdit(location, null, true);
   }
 
   private _pushEdit(range: Range, text: string | null, forceMoveMarkers: boolean): void {

@@ -48,7 +48,7 @@ import vscode, {
   TypeDefinitionProvider,
   TypeHierarchyProvider,
   WorkspaceSymbolProvider,
-  // eslint-disable-next-line import/no-unresolved
+  // eslint-disable-next-line import-x/no-unresolved
 } from 'vscode';
 import { SymbolInformation } from 'vscode-languageserver-types';
 

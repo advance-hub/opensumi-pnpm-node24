@@ -77,7 +77,7 @@ export class ExtensionScanner {
     }
 
     const extensionExtraMetaData = {};
-    let packageJSON = {} as any;
+    let packageJSON: any;
     try {
       packageJSON = await fs.readJSON(pkgPath);
       if (extraMetaData) {

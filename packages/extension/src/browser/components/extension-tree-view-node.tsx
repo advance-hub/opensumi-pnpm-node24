@@ -215,10 +215,9 @@ export const TreeViewNode: FC<TreeViewNodeRenderedProps> = ({
   const renderDisplayName = (node: ExtensionCompositeTreeNode | ExtensionTreeNode) => {
     const displayName = () => {
       if (node.highlights) {
-        let hightlightSnaps: ReactNode[] = [];
         let endIndex = 0;
         const hightlights = node.highlights.sort((a, b) => a[0] - b[0]);
-        hightlightSnaps = hightlights.map((highlight, index: number) => {
+        const hightlightSnaps: ReactNode[] = hightlights.map((highlight, index: number) => {
           const [start, end] = highlight;
           const addonStr = node.displayName.slice(endIndex, start);
           endIndex = end;

@@ -211,16 +211,11 @@ export class ExtHostWebviewPanel implements WebviewPanel {
     this.assertNotDisposed();
     if (this._iconPath !== value) {
       this._iconPath = value;
-      let param: { light: string; dark: string } = {
-        light: '',
-        dark: '',
-      };
-      if (Uri.isUri(value)) {
-        param = { light: value.toString(), dark: value.toString() };
-      } else {
-        const v = value as { light: Uri; dark: Uri };
-        param = { light: v.light.toString(), dark: v.dark.toString() };
-      }
+      const param = !value
+        ? { light: '', dark: '' }
+        : Uri.isUri(value)
+          ? { light: value.toString(), dark: value.toString() }
+          : { light: value.light.toString(), dark: value.dark.toString() };
       this._proxy.$setIconPath(this._handle, param);
     }
   }

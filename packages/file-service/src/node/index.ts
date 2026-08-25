@@ -1,4 +1,4 @@
-import { Injectable, Injector } from '@opensumi/di';
+import { Injectable, Injector, Token } from '@opensumi/di';
 import { NodeModule } from '@opensumi/ide-core-node';
 
 import {
@@ -19,7 +19,7 @@ import { WatcherProcessManagerImpl, WatcherProcessManagerToken } from './watcher
 export * from './file-service';
 
 const fsInstanceMap: Map<Injector, FileSystemProvider> = new Map();
-export function getFileservice(injector: Injector, providerToken: string | symbol | Function): FileSystemProvider {
+export function getFileservice(injector: Injector, providerToken: Token): FileSystemProvider {
   if (fsInstanceMap.get(injector)) {
     return fsInstanceMap.get(injector)!;
   }

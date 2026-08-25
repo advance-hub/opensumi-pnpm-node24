@@ -178,7 +178,7 @@ function anonymizeFilePaths(stack: string, cleanupPatterns: RegExp[]): string {
     return stack;
   }
 
-  let updatedStack = stack;
+  let updatedStack = '';
 
   const cleanUpIndexes: [number, number][] = [];
   for (const regexp of cleanupPatterns) {
@@ -194,8 +194,6 @@ function anonymizeFilePaths(stack: string, cleanupPatterns: RegExp[]): string {
   const nodeModulesRegex = /^[\\\/]?(node_modules|node_modules\.asar)[\\\/]/;
   const fileRegex = /(file:\/\/)?([a-zA-Z]:(\\\\|\\|\/)|(\\\\|\\|\/))?([\w-\._]+(\\\\|\\|\/))+[\w-\._]*/g;
   let lastIndex = 0;
-  updatedStack = '';
-
   while (true) {
     const result = fileRegex.exec(stack);
     if (!result) {

@@ -1,7 +1,7 @@
 import { Injectable } from '@opensumi/di';
 
 import { MOCK_EXTENSIONS } from '../__tests__/browser/extension-service/extension-service-mock-helper';
-import { IExtensionNodeClientService, IExtraMetaData, IExtensionMetaData } from '../src/common';
+import { IExtensionMetaData, IExtensionNodeClientService, IExtraMetaData } from '../src/common';
 
 import { mockExtensionProps } from './extensions';
 

@@ -92,7 +92,7 @@ export class AttachAddon extends Disposable implements ITerminalAddon {
       buffer[i] = data.charCodeAt(i) & 255;
     }
     this._timeResponse();
-    this.connection.sendData(buffer);
+    this.connection.sendData(buffer.buffer);
   }
 
   private _timeResponse() {

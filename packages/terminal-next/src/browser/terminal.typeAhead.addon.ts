@@ -1,6 +1,5 @@
 /* eslint-disable no-console */
 /* eslint-disable @typescript-eslint/no-inferrable-types */
-/* eslint-disable @typescript-eslint/quotes */
 /* eslint-disable arrow-parens */
 /* ---------------------------------------------------------------------------------------------
  *  Copyright (c) Microsoft Corporation. All rights reserved.
@@ -46,14 +45,15 @@ export function escapeRegExpCharacters(value: string): string {
   return value.replace(/[\\\{\}\*\+\?\|\^\$\.\[\]\(\)]/g, '\\$&');
 }
 
-const ESC = '\x1b';
+const ESC = '\u001B';
 const CSI = `${ESC}[`;
 const SHOW_CURSOR = `${CSI}?25h`;
 const HIDE_CURSOR = `${CSI}?25l`;
 const DELETE_CHAR = `${CSI}X`;
 const DELETE_REST_OF_LINE = `${CSI}K`;
-const CSI_STYLE_RE = /^\x1b\[[0-9;]*m/;
-const CSI_MOVE_RE = /^\x1b\[?([0-9]*)(;[35])?O?([DC])/;
+// Build ANSI matchers from ESC so the control byte is explicit and shared with the emitted sequences.
+const CSI_STYLE_RE = new RegExp(`^${ESC}\\[[0-9;]*m`);
+const CSI_MOVE_RE = new RegExp(`^${ESC}\\[?([0-9]*)(;[35])?O?([DC])`);
 const NOT_WORD_RE = /[^a-z0-9]/i;
 
 const statsBufferSize = 24;
@@ -73,7 +73,7 @@ const statsToggleOffThreshold = 0.5; // if latency is less than `threshold * thi
  *   CSI Ps n
  *   CSI ? Ps n
  */
-const PREDICTION_OMIT_RE = /^(\x1b\[(\??25[hl]|\??[0-9;]+n))+/;
+const PREDICTION_OMIT_RE = new RegExp(`^(${ESC}\\[(\\??25[hl]|\\??[0-9;]+n))+`);
 
 const core = (terminal: Terminal): IXtermCore => (terminal as any)._core;
 const flushOutput = (terminal: Terminal) => {
@@ -527,7 +527,7 @@ class BackspacePrediction implements IPrediction {
         return r1;
       }
 
-      const r2 = input.eatGradually(`\b \b`);
+      const r2 = input.eatGradually('\b \b');
       if (r2 !== MatchResult.Failure) {
         return r2;
       }
@@ -653,7 +653,7 @@ class CursorMovePrediction implements IPrediction {
 
     // \b is the equivalent to moving one character back
     if (direction === CursorMoveDirection.Back) {
-      if (input.eatStr(`\b`.repeat(amount))) {
+      if (input.eatStr('\b'.repeat(amount))) {
         return MatchResult.Success;
       }
     }

@@ -193,9 +193,11 @@ export class DiskFileSystemProvider extends RPCService<IRPCDiskFileSystemProvide
       if (stat) {
         return stat;
       }
-      throw FileSystemError.Unavailable(uri.path, 'Error occurred while getting the file stat.');
+      throw FileSystemError.FileNotFound(uri.path);
     } catch (e) {
-      this.logger.error(e);
+      if (!FileSystemError.FileNotFound.is(e)) {
+        this.logger.error(e);
+      }
       throw e;
     }
   }
@@ -208,7 +210,7 @@ export class DiskFileSystemProvider extends RPCService<IRPCDiskFileSystemProvide
 
       dirList.forEach((name) => {
         const filePath = paths.join(_uri.fsPath, name);
-        // eslint-disable-next-line import/namespace
+        // eslint-disable-next-line import-x/namespace
         result.push([name, this.getFileStatType(fse.statSync(filePath))]);
       });
       return result;
@@ -590,6 +592,16 @@ export class DiskFileSystemProvider extends RPCService<IRPCDiskFileSystemProvide
         return fileStat;
       }
     } catch (error) {
+      // A stat probe is also the implementation of exists/getFileStat. Missing
+      // optional files (for example .sumi/settings.json) are normal control
+      // flow and must not flood production error logs.
+      if (isErrnoException(error) && error.code === 'ENOENT') {
+        if (options?.throwError) {
+          handleError(error);
+        }
+        return undefined;
+      }
+
       this.logger.error('Error occurred when getting file stat', uri, error);
       if (options?.throwError) {
         handleError(error);

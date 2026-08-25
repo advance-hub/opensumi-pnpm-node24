@@ -1,4 +1,3 @@
-// eslint-disable-next-line import/no-unresolved
 import { CancellationToken } from 'vscode';
 
 import { Autowired, Injectable, Optional } from '@opensumi/di';

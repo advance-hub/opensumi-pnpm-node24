@@ -597,11 +597,17 @@ export function getSafeFileservice(injector: Injector) {
 function fileServiceInterceptor(fileService: IFileService, blackList: string[], blockPatterns: string[]) {
   for (const method of blackList) {
     if (typeof fileService[method] === 'function') {
-      const originFunc: Function = fileService[method];
-      fileService[method] = (...args) => {
+      const originFunc = fileService[method] as (...args: unknown[]) => unknown;
+      fileService[method] = (...args: unknown[]) => {
         // 第一个参数为uri/{uri}
         if (blockPatterns.length > 0) {
-          const uri = typeof args[0] === 'string' ? args[0] : args[0].uri;
+          const firstArg = args[0];
+          const uri =
+            typeof firstArg === 'string'
+              ? firstArg
+              : firstArg && typeof firstArg === 'object' && 'uri' in firstArg
+                ? firstArg.uri
+                : undefined;
           if (typeof uri === 'string') {
             let resolvedURI = uri;
             if (uri.startsWith('file://')) {

@@ -20,11 +20,9 @@ export interface IExtensionModule {
   deactivate?(): void;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface IExtensionAPI {}
+export type IExtensionAPI = any;
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface IExtendExportAPI {}
+export type IExtendExportAPI = any;
 
 export interface ActivatedExtensionJSON {
   id: string;

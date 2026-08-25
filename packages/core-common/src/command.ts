@@ -312,7 +312,7 @@ export class CoreCommandRegistryImpl implements CoreCommandRegistry {
       }
       return result;
     }
-    let argsMessage = '';
+    let argsMessage: string;
     try {
       argsMessage = args && args.length > 0 ? ` (args: ${JSON.stringify(args)})` : '';
     } catch (e) {

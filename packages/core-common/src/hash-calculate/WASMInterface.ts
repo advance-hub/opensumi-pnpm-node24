@@ -92,7 +92,10 @@ export async function WASMInterface(binary: any, hashLength: number) {
   const loadWASMPromise = wasmMutex.dispatch(async () => {
     if (!wasmModuleCache.has(binary.name)) {
       const asm = decodeBase64(binary.data);
-      const promise = WebAssembly.compile(asm);
+      // TS 5.9 correctly models Uint8Array buffers as ArrayBufferLike. Copy
+      // once at the WASM boundary so SharedArrayBuffer-backed views cannot be
+      // passed to engines that require an ordinary BufferSource.
+      const promise = WebAssembly.compile(Uint8Array.from(asm).buffer);
 
       wasmModuleCache.set(binary.name, promise);
     }
