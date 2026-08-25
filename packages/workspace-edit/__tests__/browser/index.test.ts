@@ -260,7 +260,6 @@ describe('workspace edit tests', () => {
         ignoreIfExists: true,
       },
     };
-    error = undefined;
     await service.apply({
       edits: [createEdit3],
     });

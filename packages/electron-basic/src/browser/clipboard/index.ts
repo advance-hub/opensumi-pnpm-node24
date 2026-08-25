@@ -6,8 +6,7 @@ export { CLIPBOARD_FILE_TOKEN };
 
 export const INativeClipboardService = Symbol('INativeClipboardService');
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface INativeClipboardService extends IClipboardService {}
+export type INativeClipboardService = IClipboardService;
 
 @Injectable()
 export class ElectronClipboardService implements INativeClipboardService {

@@ -377,10 +377,9 @@ export class MergeConflictContribution
 
   private updateReportData() {
     const allConflictCache = this.conflictParser.getAllConflictsByUri(this.getUri());
-    let conflictPointNum = 0;
+    const conflictPointNum = allConflictCache?.length || 0;
     let useAIConflictPointNum = 0;
     let receiveNum = 0;
-    conflictPointNum = allConflictCache?.length || 0;
     allConflictCache?.forEach((cacheConflict) => {
       if (cacheConflict.isResolved) {
         useAIConflictPointNum += 1;
@@ -654,7 +653,7 @@ export class MergeConflictContribution
 
       resolveConflictResult = await this.requestAIResolveConflict(conflictMetadata, lineRange, Boolean(previousId));
     } catch (error) {
-      throw new Error(`AI resolve conflict error: ${error.toString()}`);
+      throw new Error(`AI resolve conflict error: ${String(error)}`, { cause: error });
     } finally {
       removeSkeletonDecoration();
       this.stopWidgetManager.hideWidget(lineRange.id);

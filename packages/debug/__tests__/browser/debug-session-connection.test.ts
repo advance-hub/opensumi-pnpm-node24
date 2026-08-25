@@ -221,7 +221,7 @@ describe('DebugSessionConnection', () => {
 
       const requestToken = getNewCancellationToken(threadId);
 
-      delayDebugSessionConnection
+      const responsePromise = delayDebugSessionConnection
         .sendRequest(
           'threads',
           {},
@@ -243,6 +243,7 @@ describe('DebugSessionConnection', () => {
 
       cancellationRequestMap.forEach((c) => c.forEach((t) => t.cancel()));
       cancellationRequestMap.clear();
+      await responsePromise;
     },
     20 * 1000,
   );

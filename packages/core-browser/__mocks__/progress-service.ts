@@ -1,12 +1,12 @@
 import { Injectable } from '@opensumi/di';
 import {
   IDisposable,
-  IProgressOptions,
-  IProgressNotificationOptions,
-  IProgressWindowOptions,
-  IProgressCompositeOptions,
   IProgress,
+  IProgressCompositeOptions,
+  IProgressNotificationOptions,
+  IProgressOptions,
   IProgressStep,
+  IProgressWindowOptions,
 } from '@opensumi/ide-core-common';
 
 import { IProgressIndicator, IProgressService } from '../src/progress';

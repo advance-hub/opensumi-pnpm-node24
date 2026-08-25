@@ -147,6 +147,46 @@
   width: 100%;
 }
 
+.mention_control {
+  width: 100%;
+  border: none;
+  font-size: 12px;
+}
+
+.mention_highlighter {
+  overflow: hidden !important;
+  padding: 9px;
+}
+
+.mention_input {
+  box-sizing: content-box;
+  margin: 0;
+  padding: 8px 0;
+  min-height: var(--comments-mention-min-height);
+  max-height: var(--comments-mention-max-height);
+  overflow-y: auto !important;
+  border: 0;
+  outline: 0;
+  line-height: 20px;
+}
+
+.mention_suggestions_list {
+  max-height: 200px;
+  overflow-y: auto;
+  background-color: var(--kt-selectDropdown-background);
+  font-size: 12px;
+}
+
+.mention_suggestion_item {
+  padding: 4px 16px;
+  background-color: var(--kt-selectDropdown-background);
+  color: var(--kt-selectDropdown-foreground);
+}
+
+.mention_suggestion_item_focused {
+  background-color: var(--kt-selectDropdown-selectionBackground);
+}
+
 .textarea_preview {
   min-height: 56px;
 }

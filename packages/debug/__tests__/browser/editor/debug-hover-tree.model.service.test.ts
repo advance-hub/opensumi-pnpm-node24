@@ -110,9 +110,8 @@ describe('Debug Hover Model', () => {
     const mockSession = jest.fn() as any;
     const node = new ExpressionContainer({ session: mockSession }, mockRoot, undefined, 'test');
     debugHoverTreeModelService.activeNodeDecoration(node);
-    let decoration = debugHoverTreeModelService.decorations.getDecorations(node);
     debugHoverTreeModelService.removeNodeDecoration();
-    decoration = debugHoverTreeModelService.decorations.getDecorations(node);
+    const decoration = debugHoverTreeModelService.decorations.getDecorations(node);
     expect(decoration).toBeDefined();
     expect(decoration!.classlist).toEqual([]);
   });

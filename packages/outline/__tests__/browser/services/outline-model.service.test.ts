@@ -198,9 +198,8 @@ describe('OutlineTreeModelService', () => {
   it('removeNodeDecoration method should be work', () => {
     const node = outlineTreeModelService.treeModel!.root!.children![0] as OutlineTreeNode;
     outlineTreeModelService.activeNodeDecoration(node);
-    let decoration = outlineTreeModelService.decorations.getDecorations(node);
     outlineTreeModelService.removeNodeDecoration();
-    decoration = outlineTreeModelService.decorations.getDecorations(node);
+    const decoration = outlineTreeModelService.decorations.getDecorations(node);
     expect(decoration).toBeDefined();
     expect(decoration!.classlist).toEqual([]);
   });

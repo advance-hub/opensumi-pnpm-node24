@@ -1,6 +1,5 @@
 import cls from 'classnames';
 import React from 'react';
-import ReactDOM from 'react-dom';
 
 import { CompositeTreeNode, ITree, TreeNode } from '@opensumi/ide-components';
 import { MessageType } from '@opensumi/ide-core-browser';
@@ -26,15 +25,25 @@ const getColor = (severity?: MessageType): string => {
 };
 
 export class TreeWithLinkWrapper extends React.Component<{ html?: HTMLElement; className?: string }> {
-  componentDidMount() {
-    if (this.props.html) {
-      const container = ReactDOM.findDOMNode(this);
-      container?.appendChild(this.props.html);
+  private readonly containerRef = React.createRef<HTMLElement>();
+
+  private syncContent() {
+    const container = this.containerRef.current;
+    if (container && this.props.html && container.firstChild !== this.props.html) {
+      container.replaceChildren(this.props.html);
     }
   }
 
+  componentDidMount() {
+    this.syncContent();
+  }
+
+  componentDidUpdate() {
+    this.syncContent();
+  }
+
   render() {
-    return <code className={this.props.className}></code>;
+    return <code ref={this.containerRef} className={this.props.className}></code>;
   }
 }
 

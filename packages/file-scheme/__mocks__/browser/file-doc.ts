@@ -1,5 +1,5 @@
 import { Injectable } from '@opensumi/di';
-import { MaybePromise, Schemes, URI, Emitter, Event } from '@opensumi/ide-core-common';
+import { Emitter, Event, MaybePromise, Schemes, URI } from '@opensumi/ide-core-common';
 import { IEditorDocumentModelContentProvider } from '@opensumi/ide-editor/lib/browser/index';
 
 @Injectable()

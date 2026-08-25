@@ -1,4 +1,4 @@
-import { AppConfig, SlotLocation, IElectronMainMenuService } from '@opensumi/ide-core-browser';
+import { AppConfig, IElectronMainMenuService, SlotLocation } from '@opensumi/ide-core-browser';
 import { IElectronMenuBarService } from '@opensumi/ide-core-browser/lib/menu/next/renderer/ctxmenu/electron';
 import { IElectronMainLifeCycleService, IElectronMainUIService } from '@opensumi/ide-core-common/lib/electron';
 import { IMessageService } from '@opensumi/ide-overlay/lib/common';

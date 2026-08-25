@@ -67,7 +67,7 @@ describe('test for packages/core-browser/src/menu/next/menubar-service.ts', () =
     warnSpy.mockReset();
   });
 
-  it('basic check for onDidMenuChange', () => {
+  it('basic check for onDidMenubarChange', () => {
     disposables.add(
       menubarService.onDidMenubarChange(() => {
         jest.runAllTimers();

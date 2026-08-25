@@ -268,6 +268,7 @@ describe('FileTree Service should be work alone', () => {
     res = fileTreeService.sortComparator(newDirectoryByName('a'), newDirectoryByName('a'));
     expect(res).toBe(0);
     res = fileTreeService.sortComparator(newFileByName('a'), newFileByName('a'));
+    expect(res).toBe(0);
   });
 });
 

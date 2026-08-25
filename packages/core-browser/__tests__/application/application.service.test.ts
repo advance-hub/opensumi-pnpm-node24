@@ -36,7 +36,7 @@ describe('packages/core-browser/src/application/application.service.ts', () => {
 
   it('async get backend os', async () => {
     await applicationService.initializeData();
-    expect(applicationService.getBackendOS()).resolves.toBe('fakeOS');
+    await expect(applicationService.getBackendOS()).resolves.toBe('fakeOS');
   });
 });
 

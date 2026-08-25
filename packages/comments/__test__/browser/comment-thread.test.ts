@@ -61,7 +61,7 @@ describe('comment service test', () => {
         },
       ],
     });
-    expect(thread.uri.isEqual(uri));
+    expect(thread.uri.isEqual(uri)).toBe(true);
     expect(thread.range.startLineNumber).toBe(1);
   });
 

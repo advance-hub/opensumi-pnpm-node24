@@ -123,9 +123,9 @@ export class DebugConsoleSession implements IDebugConsoleSession {
         (previousItem as AnsiConsoleNode).severity === severity
       ) {
         this.treeModel.root.unlinkItem(previousItem);
-        await this.insertItemWithAnsi(previousItem.description + body.output, severity, source, line);
+        await this.insertItemWithAnsi(previousItem.description + output, severity, source, line);
       } else {
-        await this.insertItemWithAnsi(body.output, severity, source, line);
+        await this.insertItemWithAnsi(output, severity, source, line);
       }
     }
 

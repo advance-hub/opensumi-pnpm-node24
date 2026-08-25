@@ -341,35 +341,35 @@ describe('PreferenceService should be work', () => {
       defaultValue = [0, 1, 2];
       preferenceService['cachedPreference'].delete('test.array'); // clean cache
       value = preferenceService.getValid('test.array', defaultValue);
-      expect(defaultValue).toBe(defaultValue);
+      expect(value).toBe(defaultValue);
 
       value = preferenceService.getValid('test.int', '10');
       expect(isNumber(value)).toBeTruthy();
       defaultValue = 100;
       preferenceService['cachedPreference'].delete('test.int'); // clean cache
       value = preferenceService.getValid('test.int', defaultValue);
-      expect(defaultValue).toBe(defaultValue);
+      expect(value).toBe(defaultValue);
 
       value = preferenceService.getValid('test.number', '10');
       expect(isNumber(value)).toBeTruthy();
       defaultValue = 100;
       preferenceService['cachedPreference'].delete('test.number'); // clean cache
       value = preferenceService.getValid('test.number', defaultValue);
-      expect(defaultValue).toBe(defaultValue);
+      expect(value).toBe(defaultValue);
 
       value = preferenceService.getValid('test.string_array', '10');
       expect(isArray(value)).toBeTruthy();
       defaultValue = ['hello', 'world'];
       preferenceService['cachedPreference'].delete('test.string_array'); // clean cache
       value = preferenceService.getValid('test.string_array', defaultValue);
-      expect(defaultValue).toBe(defaultValue);
+      expect(value).toBe(defaultValue);
 
       value = preferenceService.getValid('test.boolean', '10');
       expect(isBoolean(value)).toBeTruthy();
       defaultValue = true;
       preferenceService['cachedPreference'].delete('test.boolean'); // clean cache
       value = preferenceService.getValid('test.boolean', defaultValue);
-      expect(defaultValue).toBe(defaultValue);
+      expect(value).toBe(defaultValue);
 
       value = preferenceService.getValid('test.null', '10');
       expect(isNull(value)).toBeTruthy();
@@ -379,7 +379,7 @@ describe('PreferenceService should be work', () => {
       defaultValue = { test: 'test' };
       preferenceService['cachedPreference'].delete('test.object'); // clean cache
       value = preferenceService.getValid('test.object', defaultValue);
-      expect(defaultValue).toBe(defaultValue);
+      expect(value).toBe(defaultValue);
     });
   });
 });

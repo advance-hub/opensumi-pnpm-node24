@@ -62,12 +62,9 @@ export const DebugStackFramesView = (props: DebugStackSessionViewProps) => {
   const expandFrame = useCallback(
     (frame: ShowMoreDebugStackFrame) => {
       const expanedFrames = currentFrames.current.slice(0);
-      let index = -1;
-      if (!frame.nextFrame) {
-        index = expanedFrames.length;
-      } else {
-        index = expanedFrames.findIndex((f) => DebugStackFrame.is(f) && f.id === frame.nextFrame?.id);
-      }
+      const index = frame.nextFrame
+        ? expanedFrames.findIndex((candidate) => DebugStackFrame.is(candidate) && candidate.id === frame.nextFrame?.id)
+        : expanedFrames.length;
       if (index > -1) {
         expanedFrames.splice(index - 1, 1, ...frame.frames);
         currentFrames.current = expanedFrames;

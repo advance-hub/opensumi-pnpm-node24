@@ -183,7 +183,7 @@ export function parseMDC(rawContent: string): IMDCParseResult {
 
   const [, frontmatterStr, content] = match;
 
-  let frontmatter: IMDCFrontmatter = {};
+  let frontmatter: IMDCFrontmatter;
 
   try {
     // 按行解析 YAML frontmatter

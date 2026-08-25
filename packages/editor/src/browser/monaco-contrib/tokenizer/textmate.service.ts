@@ -895,7 +895,7 @@ export class TextmateService extends WithEventBus implements ITextmateTokenizerS
       initialLanguage,
       configuration,
     ))!;
-    let ruleStack = INITIAL;
+    const ruleStack = INITIAL;
     const lineTokens = grammar.tokenizeLine(line, ruleStack);
     const debugLogger = getDebugLogger('tokenize');
     debugLogger.log(`\nTokenizing line: ${line}`);
@@ -908,7 +908,6 @@ export class TextmateService extends WithEventBus implements ITextmateTokenizerS
           `with scopes ${token.scopes.join(', ')}`,
       );
     }
-    ruleStack = lineTokens.ruleStack;
   }
 
   dispose() {

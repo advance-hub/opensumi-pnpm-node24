@@ -330,8 +330,8 @@ export interface JsonSerializedSnippet {
   description: string;
 }
 export namespace JsonSerializedSnippet {
-  export function is(obj: Object | undefined): obj is JsonSerializedSnippet {
-    return typeof obj === 'object' && 'body' in obj && 'prefix' in obj;
+  export function is(obj: unknown): obj is JsonSerializedSnippet {
+    return obj !== null && typeof obj === 'object' && 'body' in obj && 'prefix' in obj;
   }
 }
 

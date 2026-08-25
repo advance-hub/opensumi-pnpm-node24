@@ -1,6 +1,5 @@
 import isEqual from 'lodash/isEqual';
 import uniqWith from 'lodash/uniqWith';
-import ReactDOM from 'react-dom';
 
 import { Autowired, Injectable } from '@opensumi/di';
 import { ExtensionActivateEvent, IDisposable, IEventBus } from '@opensumi/ide-core-common';
@@ -18,6 +17,8 @@ import {
   RegisterEditorComponentEvent,
   RegisterEditorSideComponentEvent,
 } from './types';
+
+import type { Root } from 'react-dom/client';
 
 type SchemeKey = string;
 
@@ -44,7 +45,9 @@ export class EditorComponentRegistryImpl implements EditorComponentRegistry {
 
   private normalizedResolvers: INormalizedEditorComponentResolver[] = [];
 
-  public readonly perWorkbenchComponents = {};
+  public readonly perWorkbenchComponents: Record<string, HTMLDivElement> = {};
+
+  public readonly perWorkbenchComponentRoots: Record<string, Root> = {};
 
   public registerEditorComponent<T>(component: IEditorComponent<T>, initialProps?: any): IDisposable {
     const uid = component.uid;
@@ -174,7 +177,8 @@ export class EditorComponentRegistryImpl implements EditorComponentRegistry {
   }
 
   public clearPerWorkbenchComponentCache(componentId: string) {
-    ReactDOM.unmountComponentAtNode(this.perWorkbenchComponents[componentId]);
+    this.perWorkbenchComponentRoots[componentId]?.unmount();
+    delete this.perWorkbenchComponentRoots[componentId];
     delete this.perWorkbenchComponents[componentId];
   }
 

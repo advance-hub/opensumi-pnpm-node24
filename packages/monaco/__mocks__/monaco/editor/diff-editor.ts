@@ -1,9 +1,9 @@
 import { Disposable, Event } from '@opensumi/ide-core-common';
 import * as monaco from '@opensumi/ide-monaco';
+import { IDiffComputationResult } from '@opensumi/monaco-editor-core/esm/vs/editor/common/diff/legacyLinesDiffComputer';
 import { ContextKeyValue } from '@opensumi/monaco-editor-core/esm/vs/platform/contextkey/common/contextkey';
 
 import { MockedStandaloneCodeEditor } from './code-editor';
-import { IDiffComputationResult } from '@opensumi/monaco-editor-core/esm/vs/editor/common/diff/legacyLinesDiffComputer';
 
 export class MockedDiffEditor extends Disposable implements monaco.editor.IStandaloneDiffEditor {
   private originalEditor: MockedStandaloneCodeEditor;

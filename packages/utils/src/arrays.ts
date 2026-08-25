@@ -172,7 +172,7 @@ export function addMapElement<K, T>(map: Map<K, T>, key: K, element: T): IDispos
   };
 }
 
-type NonFunctional<T> = T extends Function ? never : T;
+type NonFunctional<T> = T extends CallableFunction ? never : T;
 
 // 枚举 value 转数组值
 export function enumValueToArray<T extends object>(enumeration: T): NonFunctional<T[keyof T]>[] {
@@ -195,23 +195,17 @@ export function flatten<T>(arr: T[][]): T[] {
 
 export function range(to: number): number[];
 export function range(arg: number, to?: number): number[] {
-  let from = typeof to === 'number' ? arg : 0;
-
-  if (typeof to === 'number') {
-    from = arg;
-  } else {
-    from = 0;
-    to = arg;
-  }
+  const from = typeof to === 'number' ? arg : 0;
+  const end = typeof to === 'number' ? to : arg;
 
   const result: number[] = [];
 
-  if (from <= to) {
-    for (let i = from; i < to; i++) {
+  if (from <= end) {
+    for (let i = from; i < end; i++) {
       result.push(i);
     }
   } else {
-    for (let i = from; i > to; i--) {
+    for (let i = from; i > end; i--) {
       result.push(i);
     }
   }

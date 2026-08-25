@@ -1,5 +1,4 @@
 import React, { FC } from 'react';
-import ReactDOM from 'react-dom';
 import ReactDOMClient from 'react-dom/client';
 
 import { Autowired, Injectable } from '@opensumi/di';
@@ -20,6 +19,7 @@ import { TestingPeekMessageServiceImpl } from './test-peek-message.service';
 import { TestTreeContainer } from './test-tree-container';
 
 import type { ICodeEditor } from '@opensumi/ide-monaco/lib/browser/monaco-api/types';
+import type { Root } from 'react-dom/client';
 
 import './test-peek-widget.less';
 
@@ -47,7 +47,14 @@ export class TestingOutputPeek extends PeekViewWidget {
 
   public current?: TestDto;
 
-  constructor(public readonly editor: ICodeEditor, private readonly contextKeyService: IContextKeyService) {
+  private bodyRoot?: Root;
+
+  private actionBarRoot?: Root;
+
+  constructor(
+    public readonly editor: ICodeEditor,
+    private readonly contextKeyService: IContextKeyService,
+  ) {
     super(editor, { isResizeable: true });
   }
 
@@ -62,7 +69,9 @@ export class TestingOutputPeek extends PeekViewWidget {
    */
   protected _fillBody(container: HTMLElement): void {
     this.setCssClass('testing-output-peek-container');
-    ReactDOMClient.createRoot(container).render(
+    this.bodyRoot?.unmount();
+    this.bodyRoot = ReactDOMClient.createRoot(container);
+    this.bodyRoot.render(
       <ConfigProvider value={this.configContext}>
         <SplitPanel overflow='hidden' id='testing-message-horizontal' flex={1}>
           <TestMessageContainer />
@@ -74,14 +83,13 @@ export class TestingOutputPeek extends PeekViewWidget {
 
   protected async _fillActionBarOptions(container: HTMLElement): Promise<void> {
     const menus = this.menuService.createMenu(MenuId.TestPeekTitleContext, this.contextKeyService);
-    return new Promise((res) => {
-      ReactDOMClient.createRoot(container).render(
-        <ConfigProvider value={this.configContext}>
-          <InlineActionBar menus={menus} type='icon' context={[this.editor.getModel()?.uri.toString()!]} />
-        </ConfigProvider>,
-      );
-      res();
-    });
+    this.actionBarRoot?.unmount();
+    this.actionBarRoot = ReactDOMClient.createRoot(container);
+    this.actionBarRoot.render(
+      <ConfigProvider value={this.configContext}>
+        <InlineActionBar menus={menus} type='icon' context={[this.editor.getModel()?.uri.toString()!]} />
+      </ConfigProvider>,
+    );
   }
 
   protected applyClass(): void {
@@ -107,10 +115,11 @@ export class TestingOutputPeek extends PeekViewWidget {
   }
 
   public hide(): void {
+    this.bodyRoot?.unmount();
+    this.bodyRoot = undefined;
+    this.actionBarRoot?.unmount();
+    this.actionBarRoot = undefined;
     super.dispose();
-    if (this._bodyElement) {
-      ReactDOM.unmountComponentAtNode(this._bodyElement);
-    }
   }
 
   public setModel(dto: TestDto): Promise<void> {

@@ -23,6 +23,8 @@ function toPositiveCappedNumber(value: unknown, fallback: number, cap: number): 
 }
 
 function stripAnsi(value: string): string {
+  // ANSI escape sequences intentionally start with the ESC control byte.
+  // eslint-disable-next-line no-control-regex
   return value.replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, '');
 }
 

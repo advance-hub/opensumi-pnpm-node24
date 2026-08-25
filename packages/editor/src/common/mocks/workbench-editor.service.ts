@@ -1,11 +1,10 @@
 import { Injectable } from '@opensumi/di';
 import { Emitter, Event, MaybeNull, URI } from '@opensumi/ide-core-common';
 
-// eslint-disable-next-line import/no-restricted-paths
 import { IOpenResourceResult, IResourceOpenOptions, IUntitledOptions, WorkbenchEditorService } from '../editor';
 import { IResource } from '../resource';
 
-// eslint-disable-next-line import/no-restricted-paths
+// eslint-disable-next-line import-x/no-restricted-paths
 import type { IEditorDocumentModel, IEditorGroup } from '../../browser';
 
 @Injectable()

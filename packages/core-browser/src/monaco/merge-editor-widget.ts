@@ -23,7 +23,7 @@ export class MergeEditorInputData implements IMergeEditorInputData {
       const obj: MergeEditorInputData = JSON.parse(data);
       return new MergeEditorInputData(obj.uri, obj.title, obj.detail, obj.description);
     } catch (error) {
-      throw Error('invalid MergeEditorInputData parse');
+      throw new Error('invalid MergeEditorInputData parse', { cause: error });
     }
   }
 

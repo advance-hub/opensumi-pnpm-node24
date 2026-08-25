@@ -269,7 +269,7 @@ export const ChatMentionInput = (props: IChatMentionInputProps) => {
         ];
       },
       getItems: async (searchText: string) => {
-        let folders: MentionItem[] = [];
+        let folders: MentionItem[];
         if (!searchText) {
           const recentFile = await recentFilesManager.getMostRecentlyOpenedFiles();
           const recentFolder = Array.from(

@@ -446,7 +446,7 @@ export const ResizeHandleVertical = (props: ResizeHandleProps) => {
     const nextEle = props.findNextElement ? props.findNextElement(direction) : nextElement.current!;
     let fixedElement: HTMLElement;
     let flexElement: HTMLElement;
-    let targetFixedHeight = 0;
+    let targetFixedHeight: number;
     const prevMinResize = Number(prevEle?.dataset?.minResize || 0);
     const nextMinResize = Number(nextEle?.dataset?.minResize || 0);
 

@@ -122,13 +122,7 @@ function getValueWithProps<P extends { value: any }>(element: React.ReactElement
 }
 
 function flatChildren(children: React.ReactNode[] | React.ReactNode, warpper) {
-  let flatted: React.ReactNode[] = [];
-  if (Array.isArray(children)) {
-    flatted = React.Children.toArray(children).map(warpper);
-  } else {
-    flatted = [warpper(children)];
-  }
-  return flatted;
+  return Array.isArray(children) ? React.Children.toArray(children).map(warpper) : [warpper(children)];
 }
 
 interface MaybeOption {

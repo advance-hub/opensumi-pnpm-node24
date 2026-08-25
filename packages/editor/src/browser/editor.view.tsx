@@ -558,7 +558,9 @@ export const ComponentWrapper = ({ component, resource, hidden, ...other }) => {
         div.style.height = '100%';
         componentService.perWorkbenchComponents[component.uid] = div;
         // 对于per_workbench的，resource默认为不会改变
-        ReactDOM.createRoot(div).render(
+        const root = ReactDOM.createRoot(div);
+        componentService.perWorkbenchComponentRoots[component.uid] = root;
+        root.render(
           <ConfigProvider value={context}>
             <component.component resource={resource} />
           </ConfigProvider>,

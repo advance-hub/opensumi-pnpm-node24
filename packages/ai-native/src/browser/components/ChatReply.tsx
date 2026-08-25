@@ -423,7 +423,6 @@ export const ChatReply = (props: IChatReplyProps) => {
       return null;
     }
     return request.response.followups.map((item, index) => {
-      let node: React.ReactNode = null;
       if (item.kind === 'reply') {
         const a = (
           <a
@@ -440,14 +439,17 @@ export const ChatReply = (props: IChatReplyProps) => {
             {item.title || item.message}
           </a>
         );
-        node = item.tooltip ? <Tooltip title={item.tooltip}>{a}</Tooltip> : a;
-      } else {
-        if (item.when && !contextKeyService.match(item.when)) {
-          node = null;
-        }
-        node = <Button type='default'>{item.title}</Button>;
+        const node = item.tooltip ? <Tooltip title={item.tooltip}>{a}</Tooltip> : a;
+        return <Fragment key={index}>{node}</Fragment>;
       }
-      return node && <Fragment key={index}>{node}</Fragment>;
+      if (item.when && !contextKeyService.match(item.when)) {
+        return null;
+      }
+      return (
+        <Fragment key={index}>
+          <Button type='default'>{item.title}</Button>
+        </Fragment>
+      );
     });
   }, [request.response.followups]);
 

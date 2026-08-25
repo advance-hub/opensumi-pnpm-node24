@@ -7,10 +7,13 @@
 import { isPromise } from './types';
 import { randomString } from './uuid';
 
-export function createDecorator(mapFn: (fn: Function, key: string) => Function): Function {
+type AnyFunction = (...args: any[]) => any;
+type LegacyDecorator = (target: any, key: string, descriptor: any) => void;
+
+export function createDecorator(mapFn: (fn: AnyFunction, key: string) => AnyFunction): LegacyDecorator {
   return (target: any, key: string, descriptor: any) => {
     let fnKey: string | null = null;
-    let fn: Function | null = null;
+    let fn: AnyFunction | null = null;
 
     if (typeof descriptor.value === 'function') {
       fnKey = 'value';
@@ -35,7 +38,7 @@ export function createMemoizer() {
 
   const result = function memoize(target: any, key: string, descriptor: any) {
     let fnKey: string | null = null;
-    let fn: Function | null = null;
+    let fn: AnyFunction | null = null;
 
     if (typeof descriptor.value === 'function') {
       fnKey = 'value';
@@ -91,7 +94,11 @@ export function memoize(target: any, key: string, descriptor: any) {
 
 export type IDebounceReducer<T> = (previousValue: T, ...args: any[]) => T;
 
-export function debounce<T>(delay: number, reducer?: IDebounceReducer<T>, initialValueProvider?: () => T): Function {
+export function debounce<T>(
+  delay: number,
+  reducer?: IDebounceReducer<T>,
+  initialValueProvider?: () => T,
+): LegacyDecorator {
   return createDecorator((fn, key) => {
     const timerKey = `$debounce$${key}`;
     const resultKey = `$debounce$result$${key}`;
@@ -116,7 +123,11 @@ export function debounce<T>(delay: number, reducer?: IDebounceReducer<T>, initia
   });
 }
 
-export function throttle<T>(delay: number, reducer?: IDebounceReducer<T>, initialValueProvider?: () => T): Function {
+export function throttle<T>(
+  delay: number,
+  reducer?: IDebounceReducer<T>,
+  initialValueProvider?: () => T,
+): LegacyDecorator {
   return createDecorator((fn, key) => {
     const timerKey = `$throttle$timer$${key}`;
     const resultKey = `$throttle$result$${key}`;

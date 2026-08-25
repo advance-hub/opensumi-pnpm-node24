@@ -78,6 +78,7 @@ import {
 import { IInstantiationService } from '@opensumi/monaco-editor-core/esm/vs/platform/instantiation/common/instantiation';
 import * as monacoKeybindings from '@opensumi/monaco-editor-core/esm/vs/platform/keybinding/common/keybindingsRegistry';
 
+import pkgJson from '../../package.json';
 import { editor } from '../common';
 import { DELEGATE_COMMANDS, SKIP_UNREGISTER_MONACO_KEYBINDINGS } from '../common/command';
 
@@ -95,8 +96,6 @@ import { MonacoSnippetSuggestProvider } from './monaco-snippet-suggest-provider'
 import { KEY_CODE_MAP } from './monaco.keycode-map';
 import { MonacoResolvedKeybinding } from './monaco.resolved-keybinding';
 import { MonacoTelemetryService } from './telemetry.service';
-
-const pkgJson = require('../../package.json');
 
 export interface Environment {
   /**

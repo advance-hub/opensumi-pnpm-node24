@@ -23,17 +23,14 @@ export const getImportedFilesInterface = async (
   const maxPromptTime = options.maxTime ?? 200;
   const startTime = Date.now();
   for (const file of matches) {
-    let filePath = '';
     const basePath = resource.uri.parent.codeUri.fsPath;
     if (file.startsWith('@/') || file.startsWith('~') || !file.startsWith('.')) {
       // skip alias
       continue;
     }
-    if (file === '.') {
-      filePath = new Path(basePath).join('index.ts').toString();
-    } else {
-      filePath = new Path(basePath).join(`${file}${LANGUAGE_TO_SUFFIX[resource.languageId]}`).toString();
-    }
+    const filePath = new Path(basePath)
+      .join(file === '.' ? 'index.ts' : `${file}${LANGUAGE_TO_SUFFIX[resource.languageId]}`)
+      .toString();
     try {
       const fileService = injector.get(IFileServiceClient) as IFileServiceClient;
       const workspaceService = injector.get(IWorkspaceService) as IWorkspaceService;

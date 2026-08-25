@@ -316,7 +316,7 @@ class InternalMenu extends React.Component<InternalMenuProps, MenuState> {
 polyfill(InternalMenu);
 
 // We should keep this as ref-able
-export class Menu extends React.Component<MenuProps, {}> {
+export class Menu extends React.Component<MenuProps> {
   static Divider = Divider;
 
   static Item = Item;

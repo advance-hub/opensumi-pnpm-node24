@@ -137,9 +137,9 @@ describe('Decorators', () => {
     jest.useFakeTimers();
     try {
       class ThrottleTest {
-        private _handle: Function;
+        private _handle: (value: number) => void;
 
-        constructor(fn: Function) {
+        constructor(fn: (value: number) => void) {
           this._handle = fn;
         }
 

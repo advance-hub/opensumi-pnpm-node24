@@ -1,6 +1,6 @@
 import { IChangeEvent, withTheme } from '@rjsf/core';
 import { GenericObjectType, RJSFSchema, StrictRJSFSchema, SubmitButtonProps } from '@rjsf/utils';
-import validator from '@rjsf/validator-ajv6';
+import validator from '@rjsf/validator-ajv8';
 import cls from 'classnames';
 import lodashGet from 'lodash/get';
 import throttle from 'lodash/throttle';
@@ -288,22 +288,20 @@ const LaunchIndexs = ({
       }
 
       // 将 body 里一些形如 ${1:xxxx} 这样的符号给过滤掉
-      const parseBody: DebugConfiguration = Object.keys(body).reduce((pre: DebugConfiguration, cur: string) => {
-        const curValue = body[cur];
+      const parseBody = { ...body } as DebugConfiguration;
+      for (const [key, curValue] of Object.entries(body)) {
 
         if (typeof curValue === 'string') {
-          pre[cur] = parseSnippet(curValue);
+          parseBody[key] = parseSnippet(curValue);
         } else if (Array.isArray(curValue)) {
-          pre[cur] = curValue.map((value: any) => {
+          parseBody[key] = curValue.map((value: any) => {
             if (typeof value == 'string') {
               return parseSnippet(value);
             }
             return value;
           });
         }
-
-        return pre;
-      }, body);
+      }
 
       const itemModel = new ConfigurationItemsModel(findItem.label!, parseBody);
       itemModel.setDescription(findItem.description || '');

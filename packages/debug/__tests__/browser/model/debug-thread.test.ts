@@ -48,7 +48,7 @@ describe('DebugThread Model', () => {
       session.sendRequest.mockReset();
     });
 
-    it('Should have enough values', () => {
+    it('Should preserve core thread state', () => {
       expect(debugThread.id).toBe(`${session.id}:${raw.id}`);
       expect(typeof debugThread.currentFrame).toBe('undefined');
       expect(typeof debugThread.stopped).toBe('boolean');

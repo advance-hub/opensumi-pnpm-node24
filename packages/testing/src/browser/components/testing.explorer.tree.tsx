@@ -15,7 +15,7 @@ import { TestTreeItem, TestTreeViewModelImpl } from '../test-tree-view.model';
 
 import styles from './testing.module.less';
 
-export const TestingExplorerTree: React.FC<{}> = () => {
+export const TestingExplorerTree: React.FC = () => {
   const testViewModel = useInjectable<TestTreeViewModelImpl>(TestTreeViewModelToken);
   const testService = useInjectable<ITestService>(TestServiceToken);
   const commandService = useInjectable<CommandService>(CommandService);

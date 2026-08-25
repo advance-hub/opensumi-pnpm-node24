@@ -2567,7 +2567,7 @@ describe('AcpAgentService (Thread Pool)', () => {
       const requestedConfig = {
         ...mockAgentProcessConfig,
         agentId: 'history-agent',
-        args: ['test/bdd/fixtures/acp-agent/mock-acp-agent.mjs', '--fixture=history'],
+        args: ['test/bdd/fixtures/acp-agent/mock-acp-agent.ts', '--fixture=history'],
       };
       const requestedThread = createMockThread({
         listSessions: jest.fn().mockResolvedValue({
@@ -2695,13 +2695,13 @@ describe('AcpAgentService (Thread Pool)', () => {
       const service = setupServiceWithMockFactory(mockFactory);
       const configA = {
         ...mockAgentProcessConfig,
-        args: ['mock-acp-agent.mjs', '--fixture=load-failure'],
+        args: ['mock-acp-agent.ts', '--fixture=load-failure'],
         env: [{ name: 'OPENSUMI_ACP_BDD_FIXTURE', value: 'load-failure' }],
         threadPoolSize: 1,
       };
       const configB = {
         ...mockAgentProcessConfig,
-        args: ['mock-acp-agent.mjs', '--fixture=history'],
+        args: ['mock-acp-agent.ts', '--fixture=history'],
         env: [{ name: 'OPENSUMI_ACP_BDD_FIXTURE', value: 'history' }],
         threadPoolSize: 1,
       };

@@ -1,6 +1,6 @@
 import * as monaco from '../../src/common';
 
-import { quickEvent, quickFireEvent, partialMock } from './common/util';
+import { partialMock, quickEvent, quickFireEvent } from './common/util';
 import { MockedStandaloneCodeEditor } from './editor/code-editor';
 import { MockedDiffEditor } from './editor/diff-editor';
 import { MockedMergeEditor } from './editor/merge-editor';

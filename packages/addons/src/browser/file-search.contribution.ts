@@ -284,7 +284,6 @@ export class FileSearchQuickCommandHandler {
     if (lookFor.indexOf('@') > -1) {
       // save current editor state
       this.trySaveEditorState();
-      results = [];
       // 拆分文件查找和symbol查找query
       const [fileQuery, symbolQuery] = lookFor.split('@');
       let targetFile: URI | undefined;

@@ -1,5 +1,5 @@
 import { Injectable } from '@opensumi/di';
-import { ContextKeyChangeEvent, IScopedContextKeyService, IContextKey } from '@opensumi/ide-core-browser';
+import { ContextKeyChangeEvent, IContextKey, IScopedContextKeyService } from '@opensumi/ide-core-browser';
 import { Event, strings } from '@opensumi/ide-core-common';
 import {
   ContextKeyExpression,
@@ -130,7 +130,7 @@ export class MockContextKeyService implements IScopedContextKeyService {
   // @ts-ignore
   contextKeyService: IContextKeyService = this;
 
-  bufferChangeEvents(callback: Function): void {
+  bufferChangeEvents(callback: () => void): void {
     callback();
   }
 

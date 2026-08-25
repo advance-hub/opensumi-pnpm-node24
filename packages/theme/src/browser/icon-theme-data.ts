@@ -287,7 +287,9 @@ function processIconThemeDocument(
   return result;
 }
 
+const htmlClassWhitespacePattern = new RegExp('[\\t\\n\\f\\r ]', 'g');
+
 function escapeCSS(str: string) {
-  str = str.replace(/[\x09\x0a\x0c\x0d\x20]/g, '/'); // HTML class names can not contain certain whitespace characters, use / instead, which doesn't exist in file names.
+  str = str.replace(htmlClassWhitespacePattern, '/'); // HTML class names can not contain certain whitespace characters, use / instead, which doesn't exist in file names.
   return window.CSS.escape(str);
 }

@@ -228,14 +228,9 @@ export class PrefixQuickOpenServiceImpl implements PrefixQuickOpenService {
     const toggleTab = () => {
       handler.onToggle?.();
       const tabs = this.handlers.getSortedTabs();
-      let nextTab: QuickOpenTab | null = null;
-      if (this.activePrefix) {
-        let index = tabs.findIndex((t) => t.prefix === this.activePrefix);
-        index = index === tabs.length - 1 ? 0 : index + 1;
-        nextTab = tabs[index];
-      } else {
-        nextTab = tabs[0];
-      }
+      const currentIndex = this.activePrefix ? tabs.findIndex((tab) => tab.prefix === this.activePrefix) : -1;
+      const nextIndex = currentIndex < 0 || currentIndex === tabs.length - 1 ? 0 : currentIndex + 1;
+      const nextTab = tabs[nextIndex];
       if (nextTab) {
         this.open(nextTab.prefix);
       }

@@ -2,14 +2,13 @@ import { Deferred, Event, IDisposable, IJSONSchemaMap, TaskIdentifier, URI, Uri 
 import { UriComponents } from '@opensumi/ide-editor';
 import { IShellLaunchConfig, ITerminalClient } from '@opensumi/ide-terminal-next/lib/common';
 
-// eslint-disable-next-line import/no-restricted-paths
+// eslint-disable-next-line import-x/no-restricted-paths
 import { ConfiguringTask, ContributedTask, KeyedTaskIdentifier, Task, TaskEvent, TaskSet } from './task';
 
-// eslint-disable-next-line import/no-restricted-paths
+// eslint-disable-next-line import-x/no-restricted-paths
 import type { ProblemCollector } from '../browser/problem-collector';
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-interface TaskMap {}
+type TaskMap = TaskSet[];
 
 interface TaskFilter {
   version?: string;
@@ -99,8 +98,7 @@ export const enum TerminateResponseCode {
   ProcessNotFound = 3,
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface ExecutorOptions {}
+export type ExecutorOptions = Record<string, never>;
 
 export const ITaskExecutor = Symbol('ITaskExecutor');
 
@@ -150,7 +148,7 @@ export interface ITaskService {
   runTaskCommand(): void;
   rerunLastTask(): void;
 
-  updateWorkspaceTasks(tasks: TaskMap): void;
+  updateWorkspaceTasks(tasks: TaskMap): Promise<Map<string, WorkspaceFolderTaskResult> | undefined>;
 
   registerTaskProvider(provider: ITaskProvider, type: string): IDisposable;
 

@@ -27,12 +27,12 @@ interface IComponentProps<N, W = any> {
  * @deprecated `katian-browser` is deprecated. Please use `sumi-browser` instead.
  */
 declare module 'kaitian-browser' {
-  // eslint-disable-next-line import/no-unresolved
+  // eslint-disable-next-line import-x/no-unresolved
   export * from 'sumi-browser';
 }
 
 declare module 'sumi-browser' {
-  // eslint-disable-next-line import/export
+  // eslint-disable-next-line import-x/export
   export * from '@opensumi/ide-components';
 
   import React from 'react';
@@ -220,7 +220,7 @@ declare module 'sumi-browser' {
    * ```
    */
   export function formatLocalize(key: string, ...args: string[]): string;
-  // eslint-disable-next-line import/export
+  // eslint-disable-next-line import-x/export
   export function getIcon(iconKey: string, options?: { rotate?: ROTATE_TYPE; anim?: ANIM_TYPE }): string;
 
   /**

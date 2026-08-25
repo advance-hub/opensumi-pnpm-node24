@@ -15,7 +15,7 @@
  ********************************************************************************/
 
 // Some code copied and modified from https://github.com/eclipse-theia/theia/tree/v1.14.0/packages/task/src/node/task-abstract-line-matcher.ts
-// eslint-disable-next-line import/no-unresolved
+// eslint-disable-next-line import-x/no-unresolved
 import { Diagnostic, DiagnosticSeverity, Range } from 'vscode';
 
 import {

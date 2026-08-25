@@ -28,7 +28,7 @@ export class MergeConflictReportService extends Disposable {
       return rt;
     }
 
-    let relationId = '';
+    let relationId: string;
 
     if (this.unique2RelationMap.has(uniqueId)) {
       relationId = this.unique2RelationMap.get(uniqueId)!;

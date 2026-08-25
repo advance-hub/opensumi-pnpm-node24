@@ -1,5 +1,4 @@
 import React from 'react';
-import ReactDOM from 'react-dom';
 import ReactDOMClient from 'react-dom/client';
 
 export const destroyFns: Array<() => void> = [];
@@ -15,11 +14,18 @@ export function destroyAllOverlays() {
 
 export function createOverlay(children: React.ReactElement) {
   const div = document.createElement('div');
+  const root = ReactDOMClient.createRoot(div);
   document.body.appendChild(div);
 
+  let destroyed = false;
+
   function destroy() {
-    const unmountResult = ReactDOM.unmountComponentAtNode(div);
-    if (unmountResult && div.parentNode) {
+    if (destroyed) {
+      return;
+    }
+    destroyed = true;
+    root.unmount();
+    if (div.parentNode) {
       div.parentNode.removeChild(div);
     }
     for (let i = 0; i < destroyFns.length; i++) {
@@ -32,7 +38,9 @@ export function createOverlay(children: React.ReactElement) {
   }
 
   function render(comp: React.ReactElement) {
-    ReactDOMClient.createRoot(div).render(React.cloneElement(comp));
+    if (!destroyed) {
+      root.render(React.cloneElement(comp));
+    }
   }
 
   function update(newChildren: React.ReactElement) {

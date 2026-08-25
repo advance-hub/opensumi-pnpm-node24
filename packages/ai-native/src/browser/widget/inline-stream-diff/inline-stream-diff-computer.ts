@@ -156,7 +156,6 @@ const levenshteinDiffAlgorithmCompute = (
         ),
       );
     }
-    lastMatch = undefined;
   }
 
   diffSequences.reverse();

@@ -1,8 +1,8 @@
-/* eslint-disable import/order */
 import { Autowired, INJECTOR_TOKEN, Injectable, Injector, Optional } from '@opensumi/di';
 import { Decoration, DecorationsManager, IRecycleTreeHandle, TreeModel } from '@opensumi/ide-components';
 import { Disposable, DisposableCollection, Emitter, Event, runWhenIdle } from '@opensumi/ide-core-browser';
 import { WorkbenchEditorService } from '@opensumi/ide-editor/lib/common/index';
+
 import { ICommentsService } from '../../common/index';
 
 import { CommentContentNode, CommentFileNode, CommentReplyNode, CommentRoot } from './tree-node.defined';

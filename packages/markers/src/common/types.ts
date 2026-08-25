@@ -31,8 +31,7 @@ export interface IMarkerService extends ITree {
 /**
  * marker 过滤条件
  */
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface IFilterOptions {}
+export type IFilterOptions = object;
 
 /**
  * 过滤后的marker

@@ -64,11 +64,9 @@ const enum EBoolean {
 
 export class CharacterSet {
   // "Boolean" is not that "Boolean" primitive type in TypeScript.
-  // eslint-disable-next-line @typescript-eslint/ban-types
   private readonly _actual: CharacterClassifier<EBoolean>;
 
   constructor() {
-    // eslint-disable-next-line @typescript-eslint/ban-types
     this._actual = new CharacterClassifier<EBoolean>(EBoolean.False);
   }
 

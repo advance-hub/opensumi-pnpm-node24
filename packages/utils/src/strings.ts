@@ -7,17 +7,10 @@ import { Constants } from './uint';
 export const empty = '';
 export const space = ' ';
 
-const hasTextEncoder = typeof TextEncoder !== 'undefined';
-const hasTextDecoder = typeof TextDecoder !== 'undefined';
-
-/**
- * 浏览器全局可以直接使用 TextEncoder/TextDecoder
- * Node.js 11+ 才可以全局使用，以下需要 require('util')
- */
 export namespace stringUtils {
-  export const StringTextEncoder = hasTextEncoder ? TextEncoder : require('util').TextEncoder;
+  export const StringTextEncoder = TextEncoder;
 
-  export const StringTextDecoder = hasTextDecoder ? TextDecoder : require('util').TextDecoder;
+  export const StringTextDecoder = TextDecoder;
 }
 
 export function isFalsyOrWhitespace(str: string | undefined): boolean {
@@ -187,7 +180,7 @@ export function rtrim(haystack: string, needle: string): string {
   }
 
   let offset = haystackLen;
-  let idx = -1;
+  let idx: number;
 
   while (true) {
     idx = haystack.lastIndexOf(needle, offset - 1);
@@ -674,9 +667,10 @@ export function lcut(text: string, n: number) {
 
 // Escape codes
 // http://en.wikipedia.org/wiki/ANSI_escape_code
-const EL = /\x1B\x5B[12]?K/g; // Erase in line
-const COLOR_START = /\x1b\[\d+m/g; // Color
-const COLOR_END = /\x1b\[0?m/g; // Color
+const ANSI_ESCAPE = '\u001B';
+const EL = new RegExp(`${ANSI_ESCAPE}\\[[12]?K`, 'g'); // Erase in line
+const COLOR_START = new RegExp(`${ANSI_ESCAPE}\\[\\d+m`, 'g'); // Color
+const COLOR_END = new RegExp(`${ANSI_ESCAPE}\\[0?m`, 'g'); // Color
 
 export function removeAnsiEscapeCodes(str: string): string {
   if (str) {

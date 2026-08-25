@@ -1,3 +1,5 @@
+import Ajv from 'ajv';
+
 import { Schemes, URI } from '@opensumi/ide-core-common';
 import { FileStat } from '@opensumi/ide-file-service';
 
@@ -31,12 +33,11 @@ const workspaceSchema = {
 };
 
 export namespace WorkspaceData {
-  let validateSchema;
+  let validateSchema: Ajv.ValidateFunction | undefined;
 
   export function is(data: any): data is WorkspaceData {
     if (!validateSchema) {
-      // 避免一开始就加载 ajv，初始化和 compile 都会花费大量的时间进行编译
-      const Ajv = require('ajv');
+      // 延迟 schema 编译，避免工作区模块初始化时支付 Ajv compile 开销。
       validateSchema = new Ajv().compile(workspaceSchema);
     }
     return !!validateSchema(data);

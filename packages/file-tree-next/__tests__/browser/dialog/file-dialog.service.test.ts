@@ -129,5 +129,6 @@ describe('FileDialogService should be work', () => {
     res = fileTreeDialogService.sortComparator(newDirectoryByName('a'), newDirectoryByName('a'));
     expect(res).toBe(0);
     res = fileTreeDialogService.sortComparator(newFileByName('a'), newFileByName('a'));
+    expect(res).toBe(0);
   });
 });

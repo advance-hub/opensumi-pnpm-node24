@@ -125,7 +125,7 @@ describe('comment service test', () => {
   it('create thread', () => {
     const uri = URI.file('/test');
     const [thread] = createTestThreads(uri);
-    expect(thread.uri.isEqual(uri));
+    expect(thread.uri.isEqual(uri)).toBe(true);
     expect(thread.range.startLineNumber).toBe(1);
     expect(thread.comments.get()[0].body).toBe('Comment Text');
   });

@@ -1,7 +1,7 @@
+import { monacoApi } from '../../src/browser/monaco-api';
 import * as monaco from '../../src/common';
 
 import { partialMock } from './common/util';
-import { monacoApi } from '../../src/browser/monaco-api';
 
 export type TokensProvider = monaco.languages.TokensProvider;
 export type EncodedTokensProvider = monaco.languages.EncodedTokensProvider;

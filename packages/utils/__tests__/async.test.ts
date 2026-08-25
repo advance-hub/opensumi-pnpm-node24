@@ -175,33 +175,21 @@ describe('Async', () => {
     );
   });
 
-  test('Throttler - last factory should be the one getting called', () => {
+  test('Throttler - last factory should be the one getting called', async () => {
     const factoryFactory = (n: number) => () => async.timeout(0).then(() => n);
 
     const throttler = new async.Throttler();
 
-    const promises: Promise<any>[] = [];
+    const results = await Promise.all([
+      throttler.queue(factoryFactory(1)),
+      throttler.queue(factoryFactory(2)),
+      throttler.queue(factoryFactory(3)),
+    ]);
 
-    promises.push(
-      throttler.queue(factoryFactory(1)).then((n) => {
-        expect(n).toBe(1);
-      }),
-    );
-    promises.push(
-      throttler.queue(factoryFactory(2)).then((n) => {
-        expect(n).toBe(3);
-      }),
-    );
-    promises.push(
-      throttler.queue(factoryFactory(3)).then((n) => {
-        expect(n).toBe(3);
-      }),
-    );
-
-    return Promise.all(promises);
+    expect(results).toEqual([1, 3, 3]);
   });
 
-  test('Delayer', () => {
+  test('Delayer', async () => {
     let count = 0;
     const factory = () => Promise.resolve(++count);
 
@@ -210,33 +198,17 @@ describe('Async', () => {
 
     expect(!delayer.isTriggered()).toBeTruthy();
 
-    promises.push(
-      delayer.trigger(factory).then((result) => {
-        expect(result).toBe(1);
-        expect(!delayer.isTriggered()).toBeTruthy();
-      }),
-    );
+    promises.push(delayer.trigger(factory));
     expect(delayer.isTriggered()).toBeTruthy();
 
-    promises.push(
-      delayer.trigger(factory).then((result) => {
-        expect(result).toBe(1);
-        expect(!delayer.isTriggered()).toBeTruthy();
-      }),
-    );
+    promises.push(delayer.trigger(factory));
     expect(delayer.isTriggered()).toBeTruthy();
 
-    promises.push(
-      delayer.trigger(factory).then((result) => {
-        expect(result).toBe(1);
-        expect(!delayer.isTriggered()).toBeTruthy();
-      }),
-    );
+    promises.push(delayer.trigger(factory));
     expect(delayer.isTriggered()).toBeTruthy();
 
-    return Promise.all(promises).then(() => {
-      expect(!delayer.isTriggered()).toBeTruthy();
-    });
+    expect(await Promise.all(promises)).toEqual([1, 1, 1]);
+    expect(!delayer.isTriggered()).toBeTruthy();
   });
 
   test('Delayer - simple cancel', () => {
@@ -263,7 +235,7 @@ describe('Async', () => {
     return p;
   });
 
-  test('Delayer - cancel should cancel all calls to trigger', () => {
+  test('Delayer - cancel should cancel all calls to trigger', async () => {
     let count = 0;
     const factory = () => Promise.resolve(++count);
 
@@ -272,32 +244,20 @@ describe('Async', () => {
 
     expect(!delayer.isTriggered()).toBeTruthy();
 
-    promises.push(
-      delayer.trigger(factory).then(undefined, () => {
-        expect(true).toBeTruthy();
-      }),
-    );
+    promises.push(delayer.trigger(factory));
     expect(delayer.isTriggered()).toBeTruthy();
 
-    promises.push(
-      delayer.trigger(factory).then(undefined, () => {
-        expect(true).toBeTruthy();
-      }),
-    );
+    promises.push(delayer.trigger(factory));
     expect(delayer.isTriggered()).toBeTruthy();
 
-    promises.push(
-      delayer.trigger(factory).then(undefined, () => {
-        expect(true).toBeTruthy();
-      }),
-    );
+    promises.push(delayer.trigger(factory));
     expect(delayer.isTriggered()).toBeTruthy();
 
     delayer.cancel();
 
-    return Promise.all(promises).then(() => {
-      expect(!delayer.isTriggered()).toBeTruthy();
-    });
+    const results = await Promise.allSettled(promises);
+    expect(results.map((result) => result.status)).toEqual(['rejected', 'rejected', 'rejected']);
+    expect(!delayer.isTriggered()).toBeTruthy();
   });
 
   test('Delayer - trigger, cancel, then trigger again', () => {
@@ -367,7 +327,7 @@ describe('Async', () => {
     return p;
   });
 
-  test('Delayer - last task should be the one getting called', () => {
+  test('Delayer - last task should be the one getting called', async () => {
     const factoryFactory = (n: number) => () => Promise.resolve(n);
 
     const delayer = new async.Delayer(0);
@@ -375,28 +335,13 @@ describe('Async', () => {
 
     expect(!delayer.isTriggered()).toBeTruthy();
 
-    promises.push(
-      delayer.trigger(factoryFactory(1)).then((n) => {
-        expect(n).toBe(3);
-      }),
-    );
-    promises.push(
-      delayer.trigger(factoryFactory(2)).then((n) => {
-        expect(n).toBe(3);
-      }),
-    );
-    promises.push(
-      delayer.trigger(factoryFactory(3)).then((n) => {
-        expect(n).toBe(3);
-      }),
-    );
-
-    const p = Promise.all(promises).then(() => {
-      expect(!delayer.isTriggered()).toBeTruthy();
-    });
+    promises.push(delayer.trigger(factoryFactory(1)));
+    promises.push(delayer.trigger(factoryFactory(2)));
+    promises.push(delayer.trigger(factoryFactory(3)));
 
     expect(delayer.isTriggered()).toBeTruthy();
 
-    return p;
+    expect(await Promise.all(promises)).toEqual([3, 3, 3]);
+    expect(!delayer.isTriggered()).toBeTruthy();
   });
 });

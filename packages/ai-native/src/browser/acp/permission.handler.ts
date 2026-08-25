@@ -225,12 +225,10 @@ export class AcpPermissionHandler extends Disposable {
     const toolKind = request.toolCall.kind || 'read';
 
     // Build pattern from tool call
-    let pattern = '';
-    if (request.toolCall.locations && request.toolCall.locations.length > 0) {
-      pattern = request.toolCall.locations.map((l) => l.path).join(',');
-    } else {
-      pattern = request.toolCall.title || '';
-    }
+    const pattern =
+      request.toolCall.locations && request.toolCall.locations.length > 0
+        ? request.toolCall.locations.map((location) => location.path).join(',')
+        : request.toolCall.title || '';
 
     for (const rule of this.rules) {
       // Check if kind matches

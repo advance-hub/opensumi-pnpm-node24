@@ -1,4 +1,4 @@
-// eslint-disable-next-line import/no-unresolved
+// eslint-disable-next-line import-x/no-unresolved
 import { CancellationToken, DefinitionProvider, DocumentSelector, HoverProvider, ReferenceProvider } from 'vscode';
 
 import { Autowired, ConstructorOf, Injectable } from '@opensumi/di';

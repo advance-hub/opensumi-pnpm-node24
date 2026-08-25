@@ -246,13 +246,11 @@ export class IntelligentCompletionsController extends BaseAIMonacoEditorControll
 
       const lastVisibleTime = changeSummary.lastVisibleTime;
       const report = this.reportData.read(reader);
-      let isValid = false;
+      const isValid = Boolean(lastVisibleTime && Date.now() - lastVisibleTime > VALID_TIME);
 
-      if (lastVisibleTime && Date.now() - lastVisibleTime > VALID_TIME) {
-        isValid = true;
+      if (isValid) {
         report?.('isDrop');
       } else {
-        isValid = false;
         report?.('isValid', false);
       }
 

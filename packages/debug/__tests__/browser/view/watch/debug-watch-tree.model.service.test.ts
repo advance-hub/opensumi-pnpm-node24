@@ -158,9 +158,8 @@ describe('Debug Watch Tree Model', () => {
     debugWatchModelService.initDecorations(mockRoot);
     const node = new DebugWatchNode(mockSession, 'test', mockRoot);
     debugWatchModelService.activeNodeDecoration(node);
-    let decoration = debugWatchModelService.decorations.getDecorations(node);
     debugWatchModelService.removeNodeDecoration();
-    decoration = debugWatchModelService.decorations.getDecorations(node);
+    const decoration = debugWatchModelService.decorations.getDecorations(node);
     expect(decoration).toBeDefined();
     expect(decoration!.classlist).toEqual([]);
   });

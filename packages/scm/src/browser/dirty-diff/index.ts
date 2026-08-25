@@ -30,7 +30,10 @@ import type { ICodeEditor as IMonacoCodeEditor, ITextModel } from '@opensumi/ide
 import './dirty-diff.module.less';
 
 export class DirtyDiffItem {
-  constructor(readonly model: DirtyDiffModel, readonly decorator: DirtyDiffDecorator) {}
+  constructor(
+    readonly model: DirtyDiffModel,
+    readonly decorator: DirtyDiffDecorator,
+  ) {}
 
   dispose(): void {
     this.decorator.dispose();
@@ -87,7 +90,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements IDirtyDi
     const onDidChangeDiffWidthConfiguration = Event.filter(this.scmPreferences.onPreferenceChanged, (e) =>
       e.affects('scm.diffDecorationsGutterWidth'),
     );
-    onDidChangeDiffWidthConfiguration(this.onDidChangeDiffWidthConfiguration, this);
+    this.addDispose(onDidChangeDiffWidthConfiguration(this.onDidChangeDiffWidthConfiguration, this));
     this.onDidChangeDiffWidthConfiguration();
 
     this.addDispose(
@@ -118,11 +121,9 @@ export class DirtyDiffWorkbenchController extends Disposable implements IDirtyDi
   }
 
   private onDidChangeDiffWidthConfiguration(): void {
-    let width = this.scmPreferences['scm.diffDecorationsGutterWidth'];
-
-    if (isNaN(width) || width <= 0 || width > 5) {
-      width = 3;
-    }
+    const configuredWidth = this.scmPreferences['scm.diffDecorationsGutterWidth'];
+    const width = Number.isFinite(configuredWidth) && configuredWidth > 0 && configuredWidth <= 5 ? configuredWidth : 3;
+    document.documentElement.style.setProperty('--sumi-scm-diff-gutter-width', `${width}px`);
   }
 
   private enable(): void {

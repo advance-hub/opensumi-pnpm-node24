@@ -1,8 +1,8 @@
 import { Disposable, Emitter, Event } from '@opensumi/ide-core-common';
-import { IAttachedView, IValidEditOperation } from '@opensumi/monaco-editor-core/esm/vs/editor/common/model';
 import * as monaco from '@opensumi/ide-monaco';
+import { IAttachedView, IValidEditOperation } from '@opensumi/monaco-editor-core/esm/vs/editor/common/model';
 
-import { EndOfLineSequence, EOL } from '../../../src/browser/monaco-api/types';
+import { EOL, EndOfLineSequence } from '../../../src/browser/monaco-api/types';
 import { MockedMonacoUri } from '../common/uri';
 
 let id = 1;
@@ -68,9 +68,10 @@ export class MockedMonacoModel extends Disposable implements monaco.editor.IText
   isTooLargeForHeapOperation(): boolean {
     throw new Error('Method not implemented.');
   }
-  setLanguage(languageId: string, source?: string | undefined): void;
-  setLanguage(languageSelection: monaco.languages.ILanguageSelection, source?: string | undefined): void;
-  setLanguage(languageSelection: unknown, source?: unknown): void {
+  setLanguage(
+    _languageSelection: string | monaco.languages.ILanguageSelection,
+    _source?: string | undefined,
+  ): void {
     throw new Error('Method not implemented.');
   }
   getAllMarginDecorations(ownerId?: number | undefined): monaco.editor.IModelDecoration[] {

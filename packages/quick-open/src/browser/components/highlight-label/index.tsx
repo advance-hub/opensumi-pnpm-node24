@@ -41,7 +41,6 @@ export const HighlightLabel: React.FC<HighlightLabelProp> = ({
             {transformLabelWithCodicon(substring, labelIconClassName, iconService.fromString.bind(iconService))}
           </span>,
         );
-        pos = highlight.end;
       }
       const substring = text.substring(highlight.start, highlight.end);
       children.push(

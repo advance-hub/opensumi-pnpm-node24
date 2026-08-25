@@ -1,20 +1,18 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import CtxMenuTrigger from 'react-ctxmenu-trigger';
 
 import { ClickOutside } from '../../click-outside';
+import { ContextMenuTrigger } from '../../context-menu-trigger';
 import { IRecycleTreeHandle, RecycleTree } from '../RecycleTree';
 import { INodeRendererWrapProps } from '../TreeNodeRendererWrap';
 import { ITreeNodeOrCompositeTreeNode } from '../types';
 
 import { BasicMenuItem } from './menubar-item';
-import { placements } from './placements';
 import { BasicTreeNodeRenderer } from './tree-node';
 import { BasicCompositeTreeNode, BasicTreeNode } from './tree-node.define';
 import { BasicTreeModel, BasicTreeService } from './tree-service';
 import { IBasicContextMenu, IBasicRecycleTreeProps, IBasicTreeMenu } from './types';
 
 import './styles.less';
-import 'react-ctxmenu-trigger/assets/index.css';
 
 export * from './types';
 
@@ -253,19 +251,9 @@ export const BasicRecycleTree: React.FC<IBasicRecycleTreeProps> = ({
       return null;
     }
     return (
-      <CtxMenuTrigger
-        popupPlacement='bottomLeft'
+      <ContextMenuTrigger
         popupVisible={showMenus.show}
-        action={['contextMenu']}
-        popupAlign={{
-          overflow: {
-            adjustX: 1,
-            adjustY: 1,
-          },
-          offset: [window.scrollX, window.scrollY],
-        }}
         point={showMenus.point || {}}
-        builtinPlacements={placements}
         popup={
           <ClickOutside
             className='basic_tree_menubars'
@@ -289,7 +277,6 @@ export const BasicRecycleTree: React.FC<IBasicRecycleTreeProps> = ({
             ))}
           </ClickOutside>
         }
-        alignPoint
       />
     );
   }, [menubarItems, contextMenuActuator, showMenus]);

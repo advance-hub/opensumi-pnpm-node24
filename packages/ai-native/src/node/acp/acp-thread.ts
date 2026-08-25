@@ -100,7 +100,7 @@ async function loadSdk(): Promise<any> {
 function nodeReadableToWebStream(
   readable: NodeJS.ReadableStream,
   onChunk?: (chunk: Uint8Array | Buffer | string) => void,
-): ReadableStream<Uint8Array> {
+): streamWeb.ReadableStream<Uint8Array> {
   return new streamWeb.ReadableStream<Uint8Array>({
     start(controller) {
       readable.on('data', (chunk: Buffer) => {
@@ -123,7 +123,7 @@ function nodeReadableToWebStream(
 function nodeWritableToWebStream(
   writable: NodeJS.WritableStream,
   onChunk?: (chunk: Uint8Array | Buffer | string) => void,
-): WritableStream<Uint8Array> {
+): streamWeb.WritableStream<Uint8Array> {
   return new streamWeb.WritableStream<Uint8Array>({
     write(chunk) {
       onChunk?.(chunk);

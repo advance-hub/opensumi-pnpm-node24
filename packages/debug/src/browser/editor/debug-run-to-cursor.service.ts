@@ -166,7 +166,6 @@ export class DebugRunToCursorService {
 
     if (bestScore < Score.Verified) {
       bestThread = threads[0];
-      bestScore = Score.VerifiedAndPausedInFile;
     }
 
     return { thread: bestThread, breakpoint: bp };

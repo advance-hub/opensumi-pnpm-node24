@@ -1,4 +1,4 @@
-// eslint-disable-next-line import/order
+// eslint-disable-next-line import-x/order
 import { mockElectronRenderer } from '@opensumi/ide-core-common/lib/mocks/electron/browserMock';
 
 mockElectronRenderer();

@@ -290,8 +290,8 @@ export class AuthenticationService extends Disposable implements IAuthentication
       const authProvider =
         this._authenticationProviders.get(providerId) || (await this.tryActivateProvider(providerId));
       return await authProvider.getSessions(scopes, user);
-    } catch (_) {
-      throw new Error(`No authentication provider '${providerId}' is currently registered.`);
+    } catch (error) {
+      throw new Error(`No authentication provider '${providerId}' is currently registered.`, { cause: error });
     }
   }
 
@@ -441,6 +441,7 @@ export class AuthenticationService extends Disposable implements IAuthentication
     } catch (err) {
       throw new Error(
         `No authentication provider '${providerId}' is currently registered, error messge: ${err.message}`,
+        { cause: err },
       );
     }
   }

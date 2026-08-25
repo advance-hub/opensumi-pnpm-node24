@@ -1,9 +1,8 @@
-/* eslint-disable @typescript-eslint/no-empty-interface */
 /**
  * @deprecated `kaitian-worker` was deprecated, Please use `sumi-worker` instead.
  */
 declare module 'kaitian-worker' {
-  // eslint-disable-next-line import/no-unresolved
+  // eslint-disable-next-line import-x/no-unresolved
   export * from 'sumi-worker';
 }
 declare module 'sumi-worker' {
@@ -2158,7 +2157,7 @@ declare module 'sumi-worker' {
     readonly isInteractedWith: boolean;
   }
 
-  export interface env {}
+  export type env = Record<string, never>;
 
   /**
    * A memento represents a storage utility. It can store and retrieve

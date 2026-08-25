@@ -39,6 +39,7 @@ import { IMenuRegistry, MenuId } from '@opensumi/ide-core-browser/lib/menu/next'
 import { useInjectable, useUpdateOnEventBusEvent } from '@opensumi/ide-core-browser/lib/react-hooks';
 import { formatLocalize } from '@opensumi/ide-core-common';
 
+import editorPackage from '../../package.json';
 import {
   IEditorGroup,
   IResource,
@@ -61,7 +62,7 @@ import {
 import { useUpdateOnGroupTabChange } from './view/react-hook';
 import { EditorGroup, WorkbenchEditorServiceImpl } from './workbench-editor.service';
 
-const pkgName = require('../../package.json').name;
+const pkgName = editorPackage.name;
 
 export interface ITabsProps {
   group: EditorGroup;

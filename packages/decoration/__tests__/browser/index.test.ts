@@ -135,7 +135,7 @@ describe('DecorationsService', () => {
     reg.dispose();
 
     // bubble
-    reg = service.registerDecorationsProvider({
+    const bubbleReg = service.registerDecorationsProvider({
       label: 'Test',
       onDidChange: Event.None,
       provideDecorations(uri: Uri) {
@@ -148,6 +148,7 @@ describe('DecorationsService', () => {
 
     deco = service.getDecoration(childUri.with({ path: 'some/path/' }), true)!;
     expect(typeof deco.tooltip).toBe('string');
+    bubbleReg.dispose();
   });
 
   it('Decorations not showing up for second root folder #48502', async () => {
@@ -233,7 +234,7 @@ describe('DecorationsService', () => {
     expect(data.tooltip).toBe('FOO');
 
     data = service.getDecoration(uri2, true)!;
-    expect(data.tooltip); // emphazied items...not.toBeUndefined().
+    expect(data.tooltip).toBeDefined();
 
     gone = true;
     emitter.fire([uri]);
@@ -267,7 +268,7 @@ describe('DecorationsService', () => {
     expect(data.tooltip).toBe('FOO');
 
     data = service.getDecoration(uri2, true)!;
-    expect(data.tooltip); // emphazied items...not.toBeUndefined().
+    expect(data.tooltip).toBeDefined();
 
     return new Promise<void>((resolve, reject) => {
       const l = service.onDidChangeDecorations((e) => {

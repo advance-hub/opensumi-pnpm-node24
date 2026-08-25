@@ -440,8 +440,8 @@ export namespace Event {
   }
 
   export interface NodeEventEmitter {
-    on(event: string | symbol, listener: Function): this;
-    removeListener(event: string | symbol, listener: Function): this;
+    on(event: string | symbol, listener: (...args: any[]) => void): this;
+    removeListener(event: string | symbol, listener: (...args: any[]) => void): this;
   }
 
   export function fromNodeEventEmitter<T>(
@@ -483,10 +483,10 @@ export namespace Event {
 type Listener<T> = [(e: T) => void, any] | ((e: T) => void);
 
 export interface EmitterOptions {
-  onFirstListenerAdd?: Function;
-  onFirstListenerDidAdd?: Function;
-  onListenerDidAdd?: Function;
-  onLastListenerRemove?: Function;
+  onFirstListenerAdd?: (...args: any[]) => void;
+  onFirstListenerDidAdd?: (...args: any[]) => void;
+  onListenerDidAdd?: (...args: any[]) => void;
+  onLastListenerRemove?: (...args: any[]) => void;
   leakWarningThreshold?: number;
 }
 
@@ -505,7 +505,10 @@ class LeakageMonitor {
   private _stacks: Map<string, number> | undefined;
   private _warnCountdown = 0;
 
-  constructor(readonly customThreshold?: number, readonly name: string = randomString(3)) {}
+  constructor(
+    readonly customThreshold?: number,
+    readonly name: string = randomString(3),
+  ) {}
 
   dispose(): void {
     if (this._stacks) {
@@ -857,7 +860,7 @@ export class AsyncEmitter<T extends WaitUntilEvent> extends Emitter<T> {
   async fireAsync(
     data: Omit<T, 'waitUntil'>,
     token: CancellationToken,
-    promiseJoin?: (p: Promise<any>, listener: Function) => Promise<any>,
+    promiseJoin?: (p: Promise<any>, listener: (event: T) => void) => Promise<any>,
   ): Promise<void> {
     if (!this._listeners) {
       return;
@@ -993,7 +996,7 @@ export class EventMultiplexer<T> implements IDisposable {
  * ```
  */
 export class EventBufferer {
-  private buffers: Function[][] = [];
+  private buffers: Array<Array<() => void>> = [];
 
   wrapEvent<T>(event: Event<T>): Event<T> {
     return (listener, thisArgs?, disposables?) =>
@@ -1013,7 +1016,7 @@ export class EventBufferer {
   }
 
   bufferEvents<R = void>(fn: () => R): R {
-    const buffer: Array<() => R> = [];
+    const buffer: Array<() => void> = [];
     this.buffers.push(buffer);
     const r = fn();
     this.buffers.pop();

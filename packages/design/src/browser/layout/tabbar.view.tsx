@@ -36,8 +36,8 @@ export const DesignRightTabRenderer = ({
 }: {
   components: ComponentRegistryInfo[];
   className?: string;
-  tabbarView?: FC<{}>;
-  tabpanelView?: FC<{}>;
+  tabbarView?: FC;
+  tabpanelView?: FC;
 }) => (
   <RightTabRenderer
     className={cls('design_right_slot', className)}

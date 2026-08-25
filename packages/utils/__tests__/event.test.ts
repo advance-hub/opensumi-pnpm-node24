@@ -143,6 +143,8 @@ describe('Event', () => {
     subscription = a.event(function () {});
     expect(firstCount).toBe(2);
     expect(lastCount).toBe(1);
+    subscription.dispose();
+    expect(lastCount).toBe(2);
   });
 
   test('throwingListener', () => {
@@ -224,7 +226,7 @@ describe('Event', () => {
     doc.setText('3');
   });
 
-  test('Debounce Event - leading', async () => {
+  test('Debounce Event - leading single event', async () => {
     const emitter = new Emitter<void>();
     const debounced = Event.debounce(emitter.event, (l, e) => e, 0, /* leading=*/ true);
 
@@ -240,7 +242,7 @@ describe('Event', () => {
     expect(calls).toBe(1);
   });
 
-  test('Debounce Event - leading', async () => {
+  test('Debounce Event - leading multiple events', async () => {
     const emitter = new Emitter<void>();
     const debounced = Event.debounce(emitter.event, (l, e) => e, 0, /* leading=*/ true);
 

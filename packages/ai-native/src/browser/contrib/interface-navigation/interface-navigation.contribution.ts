@@ -203,18 +203,7 @@ export class InterfaceNavigationDecorationsContribution implements IEditorFeatur
       return;
     }
 
-    let interfaces: { interfaceNode?: Parser.SyntaxNode; members?: Parser.SyntaxNode[] }[] = [];
-
-    if (languageId === 'typescript' || languageId === 'typescriptreact') {
-      interfaces = await this.parseTypeScriptInterfaces(rootNode);
-    } else if (languageId === 'java') {
-      interfaces = await this.parseJavaInterfaces(rootNode);
-    } else {
-      // 尚未支持的语言 Parser
-      return;
-    }
-
-    interfaces =
+    const interfaces =
       languageId === 'java' ? await this.parseJavaInterfaces(rootNode) : await this.parseTypeScriptInterfaces(rootNode);
 
     const decorations = interfaces

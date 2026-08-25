@@ -1,6 +1,5 @@
 import cls from 'classnames';
 import React, { PropsWithChildren } from 'react';
-import ReactDOM from 'react-dom';
 import ReactDOMClient from 'react-dom/client';
 
 import { Autowired, Injectable } from '@opensumi/di';
@@ -20,6 +19,8 @@ import {
   IToolbarPopoverRegistry,
   IToolbarPopoverStyle,
 } from '../types';
+
+import type { Root } from 'react-dom/client';
 
 enum BUTTON_TITLE_STYLE {
   HORIZONTAL = 'horizontal',
@@ -217,7 +218,12 @@ export class ToolbarActionBtnClickEvent extends BasicEvent<{
   event: React.MouseEvent<HTMLDivElement, MouseEvent>;
 }> {}
 
-const popOverMap = new Map<string, Promise<HTMLDivElement>>();
+interface IToolbarPopoverMount {
+  element: HTMLDivElement;
+  root: Root;
+}
+
+const popOverMap = new Map<string, IToolbarPopoverMount>();
 
 const PopOverComponentWrapper: React.FC<PropsWithChildren<{ delegate: IToolbarActionBtnDelegate }>> = (props) => {
   const [context, setContext] = React.useState();
@@ -247,10 +253,10 @@ class ToolbarBtnDelegate implements IToolbarActionBtnDelegate {
   onClick = this._onClick.event;
 
   _onMouseLeave = new Emitter<React.MouseEvent<HTMLDivElement>>();
-  onMouseLeave = this._onClick.event;
+  onMouseLeave = this._onMouseLeave.event;
 
   _onMouseEnter = new Emitter<React.MouseEvent<HTMLDivElement>>();
-  onMouseEnter = this._onClick.event;
+  onMouseEnter = this._onMouseEnter.event;
 
   _onChangeState = new Emitter<{ from: string; to: string }>();
   onChangeState = this._onChangeState.event;
@@ -263,17 +269,25 @@ class ToolbarBtnDelegate implements IToolbarActionBtnDelegate {
 
   private popOverContainer: HTMLDivElement | undefined;
 
-  private _popOverElement: Promise<HTMLDivElement> | undefined;
+  private _popOverMount: IToolbarPopoverMount | undefined;
 
   private _popOverClickOutsideDisposer: IDisposable | undefined;
+
+  private _popoverRegistrationDisposer: IDisposable | undefined;
 
   @Autowired(IToolbarPopoverRegistry)
   protected readonly toolbarPopover: IToolbarPopoverRegistry;
 
   dispose() {
+    void this.hidePopOver();
     this._onClick.dispose();
     this._onMouseEnter.dispose();
     this._onMouseLeave.dispose();
+    this._onChangeState.dispose();
+    this.onChangeContextEvent.dispose();
+    this._onDidChangePopoverVisibility.dispose();
+    this._popoverRegistrationDisposer?.dispose();
+    this._popoverRegistrationDisposer = undefined;
     if (this.popOverContainer) {
       this.popOverContainer.remove();
       this.popOverContainer = undefined;
@@ -295,14 +309,14 @@ class ToolbarBtnDelegate implements IToolbarActionBtnDelegate {
     private popoverId?: string,
   ) {
     if (this.popoverComponent) {
-      this._popOverElement = popOverMap.get(actionId);
+      this._popOverMount = popOverMap.get(actionId);
       this.popOverContainer = element.querySelector('.kt-toolbar-popover')! as HTMLDivElement;
     }
-    this.toolbarPopover.onDidRegisterPopoverEvent((e) => {
+    this._popoverRegistrationDisposer = this.toolbarPopover.onDidRegisterPopoverEvent((e) => {
       if (e === this.popoverId) {
         this.popoverComponent = this.toolbarPopover.getComponent(this.popoverId);
         // 已经激活的状态下重新激活一次，如果没有激活过则不动
-        if (this._popOverElement) {
+        if (this._popOverMount) {
           this.hidePopOver().then(() => this.showPopOver());
         }
       }
@@ -335,20 +349,19 @@ class ToolbarBtnDelegate implements IToolbarActionBtnDelegate {
     if (!this.popOverContainer) {
       return;
     }
-    if (!this._popOverElement) {
-      this._popOverElement = new Promise((resolve) => {
-        const div = document.createElement('div');
-        const C = this.popoverComponent!;
-        ReactDOMClient.createRoot(div).render(
-          <ConfigProvider value={this.context}>
-            <PopOverComponentWrapper delegate={this}>
-              <C />
-            </PopOverComponentWrapper>
-          </ConfigProvider>,
-        );
-        resolve(div);
-      });
-      popOverMap.set(this.actionId, this._popOverElement);
+    if (!this._popOverMount) {
+      const element = document.createElement('div');
+      const root = ReactDOMClient.createRoot(element);
+      const C = this.popoverComponent!;
+      root.render(
+        <ConfigProvider value={this.context}>
+          <PopOverComponentWrapper delegate={this}>
+            <C />
+          </PopOverComponentWrapper>
+        </ConfigProvider>,
+      );
+      this._popOverMount = { element, root };
+      popOverMap.set(this.actionId, this._popOverMount);
     }
     const mergedStyle: IToolbarPopoverStyle = {
       ...this.popoverStyle,
@@ -386,58 +399,63 @@ class ToolbarBtnDelegate implements IToolbarActionBtnDelegate {
       this.popOverContainer?.classList.add('kt-toolbar-popover-animationend');
     });
 
-    return this._popOverElement.then((ele) => {
-      if (this._popOverClickOutsideDisposer) {
-        this._popOverClickOutsideDisposer.dispose();
-        this._popOverClickOutsideDisposer = undefined;
-      }
-      if (this.popOverContainer && ele.parentElement !== this.popOverContainer) {
-        this.popOverContainer.append(ele);
-      }
-      this._onDidChangePopoverVisibility.fire(true);
-      if (mergedStyle.hideOnClickOutside !== false) {
-        setTimeout(() => {
-          if (this._popOverClickOutsideDisposer) {
-            this._popOverClickOutsideDisposer.dispose();
-            this._popOverClickOutsideDisposer = undefined;
-          }
-          const disposer = new Disposable();
-          disposer.addDispose(
-            new DomListener(
-              window,
-              'click',
-              (e: MouseEvent) => {
-                if (e.target && ele.contains(e.target as Node)) {
-                  return;
-                }
-                const rect = ele.getBoundingClientRect();
-                if (
-                  rect.x <= e.clientX &&
-                  rect.x + rect.width >= e.clientX &&
-                  rect.y <= e.clientY &&
-                  rect.y + rect.height >= e.clientY
-                ) {
-                  // 点击在区域内，这里防止点击 target 已经被移除导致误判
-                  return;
-                }
-                this.hidePopOver();
-              },
-              // 在捕获阶段处理，避免其他元素阻止冒泡导致不自动隐藏不生效
-              true,
-            ),
-          );
-          this._popOverClickOutsideDisposer = disposer;
-        });
-      }
-    });
+    const element = this._popOverMount.element;
+    if (this._popOverClickOutsideDisposer) {
+      this._popOverClickOutsideDisposer.dispose();
+      this._popOverClickOutsideDisposer = undefined;
+    }
+    if (this.popOverContainer && element.parentElement !== this.popOverContainer) {
+      this.popOverContainer.append(element);
+    }
+    this._onDidChangePopoverVisibility.fire(true);
+    if (mergedStyle.hideOnClickOutside !== false) {
+      setTimeout(() => {
+        if (!this._popOverMount || this._popOverMount.element !== element) {
+          return;
+        }
+        if (this._popOverClickOutsideDisposer) {
+          this._popOverClickOutsideDisposer.dispose();
+          this._popOverClickOutsideDisposer = undefined;
+        }
+        const disposer = new Disposable();
+        disposer.addDispose(
+          new DomListener(
+            window,
+            'click',
+            (e: MouseEvent) => {
+              if (e.target && element.contains(e.target as Node)) {
+                return;
+              }
+              const rect = element.getBoundingClientRect();
+              if (
+                rect.x <= e.clientX &&
+                rect.x + rect.width >= e.clientX &&
+                rect.y <= e.clientY &&
+                rect.y + rect.height >= e.clientY
+              ) {
+                // 点击在区域内，这里防止点击 target 已经被移除导致误判
+                return;
+              }
+              this.hidePopOver();
+            },
+            // 在捕获阶段处理，避免其他元素阻止冒泡导致不自动隐藏不生效
+            true,
+          ),
+        );
+        this._popOverClickOutsideDisposer = disposer;
+      });
+    }
   }
 
   async hidePopOver() {
-    if (this._popOverElement) {
-      const ele = await this._popOverElement;
-      ReactDOM.unmountComponentAtNode(ele);
-      ele.remove();
-      this._popOverElement = undefined;
+    if (this._popOverMount) {
+      const mount = this._popOverMount;
+      this._popOverMount = undefined;
+      if (popOverMap.get(this.actionId) === mount) {
+        popOverMap.delete(this.actionId);
+      }
+      mount.root.unmount();
+      mount.element.remove();
     }
     if (this._popOverClickOutsideDisposer) {
       this._popOverClickOutsideDisposer.dispose();

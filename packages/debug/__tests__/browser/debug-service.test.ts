@@ -37,7 +37,7 @@ describe('DebugService', () => {
     ]);
   });
 
-  it('registerDebugContributionPoints should emit change', () => {
+  it('unregisterDebugContributionPoints should remove registration', () => {
     expect(debugService.debugContributionPoints.size).toBe(1);
 
     debugService.unregisterDebugContributionPoints('file://extensions/a');

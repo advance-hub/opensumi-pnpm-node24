@@ -302,7 +302,7 @@ describe('KeymapsService should be work', () => {
           key: 'cmd+c',
         },
       ];
-      expect(keymapsService.storeKeybindings[0].command === 'editor.action.quickCommand');
+      expect(keymapsService.storeKeybindings[0].command === 'editor.action.quickCommand').toBe(true);
     });
   });
 });

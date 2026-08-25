@@ -141,8 +141,9 @@ export class UserStorageServiceImpl implements IUserStorageService {
     try {
       const { content } = await this.fileServiceClient.readFile(target.toString());
       return content.buffer;
-    } catch (e) {
-      throw new Error(e);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(message, { cause: error });
     }
   }
 
@@ -157,8 +158,9 @@ export class UserStorageServiceImpl implements IUserStorageService {
         fileStat = await this.fileServiceClient.createFile(target.toString());
         await this.fileServiceClient.setContent(fileStat, content, options);
       }
-    } catch (e) {
-      throw new Error(e);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(message, { cause: error });
     }
   }
 

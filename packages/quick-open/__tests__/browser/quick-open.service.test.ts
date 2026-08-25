@@ -130,7 +130,7 @@ describe('quick-open service test', () => {
     expect($onClose).toHaveBeenCalledWith(false);
   });
 
-  it('hide quick-open with element select', () => {
+  it('hide quick-open with focus lost', () => {
     const $widgetHide = jest.spyOn(widget, 'hide');
     const $onClose = jest.fn();
     quickOpenService.open(model, {

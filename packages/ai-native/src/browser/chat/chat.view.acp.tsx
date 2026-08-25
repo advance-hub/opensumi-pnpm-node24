@@ -336,7 +336,7 @@ export const AIChatViewACPContent = () => {
           await queuedTurnPortCallbacksRef.current.requestCancellation(sessionId);
         } catch (error) {
           if (!active) {
-            throw new Error('ACP queued turn runtime is inactive.');
+            throw new Error('ACP queued turn runtime is inactive.', { cause: error });
           }
           // A tracked response may outlive the session's active status briefly.
           // Once the session is idle, a cancellation rejection means the response

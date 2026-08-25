@@ -11,6 +11,7 @@ import {
   PtyServiceManagerRemoteOptions,
 } from '@opensumi/ide-terminal-next/lib/node/pty.manager.remote';
 
+import { AINodeModules } from '../../src/node/ai-modules';
 import { CommonNodeModules } from '../../src/node/common-modules';
 import { AIBackService } from '../sample-modules/ai-native/ai.back.service';
 
@@ -45,6 +46,6 @@ if (process.env.PTY_PROXY_SOCK || process.env.PTY_PROXY_PORT) {
 const injector = new Injector(injectorProviders);
 
 startServer({
-  modules: [...CommonNodeModules, ExpressFileServerModule, OpenerModule],
+  modules: [...CommonNodeModules, ...AINodeModules, ExpressFileServerModule, OpenerModule],
   injector,
 });

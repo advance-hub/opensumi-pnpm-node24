@@ -122,13 +122,13 @@ export class SumiMCPServerBackend extends RPCService<IMCPServerProxyService> imp
     );
 
     // 设置工具列表请求处理器
-    this.server.setRequestHandler(ListToolsRequestSchema, async (event) => {
+    (this.server.setRequestHandler as any)(ListToolsRequestSchema, async () => {
       const tools = await this.$getMCPTools();
       return { tools };
     });
 
     // 设置工具调用请求处理器
-    this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    (this.server.setRequestHandler as any)(CallToolRequestSchema, async (request: { params: { name: string; arguments?: unknown } }) => {
       try {
         const { name, arguments: args } = request.params;
         return await this.callMCPTool(name, args);

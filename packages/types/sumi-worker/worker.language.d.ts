@@ -1158,6 +1158,7 @@ declare module 'sumi-worker' {
   /**
    * Folding context (for future use)
    */
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type -- Public API extension point reserved for future fields.
   export interface FoldingContext {}
 
   /**

@@ -184,10 +184,6 @@
       "version": "3.8.2",
       "entry": ["browser"]
     },
-    "@opensumi/ide-static-resource": {
-      "version": "3.8.2",
-      "entry": ["browser"]
-    },
     "@opensumi/ide-status-bar": {
       "version": "3.8.2",
       "entry": ["browser", "common"]
@@ -288,7 +284,6 @@
     "@opensumi/ide-scm": "3.8.2",
     "@opensumi/ide-search": "3.8.2",
     "@opensumi/ide-startup": "3.8.2",
-    "@opensumi/ide-static-resource": "3.8.2",
     "@opensumi/ide-status-bar": "3.8.2",
     "@opensumi/ide-storage": "3.8.2",
     "@opensumi/ide-task": "3.8.2",

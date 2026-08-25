@@ -1,5 +1,6 @@
 'use strict';
 import { isWindows } from '@opensumi/ide-core-common';
+
 import * as monaco from '../../../src/common';
 
 // 这里copy了 vscode-uri 源码作为 mock 的 monaco uri 使用
@@ -341,8 +342,6 @@ const enum CharCode {
   LINE_SEPARATOR_2028 = 8232,
 
   // http://www.fileformat.info/info/unicode/category/Sk/list.htm
-  U_CIRCUMFLEX = 0x005e, // U+005E	CIRCUMFLEX
-  U_GRAVE_ACCENT = 0x0060, // U+0060	GRAVE ACCENT
   U_DIAERESIS = 0x00a8, // U+00A8	DIAERESIS
   U_MACRON = 0x00af, // U+00AF	MACRON
   U_ACUTE_ACCENT = 0x00b4, // U+00B4	ACUTE ACCENT

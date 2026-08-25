@@ -23,7 +23,7 @@ describe('scm service', () => {
       })(0);
       scmService.registerSCMProvider(mockProvider);
 
-      expect(scmService.repositories.length === 1);
+      expect(scmService.repositories).toHaveLength(1);
       // 添加进来的首个 repo 默认被选中
       expect(scmService.repositories[0].selected).toBeTruthy();
 
@@ -67,7 +67,7 @@ describe('scm service', () => {
       // 前置空白 repo
       scmService.registerSCMProvider(new MockSCMProvider(1));
 
-      expect(scmService.repositories.length === 2);
+      expect(scmService.repositories).toHaveLength(2);
       // 添加进来的首个 repo 默认被选中
       expect(scmService.repositories[0].selected).toBeTruthy();
 
@@ -132,7 +132,7 @@ describe('scm service', () => {
       expect(inputVisibleListener.mock.calls[0][0]).toBeFalsy();
 
       // input validateInput
-      expect(scmInput.validateInput('abc', 0)).resolves.toBeUndefined();
+      await expect(scmInput.validateInput('abc', 0)).resolves.toBeUndefined();
       const inputValidatorListener = jest.fn();
       toTearDown.push(scmInput.onDidChangeValidateInput(inputValidatorListener));
 
@@ -143,7 +143,7 @@ describe('scm service', () => {
       };
       const inputValidator = jest.fn().mockResolvedValue(invalidRet);
       scmInput.validateInput = inputValidator;
-      expect(scmInput.validateInput('abc', 0)).resolves.toEqual(invalidRet);
+      await expect(scmInput.validateInput('abc', 0)).resolves.toEqual(invalidRet);
       expect(inputValidator).toHaveBeenCalledTimes(1);
       expect(inputValidator.mock.calls[0]).toEqual(['abc', 0]);
       // test for SCMInput#onDidChangeValidateInput
@@ -171,7 +171,7 @@ describe('scm service', () => {
       expect(addRepoListener.mock.calls[0][0]).toEqual(repo1);
       expect(addRepoListener.mock.calls[1][0]).toEqual(repo2);
 
-      expect(scmService.repositories.length === 2);
+      expect(scmService.repositories).toHaveLength(2);
       expect(scmService.repositories.map((n) => n.selected)).toEqual([true, false]);
 
       // 只会默认选中一个 repo

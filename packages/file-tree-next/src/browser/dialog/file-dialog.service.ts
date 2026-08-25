@@ -89,11 +89,7 @@ export class FileTreeDialogService extends Tree {
   }
 
   async resolveRoot(path: string) {
-    let rootUri: URI;
-    if (/^file:\/\//.test(path)) {
-      rootUri = new URI(path);
-    }
-    rootUri = URI.file(path);
+    const rootUri = /^file:\/\//.test(path) ? new URI(path) : URI.file(path);
     const rootFileStat = await this.fileTreeAPI.resolveFileStat(rootUri);
     if (rootFileStat) {
       const { children } = await this.fileTreeAPI.resolveChildren(this, rootFileStat);
@@ -171,7 +167,8 @@ export class FileTreeDialogService extends Tree {
         await this.fileTreeModelService.activeFileDecoration(file);
       }
     } catch (error) {
-      throw new Error(`Failed to open saveAs file: ${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to open saveAs file: ${message}`, { cause: error });
     }
   }
 
@@ -191,8 +188,9 @@ export class FileTreeDialogService extends Tree {
         encoding: 'utf8',
         overwrite: true,
       });
-    } catch (e) {
-      throw new Error(`Failed to create file: ${e.message}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to create file: ${message}`, { cause: error });
     }
   }
 

@@ -61,21 +61,6 @@ describe('comment service test', () => {
     expect(registryOptions).toEqual(options);
   });
 
-  it('registerPanelOptions', () => {
-    const options = {
-      iconClass: 'iconClass',
-      priority: 1,
-      title: 'title',
-      hidden: false,
-      badge: 'badge',
-      initialProps: { a: 1 },
-    };
-    commentsFeatureRegistry.registerPanelOptions(options);
-    const registryOptions = commentsFeatureRegistry.getCommentsPanelOptions();
-
-    expect(registryOptions).toEqual(options);
-  });
-
   it('registerPanelTreeNodeHandler', async () => {
     const override = {
       label: 'test',

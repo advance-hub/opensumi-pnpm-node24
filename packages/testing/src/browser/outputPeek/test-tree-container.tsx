@@ -13,7 +13,7 @@ import { IIconService } from '@opensumi/ide-theme/lib/common/theme.service';
 import { Iterable } from '@opensumi/monaco-editor-core/esm/vs/base/common/iterator';
 
 import { TestPeekMessageToken } from '../../common';
-import { ITestResult, TestResultServiceToken, maxCountPriority, resultItemParents } from '../../common/test-result';
+import { ITestResult, TestResultServiceToken, maxCountPriority } from '../../common/test-result';
 import {
   ITestMessage,
   ITestTaskState,
@@ -179,13 +179,6 @@ export const TestTreeContainer: FC<{ viewState?: ViewState }> = ({ viewState }) 
       test.tasks.some((t) => t.messages.length > 0 || t.state >= TestResultState.Running),
     );
     return Iterable.map(tests, (test) => {
-      let description = '';
-      for (const parent of resultItemParents(result, test)) {
-        if (parent !== test) {
-          description = description ? parent.item.label + ' › ' + description : parent.item.label;
-        }
-      }
-      description = transformLabelWithCodicon(description, {}, iconService.fromString.bind(iconService));
       const renderLabel = transformLabelWithCodicon(
         test.item.label,
         {

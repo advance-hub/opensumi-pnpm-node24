@@ -313,7 +313,7 @@ describe('main layout test', () => {
     act(() => {
       handler.updateViewTitle('test-view-id5', newTitle);
     });
-    expect(handler.accordionService.views.find((view) => view.id === 'test-view-id5')?.name === newTitle);
+    expect(handler.accordionService.views.find((view) => view.id === 'test-view-id5')?.name === newTitle).toBe(true);
     act(() => {
       handler.toggleViews(['test-view-id5'], false);
     });

@@ -10,6 +10,7 @@ import {
   PtyServiceManagerRemoteOptions,
 } from '@opensumi/ide-terminal-next/lib/node/pty.manager.remote';
 
+import { AINodeModules } from '../../../src/node/ai-modules';
 import { CommonNodeModules } from '../../../src/node/common-modules';
 
 const injectorProviders: Provider[] = [];
@@ -39,7 +40,7 @@ const injector = new Injector(injectorProviders);
 
 startServer(
   {
-    modules: [...CommonNodeModules, ExpressFileServerModule],
+    modules: [...CommonNodeModules, ...AINodeModules, ExpressFileServerModule],
     injector,
   },
   {

@@ -84,8 +84,8 @@ function _matchesSubString(word: string, wordToMatchAgainst: string, i: number, 
     return null;
   } else {
     if (word[i] === wordToMatchAgainst[j]) {
-      let result: IMatch[] | null = null;
-      if ((result = _matchesSubString(word, wordToMatchAgainst, i + 1, j + 1))) {
+      const result = _matchesSubString(word, wordToMatchAgainst, i + 1, j + 1);
+      if (result) {
         return join({ start: j, end: j + 1 }, result);
       }
       return null;
@@ -159,9 +159,8 @@ function _matchesCamelCase(word: string, camelCaseWord: string, i: number, j: nu
   } else if (word[i] !== camelCaseWord[j].toLowerCase()) {
     return null;
   } else {
-    let result: IMatch[] | null = null;
+    let result = _matchesCamelCase(word, camelCaseWord, i + 1, j + 1);
     let nextUpperIndex = j + 1;
-    result = _matchesCamelCase(word, camelCaseWord, i + 1, j + 1);
     while (!result && (nextUpperIndex = nextAnchor(camelCaseWord, nextUpperIndex)) < camelCaseWord.length) {
       result = _matchesCamelCase(word, camelCaseWord, i + 1, nextUpperIndex);
       nextUpperIndex++;
@@ -184,10 +183,8 @@ function analyzeCamelCaseWord(word: string): ICamelCaseAnalysis {
   let lower = 0;
   let alpha = 0;
   let numeric = 0;
-  let code = 0;
-
   for (let i = 0; i < word.length; i++) {
-    code = word.charCodeAt(i);
+    const code = word.charCodeAt(i);
 
     if (isUpper(code)) {
       upper++;
@@ -226,11 +223,10 @@ function isCamelCaseWord(analysis: ICamelCaseAnalysis): boolean {
 function isCamelCasePattern(word: string): boolean {
   let upper = 0;
   let lower = 0;
-  let code = 0;
   let whitespace = 0;
 
   for (let i = 0; i < word.length; i++) {
-    code = word.charCodeAt(i);
+    const code = word.charCodeAt(i);
 
     if (isUpper(code)) {
       upper++;
@@ -320,9 +316,8 @@ function _matchesWords(word: string, target: string, i: number, j: number, conti
   } else if (!charactersMatch(word.charCodeAt(i), target.charCodeAt(j))) {
     return null;
   } else {
-    let result: IMatch[] | null = null;
+    let result = _matchesWords(word, target, i + 1, j + 1, contiguous);
     let nextWordIndex = j + 1;
-    result = _matchesWords(word, target, i + 1, j + 1, contiguous);
     if (!contiguous) {
       while (!result && (nextWordIndex = nextWord(target, nextWordIndex)) < target.length) {
         result = _matchesWords(word, target, i + 1, nextWordIndex, contiguous);

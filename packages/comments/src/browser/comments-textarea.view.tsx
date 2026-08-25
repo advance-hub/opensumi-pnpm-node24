@@ -43,7 +43,6 @@ export const CommentsTextArea = React.forwardRef<HTMLTextAreaElement, ICommentTe
   const commentsFeatureRegistry = useInjectable<ICommentsFeatureRegistry>(ICommentsFeatureRegistry);
   const inputRef = React.useRef<HTMLTextAreaElement | null>(null);
   const mentionsRef = React.useRef<HTMLDivElement | null>(null);
-  const itemRef = React.useRef<HTMLDivElement | null>(null);
   // make `ref` to input works
   React.useImperativeHandle(ref, () => inputRef.current!);
 
@@ -160,14 +159,7 @@ export const CommentsTextArea = React.forwardRef<HTMLTextAreaElement, ICommentTe
   const mentionsOptions = React.useMemo(() => commentsFeatureRegistry.getMentionsOptions(), [commentsFeatureRegistry]);
 
   const providerData = React.useCallback(
-    async (query: string, callback) => {
-      if (mentionsOptions.providerData) {
-        const data = await mentionsOptions.providerData(query);
-        callback(data);
-      } else {
-        callback([]);
-      }
-    },
+    async (query: string) => (mentionsOptions.providerData ? mentionsOptions.providerData(query) : []),
     [mentionsOptions],
   );
 
@@ -188,15 +180,21 @@ export const CommentsTextArea = React.forwardRef<HTMLTextAreaElement, ICommentTe
               inputRef={inputRef}
               onDragOver={handleDragOver}
               onDrop={handleFileSelect}
-              // in react 18, the type of ref is changed to LegacyRef<ClassComponent>
-              // but actually it is working pass a dom element ref
-              ref={itemRef as any}
               value={value}
               placeholder={placeholder}
               onChange={onChange}
               onFocus={onFocus}
               onBlur={onBlur}
               style={style}
+              classNames={{
+                control: styles.mention_control,
+                highlighter: styles.mention_highlighter,
+                input: styles.mention_input,
+                suggestions: styles.mention_suggestions,
+                suggestionsList: styles.mention_suggestions_list,
+                suggestionItem: styles.mention_suggestion_item,
+                suggestionItemFocused: styles.mention_suggestion_item_focused,
+              }}
             >
               <Mention
                 markup={mentionsOptions.markup || defaultMarkup}

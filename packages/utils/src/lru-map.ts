@@ -23,7 +23,10 @@ export class LRUMap<K, V> extends Map<K, V> {
 
   private map: Map<K, ILRULinkListNode<K>> = new Map();
 
-  constructor(private hardLimit: number, private softLimit: number) {
+  constructor(
+    private hardLimit: number,
+    private softLimit: number,
+  ) {
     super();
     if (hardLimit < softLimit) {
       throw new Error('hardLimit must be greater equal than softLimit.');
@@ -91,9 +94,8 @@ export class LRUMap<K, V> extends Map<K, V> {
 
   shrink() {
     const toDelete = this.size - this.softLimit;
-    let toDeleteNode: ILRULinkListNode<K> = this.tail;
     for (let i = 0; i < toDelete; i++) {
-      toDeleteNode = this.tail.prev!;
+      const toDeleteNode: ILRULinkListNode<K> = this.tail.prev!;
       if (!toDeleteNode || toDeleteNode === this.head) {
         break;
       } else {
@@ -115,7 +117,11 @@ export class StaleLRUMap<K, V> extends LRUMap<K, V> {
    * @param softLimit
    * @param maxAge the unit is milliseconds
    */
-  constructor(hardLimit: number, softLimit: number, private maxAge: number) {
+  constructor(
+    hardLimit: number,
+    softLimit: number,
+    private maxAge: number,
+  ) {
     super(hardLimit, softLimit);
   }
 

@@ -436,14 +436,10 @@ export const MentionInput: React.FC<MentionInputProps> = ({
           }
 
           // 计算新的历史索引
-          let newIndex = historyIndex;
-          if (e.key === 'ArrowUp') {
-            // 向上导航到较早的历史记录
-            newIndex = Math.min(history.length - 1, historyIndex + 1);
-          } else {
-            // 向下导航到较新的历史记录
-            newIndex = Math.max(-1, historyIndex - 1);
-          }
+          const newIndex =
+            e.key === 'ArrowUp'
+              ? Math.min(history.length - 1, historyIndex + 1)
+              : Math.max(-1, historyIndex - 1);
 
           setHistoryIndex(newIndex);
 

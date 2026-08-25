@@ -3,22 +3,22 @@ import { Disposable } from '@opensumi/ide-core-common';
 import { IDisposable } from '@opensumi/monaco-editor-core/esm/vs/base/common/lifecycle';
 import { IDimension } from '@opensumi/monaco-editor-core/esm/vs/editor/common/core/dimension';
 import { IRange, Range } from '@opensumi/monaco-editor-core/esm/vs/editor/common/core/range';
-import { Selection, ISelection } from '@opensumi/monaco-editor-core/esm/vs/editor/common/core/selection';
+import { ISelection, Selection } from '@opensumi/monaco-editor-core/esm/vs/editor/common/core/selection';
 import {
   IEditorAction,
+  IEditorDecorationsCollection,
+  IEditorModel,
   IEditorViewState,
   ScrollType,
-  IEditorModel,
-  IEditorDecorationsCollection,
 } from '@opensumi/monaco-editor-core/esm/vs/editor/common/editorCommon';
 import {
-  IModelDeltaDecoration,
   IModelDecorationsChangeAccessor,
+  IModelDeltaDecoration,
 } from '@opensumi/monaco-editor-core/esm/vs/editor/common/model';
 
-import { ICodeEditor, IPosition, Position } from '../../../src';
-import { IEditorOptions } from '../../../lib/browser/monaco-api/editor';
 import { monaco } from '../../../lib/browser/monaco-api';
+import { IEditorOptions } from '../../../lib/browser/monaco-api/editor';
+import { ICodeEditor, IPosition, Position } from '../../../src';
 
 let MERGE_EDITOR_ID = 0;
 

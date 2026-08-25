@@ -283,7 +283,7 @@ export class RecycleTree extends React.Component<IRecycleTreeProps> {
   private tryEnsureVisibleTimes: number;
 
   private idToFilterRendererPropsCache: Map<number, IFilterNodeRendererProps> = new Map();
-  private filterFlattenBranch: number[];
+  private filterFlattenBranch: number[] = [];
   private filterFlattenBranchChildrenCache: Map<number, number[]> = new Map();
   private filterWatcherDisposeCollection = new DisposableCollection();
 
@@ -409,20 +409,14 @@ export class RecycleTree extends React.Component<IRecycleTreeProps> {
     return insertIndex;
   }
 
-  public UNSAFE_componentWillUpdate(prevProps: IRecycleTreeProps) {
-    if (this.props.filter !== prevProps.filter) {
-      this.filterItems(prevProps.filter!);
-    }
-    if (this.props.model !== prevProps.model) {
-      // model变化时，在渲染前清理缓存
+  public componentDidUpdate(prevProps: IRecycleTreeProps) {
+    const modelChanged = this.props.model !== prevProps.model;
+    const filterChanged = this.props.filter !== prevProps.filter;
+
+    if (modelChanged) {
       this.idxToRendererPropsCache.clear();
       this.idToFilterRendererPropsCache.clear();
       this.dynamicSizeMap.clear();
-    }
-  }
-
-  public componentDidUpdate(prevProps: IRecycleTreeProps) {
-    if (this.props.model !== prevProps.model) {
       this.disposables.dispose();
       const { model } = this.props;
       this.listRef?.current?.scrollTo(model.state.scrollOffset);
@@ -436,6 +430,16 @@ export class RecycleTree extends React.Component<IRecycleTreeProps> {
         preModel: prevProps.model,
         nextModel: model,
       });
+    }
+
+    if (filterChanged || (modelChanged && this.props.filter)) {
+      this.filterItems(this.props.filter || '');
+    }
+
+    // The cache/filter transition is intentionally committed in the safe
+    // post-update lifecycle. Render once more with the new derived data.
+    if (modelChanged || filterChanged) {
+      this.forceUpdate();
     }
   }
 
@@ -607,6 +611,10 @@ export class RecycleTree extends React.Component<IRecycleTreeProps> {
 
   public componentDidMount() {
     const { model, onReady } = this.props;
+    if (this.props.filter) {
+      this.filterItems(this.props.filter);
+      this.forceUpdate();
+    }
     this.listRef?.current?.scrollTo(model.state.scrollOffset);
     this.disposables.push(model.onChange(this.batchUpdate.bind(this)));
     this.disposables.push(
@@ -639,6 +647,12 @@ export class RecycleTree extends React.Component<IRecycleTreeProps> {
 
   public componentWillUnmount() {
     this.disposables.dispose();
+    this.filterWatcherDisposeCollection.dispose();
+    this.updateCancelToken.dispose(true);
+    this.expandNodeCancelToken.dispose(true);
+    this.onErrorEmitter.dispose();
+    this.onDidUpdateEmitter.dispose();
+    this.onDidModelChangeEmitter.dispose();
   }
 
   private set promptHandle(handle: NewPromptHandle | RenamePromptHandle) {
@@ -757,6 +771,7 @@ export class RecycleTree extends React.Component<IRecycleTreeProps> {
     } = this.props;
     this.filterWatcherDisposeCollection.dispose();
     this.idToFilterRendererPropsCache.clear();
+    this.filterFlattenBranch = [];
     if (!filter) {
       return;
     }
@@ -781,12 +796,11 @@ export class RecycleTree extends React.Component<IRecycleTreeProps> {
         }
       });
     } else {
-      let fuzzyLists: fuzzy.FilterResult<TreeNode>[] = [];
-      if (filterProvider) {
-        fuzzyLists = fuzzy.filter(filter, nodes, filterProvider.fuzzyOptions());
-      } else {
-        fuzzyLists = fuzzy.filter(filter, nodes, RecycleTree.FILTER_FUZZY_OPTIONS);
-      }
+      const fuzzyLists: fuzzy.FilterResult<TreeNode>[] = fuzzy.filter(
+        filter,
+        nodes,
+        filterProvider ? filterProvider.fuzzyOptions() : RecycleTree.FILTER_FUZZY_OPTIONS,
+      );
 
       const showAllExpandedChild = (node: ICompositeTreeNode) => {
         const children = node.children || [];

@@ -221,13 +221,10 @@ export const FileTreeNode: React.FC<FileTreeNodeRenderedProps> = ({
       return <Loading />;
     }
     if (isPrompt && node instanceof PromptHandle) {
-      let isDirectory = false;
-      if (isRenamePrompt) {
-        isDirectory = (node as RenamePromptHandle).target.type === TreeNodeType.CompositeTreeNode;
-      } else {
-        isDirectory = (node as NewPromptHandle).type === TreeNodeType.CompositeTreeNode;
-      }
-      if (isDirectory) {
+      const promptIsDirectory = isRenamePrompt
+        ? (node as RenamePromptHandle).target.type === TreeNodeType.CompositeTreeNode
+        : (node as NewPromptHandle).type === TreeNodeType.CompositeTreeNode;
+      if (promptIsDirectory) {
         return (
           <div
             className={cls(styles.file_tree_node_segment, styles_expansion_toggle, getIcon('arrow-right'), {

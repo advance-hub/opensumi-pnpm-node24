@@ -64,10 +64,9 @@ export class DebugExpressionProvider {
     // Some example supported expressions: myVar.prop, a.b.c.d, myVar?.prop, myVar->prop, MyClass::StaticProp, *myVar
     // Match any character except a set of characters which often break interesting sub-expressions
     const expression = /([^()[\]{}<>\s+\-/%~#^;=|,`!]|->)+/g;
-    let result: RegExpExecArray | null = null;
 
     // First find the full expression under the cursor
-    while ((result = expression.exec(lineContent))) {
+    for (const result of lineContent.matchAll(expression)) {
       const start = result.index + 1;
       const end = start + result[0].length;
 
@@ -82,16 +81,17 @@ export class DebugExpressionProvider {
     // For example in expression 'a.b.c.d', if the focus was under 'b', 'a.b' would be evaluated.
     if (matchingExpression) {
       const subExpression = /\w+/g;
-      let subExpressionResult: RegExpExecArray | null = null;
-      while ((subExpressionResult = subExpression.exec(matchingExpression))) {
+      let subExpressionEnd: number | undefined;
+      for (const subExpressionResult of matchingExpression.matchAll(subExpression)) {
+        subExpressionEnd = subExpressionResult.index + subExpressionResult[0].length;
         const subEnd = subExpressionResult.index + 1 + startOffset + subExpressionResult[0].length;
         if (subEnd >= looseEnd) {
           break;
         }
       }
 
-      if (subExpressionResult) {
-        matchingExpression = matchingExpression.substring(0, subExpression.lastIndex);
+      if (subExpressionEnd !== undefined) {
+        matchingExpression = matchingExpression.substring(0, subExpressionEnd);
       }
     }
     return matchingExpression

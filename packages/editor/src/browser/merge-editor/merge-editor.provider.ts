@@ -34,7 +34,7 @@ export class MergeEditorResourceProvider extends WithEventBus implements IResour
         },
       };
     } catch (error) {
-      throw Error('invalid merge editor resource parse');
+      throw new Error('invalid merge editor resource parse', { cause: error });
     }
   }
 
@@ -48,7 +48,7 @@ export class MergeEditorResourceProvider extends WithEventBus implements IResour
       this.mergeEditorService.fireRestoreState(outputUri);
       return true;
     } catch (error) {
-      throw Error('invalid merge editor resource parse');
+      throw new Error('invalid merge editor resource parse', { cause: error });
     }
   }
 }

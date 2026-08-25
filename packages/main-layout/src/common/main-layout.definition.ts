@@ -5,11 +5,11 @@ import { IContextMenu } from '@opensumi/ide-core-browser/lib/menu/next';
 import { Deferred, Event } from '@opensumi/ide-core-common';
 import { IContextKeyExpression } from '@opensumi/monaco-editor-core/esm/vs/platform/contextkey/common/contextkey';
 
-// eslint-disable-next-line import/no-restricted-paths
+// eslint-disable-next-line import-x/no-restricted-paths
 import type { AccordionService } from '../browser/accordion/accordion.service';
-// eslint-disable-next-line import/no-restricted-paths
+// eslint-disable-next-line import-x/no-restricted-paths
 import type { TabbarService } from '../browser/tabbar/tabbar.service';
-// eslint-disable-next-line import/no-restricted-paths
+// eslint-disable-next-line import-x/no-restricted-paths
 import type { TabBarHandler } from '../browser/tabbar-handler';
 
 export interface ComponentCollection {

@@ -2,11 +2,11 @@
  * @deprecated `kaitian` was deprecated, Please use `sumi` instead.
  */
 declare module 'kaitian' {
-  // eslint-disable-next-line import/no-unresolved
+  // eslint-disable-next-line import-x/no-unresolved
   export * from 'sumi';
 }
 declare module 'sumi' {
-  // eslint-disable-next-line import/no-unresolved
+  // eslint-disable-next-line import-x/no-unresolved
   export * from 'vscode';
   import {
     CancellationToken,
@@ -28,7 +28,7 @@ declare module 'sumi' {
     TextEditorEdit,
     ExtensionContext as VSCodeExtensionContext,
     ViewBadge,
-    // eslint-disable-next-line import/no-unresolved
+    // eslint-disable-next-line import-x/no-unresolved
   } from 'vscode';
 
   /**

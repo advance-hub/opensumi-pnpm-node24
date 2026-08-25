@@ -139,7 +139,7 @@ export type ModalFunc = (props: ModalFuncProps) => {
   update: (newConfig: ModalFuncProps) => void;
 };
 
-export default class Modal extends React.Component<PropsWithChildren<ModalProps>, {}> {
+export default class Modal extends React.Component<PropsWithChildren<ModalProps>> {
   static info: ModalFunc;
 
   static success: ModalFunc;

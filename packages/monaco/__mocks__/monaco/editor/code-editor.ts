@@ -1,7 +1,8 @@
-import { Emitter, Event, Disposable, IDisposable } from '@opensumi/ide-core-common';
+import { Disposable, Emitter, Event, IDisposable } from '@opensumi/ide-core-common';
 import { IModelDecorationsChangedEvent } from '@opensumi/monaco-editor-core/esm/vs/editor/common/textModelEvents';
-import * as monaco from '../../../src/common';
 import { ContextKeyValue } from '@opensumi/monaco-editor-core/esm/vs/platform/contextkey/common/contextkey';
+
+import * as monaco from '../../../src/common';
 
 export class MockedCodeEditor extends Disposable implements monaco.editor.ICodeEditor {
   static ID = 0;
@@ -69,9 +70,7 @@ export class MockedCodeEditor extends Disposable implements monaco.editor.ICodeE
       getRange: () => null,
       getRanges: () => [],
       has: () => true,
-      append: (newDecorations) => {
-        return [];
-      },
+      append: (newDecorations) => [],
     };
   }
   onDidChangeHiddenAreas: monaco.IEvent<void>;

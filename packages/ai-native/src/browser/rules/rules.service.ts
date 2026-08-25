@@ -123,6 +123,8 @@ export class RulesService extends Disposable {
       value: '',
       placeHolder: localize('ai.native.rules.projectRules.newRule.placeholder'),
       validateInput: async (value) => {
+        // File names must reject the ASCII control-character range.
+        // eslint-disable-next-line no-control-regex
         const invalidCharsRegex = /[<>:"/\\|?*\x00-\x1F]/;
         value = value.trim();
         if (value === '') {

@@ -1,11 +1,11 @@
-import { Injectable, Autowired } from '@opensumi/di';
+import { Autowired, Injectable } from '@opensumi/di';
 import {
   Archive,
   BaseLogServiceOptions,
   Emitter,
-  ILoggerManagerClient,
   ILogServiceClient,
   ILogServiceManager,
+  ILoggerManagerClient,
   LogLevel,
   SupportLogNamespace,
 } from '@opensumi/ide-core-common';

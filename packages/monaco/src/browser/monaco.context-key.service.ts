@@ -310,7 +310,7 @@ abstract class BaseContextKeyService extends Disposable implements IContextKeySe
     super();
   }
 
-  bufferChangeEvents(callback: Function): void {
+  bufferChangeEvents(callback: () => void): void {
     this.contextKeyService.bufferChangeEvents(callback);
   }
 

@@ -1,4 +1,3 @@
-import PropTypes from 'prop-types';
 import { SubMenuProps as RCSubMenuProps, SubMenu as RcSubMenu } from 'rc-menu';
 import React from 'react';
 
@@ -22,18 +21,12 @@ export interface SubMenuProps extends RCSubMenuProps {
   ref?: React.Ref<HTMLLIElement> | undefined;
 }
 
-class SubMenu extends React.Component<SubMenuProps, any> {
-  static contextTypes = {
-    antdMenuTheme: PropTypes.string,
-  };
+const SubMenu: React.FC<SubMenuProps> & { isSubMenu: number } = (props) => {
+  const { popupClassName } = props;
+  return <RcSubMenu {...props} popupClassName={popupClassName} />;
+};
 
-  // fix issue:https://github.com/ant-design/ant-design/issues/8666
-  static isSubMenu = 1;
-
-  render() {
-    const { popupClassName } = this.props;
-    return <RcSubMenu {...this.props} popupClassName={popupClassName} />;
-  }
-}
+// rc-menu uses this marker to recognize nested menu components.
+SubMenu.isSubMenu = 1;
 
 export default SubMenu;

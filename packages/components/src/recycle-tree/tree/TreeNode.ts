@@ -692,9 +692,9 @@ export class CompositeTreeNode extends TreeNode implements ICompositeTreeNode {
   /**
    * 处理节点数据，让节点重新加载子节点及初始化 flattenedBranch
    * @param token CancellationToken
-   */
+  */
   private async resolveChildrens(token?: CancellationToken) {
-    let childrens = this.children;
+    let childrens: ITreeNodeOrCompositeTreeNode[];
     let expandedPaths: string[] = [];
     try {
       childrens = (await this._tree.resolveChildren(this)) || [];

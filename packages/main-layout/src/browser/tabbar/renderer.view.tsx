@@ -110,8 +110,8 @@ export const RightTabRenderer = ({
 }: {
   className: string;
   components: ComponentRegistryInfo[];
-  tabbarView?: FC<{}>;
-  tabpanelView?: FC<{}>;
+  tabbarView?: FC;
+  tabpanelView?: FC;
 }) => (
   <TabRendererBase
     side={SlotLocation.extendView}
@@ -131,7 +131,7 @@ export const LeftTabRenderer = ({
 }: {
   className: string;
   components: ComponentRegistryInfo[];
-  tabbarView?: FC<{}>;
+  tabbarView?: FC;
 }) => (
   <TabRendererBase
     side={SlotLocation.view}
@@ -151,7 +151,7 @@ export const BottomTabRenderer = ({
 }: {
   className: string;
   components: ComponentRegistryInfo[];
-  tabbarView?: FC<{}>;
+  tabbarView?: FC;
 }) => (
   <TabRendererBase
     side={SlotLocation.panel}

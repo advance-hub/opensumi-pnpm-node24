@@ -1,4 +1,4 @@
-/* eslint-disable import/order */
+/* eslint-disable import-x/order */
 
 // eslint-disable-next-line no-console
 console.time('Render');
@@ -25,11 +25,7 @@ import { ExpressFileServerModule } from '@opensumi/ide-express-file-server/lib/b
 import { defaultConfig } from '@opensumi/ide-main-layout/lib/browser/default-config';
 import { RemoteOpenerModule } from '@opensumi/ide-remote-opener/lib/browser';
 
-import { AI_CHAT_LOGO_AVATAR_ID, IChatInternalService } from '@opensumi/ide-ai-native';
-import { AILayout } from '@opensumi/ide-ai-native/lib/browser/layout/ai-layout';
-import { DESIGN_MENU_BAR_RIGHT } from '@opensumi/ide-design';
 import { CommonBrowserModules } from '../../src/browser/common-modules';
-import { SampleModule } from '../sample-modules';
 
 const CLIENT_ID = 'W_' + uuid();
 
@@ -71,18 +67,23 @@ export async function renderApp(opts: IClientAppOpts) {
 
   const app = new ClientApp(opts);
 
-  app.fireOnReload = (forcedReload: boolean) => {
+  app.fireOnReload = () => {
     window.location.reload();
   };
 
   if (process.env.OPENSUMI_E2E_COMMANDS) {
     (window as any).__OPENSUMI_E2E__ = {
       executeCommand: (commandId: string, ...args: any[]) =>
-        app.injector.get<CommandService>(CommandService).executeCommand(commandId, ...args),
+        (app.injector.get(CommandService as any) as unknown as CommandService).executeCommand(commandId, ...args),
       disposeAcpSessions: async () => {
-        const aiChatService = app.injector.get<any>(IChatInternalService);
-        const sessions = [...aiChatService.getSessions()];
-        await Promise.allSettled(sessions.map((session) => aiChatService.clearSessionModel(session.sessionId)));
+        try {
+          const { IChatInternalService } = await import('@opensumi/ide-ai-native');
+          const aiChatService = app.injector.get<any>(IChatInternalService);
+          const sessions = [...aiChatService.getSessions()];
+          await Promise.allSettled(sessions.map((session) => aiChatService.clearSessionModel(session.sessionId)));
+        } catch {
+          // AI is an optional product feature and may not be registered in core-only E2E runs.
+        }
       },
     };
   }
@@ -100,7 +101,7 @@ export const getDefaultClientAppOpts = ({
   const { layoutConfig, ...restOpt } = opts;
 
   return {
-    modules: [...CommonBrowserModules, ExpressFileServerModule, SampleModule, RemoteOpenerModule, ...modules],
+    modules: [...CommonBrowserModules, ExpressFileServerModule, RemoteOpenerModule, ...modules],
     layoutConfig: {
       ...defaultConfig,
       [SlotLocation.top]: {
@@ -108,9 +109,6 @@ export const getDefaultClientAppOpts = ({
       },
       [SlotLocation.action]: {
         modules: ['@opensumi/ide-toolbar-action'],
-      },
-      [DESIGN_MENU_BAR_RIGHT]: {
-        modules: [AI_CHAT_LOGO_AVATAR_ID],
       },
       ...layoutConfig,
     },
@@ -139,7 +137,6 @@ export const getDefaultClientAppOpts = ({
       useMenubarView: true,
       useMergeRightWithLeftPanel: true,
     },
-    layoutComponent: AILayout,
     ...restOpt,
   };
 };

@@ -297,12 +297,14 @@ export class SCMContribution
     if (!lineChanges || lineChanges.length === 0) {
       return 0;
     }
-    let index = 0;
-    if (type === 'previous') {
-      index = diffChangesIndex - 1 < 0 ? lineChanges.length - 1 : diffChangesIndex - 1;
-    } else {
-      index = diffChangesIndex >= lineChanges.length - 1 ? 0 : diffChangesIndex + 1;
-    }
+    const index =
+      type === 'previous'
+        ? diffChangesIndex - 1 < 0
+          ? lineChanges.length - 1
+          : diffChangesIndex - 1
+        : diffChangesIndex >= lineChanges.length - 1
+          ? 0
+          : diffChangesIndex + 1;
     this.diffChangesIndex.set(uri, index);
     return lineChanges[index][2];
   }

@@ -278,7 +278,7 @@ export class WorkbenchEditorServiceImpl extends WithEventBus implements Workbenc
 
       return uri;
     } catch (error) {
-      throw new Error(`Save Failed: ${error.message}`);
+      throw new Error(`Save Failed: ${error.message}`, { cause: error });
     }
   }
 
@@ -303,7 +303,7 @@ export class WorkbenchEditorServiceImpl extends WithEventBus implements Workbenc
       });
       return result;
     } catch (error) {
-      throw new Error(`SaveAs Failed: ${error.message}`);
+      throw new Error(`SaveAs Failed: ${error.message}`, { cause: error });
     }
   }
 

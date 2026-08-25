@@ -1,3 +1,5 @@
+import coreBrowserPackage from '../../../package.json';
+
 export const IDE_ICONFONT_CN_CSS = '//at.alicdn.com/t/a/font_1432262_eyib2sbslul.css';
 
 export const IDE_ICONFONT_CN_JS = IDE_ICONFONT_CN_CSS.replace(/\.css$/, '.js');
@@ -8,6 +10,6 @@ export const IDE_OCTICONS_CN_CSS =
 const codiconsPkg = '@vscode/codicons';
 // alipayobjects icon 不带@
 const codiconsCDNPkg = 'vscode/codicons';
-const codiconsPkgVersion = require('../../../package.json').dependencies[codiconsPkg];
+const codiconsPkgVersion = coreBrowserPackage.dependencies[codiconsPkg];
 
 export const IDE_CODICONS_CN_CSS = `//gw.alipayobjects.com/os/lib/${codiconsCDNPkg}/${codiconsPkgVersion}/dist/codicon.css`;

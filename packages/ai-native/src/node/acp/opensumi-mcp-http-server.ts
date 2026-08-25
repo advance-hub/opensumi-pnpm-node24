@@ -65,6 +65,13 @@ interface WebMcpSessionState {
   enabledGroups: Set<string>;
 }
 
+interface CallToolRequestLike {
+  params: {
+    name: string;
+    arguments?: Record<string, unknown>;
+  };
+}
+
 interface ResolvedWebMcpTool {
   group: WebMcpGroupDefWithMeta;
   tool: WebMcpToolDefWithMeta;
@@ -240,7 +247,9 @@ export class OpenSumiMcpHttpServer {
       };
     });
 
-    server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    // Keep the SDK's Zod schema inference at this boundary. Inferring the full
+    // handler body makes TypeScript recursively expand every MCP result variant.
+    (server.setRequestHandler as any)(CallToolRequestSchema, async (request: CallToolRequestLike) => {
       try {
         const groupDefs = (await this.caller.getGroupDefinitions(
           {

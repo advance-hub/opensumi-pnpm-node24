@@ -18,7 +18,7 @@ export const IContextKeyService = Symbol('IContextKeyService');
 export interface IContextKeyService {
   onDidChangeContext: Event<ContextKeyChangeEvent>;
 
-  bufferChangeEvents(callback: Function): void;
+  bufferChangeEvents(callback: () => void): void;
 
   getValue<T>(key: string): T | undefined;
   createKey<T extends ContextKeyValue = any>(key: string, defaultValue: T | undefined): IContextKey<T>;

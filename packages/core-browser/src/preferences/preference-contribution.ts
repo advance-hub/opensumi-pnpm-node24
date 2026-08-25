@@ -126,7 +126,7 @@ export class PreferenceSchemaProvider extends PreferenceProvider {
 
       delete this.combinedSchema.properties[preferenceName];
 
-      if (typeof newValue === undefined) {
+      if (typeof newValue === 'undefined') {
         delete this.preferences[preferenceName];
       } else {
         inverseChange.newValue = newValue;

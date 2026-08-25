@@ -257,7 +257,6 @@ export class LabelService extends WithEventBus {
   }
 }
 
-let modeService: any;
 let modelService: IModelService;
 let languageService: ILanguageService;
 
@@ -294,9 +293,6 @@ export const getResourceIconClass = (
       classes.push('ext-file-icon'); // extra segment to increase file-ext score
     }
     // Language Mode探测
-    if (!modeService) {
-      // modeService = StandaloneServices.modeService.get();
-    }
     if (!languageService) {
       languageService = StandaloneServices.get(ILanguageService);
     }
@@ -329,7 +325,7 @@ export const getResourceIconClass = (
 };
 
 export function cssEscape(str: string): string {
-  return str.replace(/[\x09\x0a\x0c\x0d\x20]/g, '/'); // HTML class names can not contain certain whitespace characters, use / instead, which doesn't exist in file names.
+  return str.replace(/\s/g, '/'); // HTML class names cannot contain whitespace; use / instead, which does not exist in file names.
 }
 
 export function basenameOrAuthority(resource: URI) {

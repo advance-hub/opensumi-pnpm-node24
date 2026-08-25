@@ -41,13 +41,10 @@ export const getLanguageMarker = (language: string) => {
     shellscript: '#!/bin/sh',
     yaml: '# YAML data',
   };
-  let marker = '';
   if (supportLanguage[language]) {
     return supportLanguage[language];
   }
-  marker = `Language: ${language}`;
-
-  return getMarkerByLanguage(marker, language);
+  return getMarkerByLanguage(`Language: ${language}`, language);
 };
 
 // 根据语言类型获取不同的注释内容

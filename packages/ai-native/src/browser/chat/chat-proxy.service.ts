@@ -74,19 +74,18 @@ export class ChatProxyService extends Disposable {
   private chatDeferred: Deferred<void> = new Deferred<void>();
 
   public async getRequestOptions() {
-    const model = this.preferenceService.get<string>(AINativeSettingSectionsId.LLMModelSelection);
+    const model = this.preferenceService.get<string>(AINativeSettingSectionsId.LLMModelSelection) ?? 'openai';
     const modelId = this.preferenceService.get<string>(AINativeSettingSectionsId.ModelID);
-    let apiKey: string = '';
+    const apiKeySetting =
+      model === 'deepseek'
+        ? AINativeSettingSectionsId.DeepseekApiKey
+        : model === 'anthropic'
+          ? AINativeSettingSectionsId.AnthropicApiKey
+          : AINativeSettingSectionsId.OpenaiApiKey;
+    const apiKey = this.preferenceService.get<string>(apiKeySetting, '');
     let baseURL: string = '';
-    if (model === 'deepseek') {
-      apiKey = this.preferenceService.get<string>(AINativeSettingSectionsId.DeepseekApiKey, '');
-    } else if (model === 'openai') {
-      apiKey = this.preferenceService.get<string>(AINativeSettingSectionsId.OpenaiApiKey, '');
-    } else if (model === 'anthropic') {
-      apiKey = this.preferenceService.get<string>(AINativeSettingSectionsId.AnthropicApiKey, '');
-    } else {
+    if (!['deepseek', 'openai', 'anthropic'].includes(model)) {
       // openai-compatible 为兜底
-      apiKey = this.preferenceService.get<string>(AINativeSettingSectionsId.OpenaiApiKey, '');
       baseURL = this.preferenceService.get<string>(AINativeSettingSectionsId.OpenaiBaseURL, '');
     }
     const maxTokens = this.preferenceService.get<number>(AINativeSettingSectionsId.MaxTokens);

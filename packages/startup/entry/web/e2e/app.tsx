@@ -1,6 +1,7 @@
 import { AILayout } from '@opensumi/ide-ai-native/lib/browser/layout/ai-layout';
-import { AIModules } from '@opensumi/ide-startup/lib/browser/common-modules';
+import { AIBrowserModules } from '@opensumi/ide-startup/lib/browser/ai-modules';
 
+import { SampleModule } from '../../sample-modules';
 import { DefaultLayout } from '../layout';
 import { getDefaultClientAppOpts, renderApp } from '../render-app';
 
@@ -24,7 +25,7 @@ if (preserveAINativeE2E && userPreferenceDirName) {
 
 renderApp(
   getDefaultClientAppOpts({
-    modules: enableAINativeE2E ? AIModules : [],
+    modules: enableAINativeE2E ? [SampleModule, ...AIBrowserModules] : [SampleModule],
     opts: {
       ...(userPreferenceDirName ? { userPreferenceDirName } : {}),
       ...(enableAINativeE2E

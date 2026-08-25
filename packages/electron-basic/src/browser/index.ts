@@ -352,10 +352,10 @@ export class ElectronBasicContribution
     // 注册drag drop file的行为
     this.eventBus.on(EditorGroupFileDropEvent, async (event) => {
       const payload = event.payload;
+      let group = event.payload.group;
       // fileList 只能这样遍历
       for (let i = 0; i < payload.files.length; i++) {
         const file = payload.files[i];
-        let group = event.payload.group;
         if (file.path) {
           const fileURI = URI.file(file.path);
           const options: IResourceOpenOptions = {

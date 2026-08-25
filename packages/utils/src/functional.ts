@@ -3,30 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export function once<T extends Function>(this: any, fn: T): T {
+export function once<T extends (...args: any[]) => any>(this: any, fn: T): T {
   const _this = this;
   let didCall = false;
   let result: any;
 
-  return function () {
+  return function (...args: Parameters<T>) {
     if (didCall) {
       return result;
     }
 
     didCall = true;
-    result = fn.apply(_this, arguments);
+    result = fn.apply(_this, args);
 
     return result;
   } as any as T;
 }
 
 export function removeObjectFromArray<T = any>(array: Array<T>, object: T, comparator?: (o1: T, o2: T) => boolean) {
-  let index = -1;
-  if (comparator) {
-    index = array.findIndex((o) => comparator(o, object));
-  } else {
-    index = array.indexOf(object);
-  }
+  const index = comparator ? array.findIndex((item) => comparator(item, object)) : array.indexOf(object);
   if (index !== -1) {
     array.splice(index, 1);
   }

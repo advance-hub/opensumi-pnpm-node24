@@ -89,8 +89,6 @@ export class MergeConflictParser extends Disposable {
       if (line.text.startsWith(startHeaderMarker)) {
         if (currentConflict !== null) {
           // Error, we should not see a startMarker before we've seen an endMarker
-          currentConflict = null;
-
           // Give up parsing, anything matched up this to this point will be decorated
           // anything after will not
           break;
