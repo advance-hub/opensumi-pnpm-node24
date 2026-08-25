@@ -2,9 +2,38 @@
 	<a href="https://github.com/opensumi/core"><img src="https://img.alicdn.com/imgextra/i2/O1CN01dqjQei1tpbj9z9VPH_!!6000000005951-55-tps-87-78.svg" width="150" /></a>
 </p>
 
-<h1 align="center">OpenSumi</h1>
+<h1 align="center">OpenSumi · Node 24 / pnpm 升级版</h1>
 
-<p align="center">一款帮助你快速搭建 AI 原生 IDE 产品的底层框架。</p>
+<p align="center">保留 VS Code Node 插件兼容能力，同时降低内存占用并限制连接与后台进程资源。</p>
+
+> **项目定位：**本仓库基于 [OpenSumi Core](https://github.com/opensumi/core) `9fee6aa` 基线进行独立工程化升级，不是 OpenSumi 官方发布分支。
+
+## 为什么要改
+
+本次采用的上游基线仍以 Node.js 18 和 Yarn 管理大型工作区，产品启动、框架源码编译与开发工具耦合较深。它可以运行，但普通 WebIDE 开发也容易同时常驻整套源码依赖图、多层文件监听和监督进程，开启扩展或协同后内存边界更加难以判断。
+
+迁移过程中还确认了几类与语言本身无关的具体风险：
+
+1. WebSocket 心跳归属、消息大小、连接数量和慢消费者缓冲缺少一套完整的资源边界。
+2. 扩展宿主和文件 Watcher 在重连或退出后可能遗留回调、Socket、定时器或子孙进程。
+3. Yjs 房间缺少客户端、文档、CRDT 状态、并发初始化和空闲历史回收上限。
+4. 产品入口与大量可复用包混在一起，不容易看清浏览器和服务端实际装配、启动了什么。
+
+我们验证过 Go/Bun 方向，但没有采用。传统 VS Code 插件、OpenSumi RPC、PTY、文件监听和已有原生模块仍依赖 Node 生态；增加第二套运行时只会多出代理、部署和排障边界，并不能消除 Node 内存。因此本版保留单一 Node.js 24 后端，重点为每类资源建立可观测、可回收的上限。
+
+## 改动点是什么
+
+| 领域 | 主要变化 | 带来的价值 |
+| --- | --- | --- |
+| 工具链 | 固定 Node.js 24.16、pnpm 11.21、TypeScript 5.9、React 18.3，移除 Yarn | 安装、CI、构建与本地环境使用同一套版本约束 |
+| 产品目录 | 可运行产品入口收口为 `client/` 与 `server/`，`packages/` 保留为内部框架包 | 产品入口更清楚，同时不破坏 OpenSumi 包名、依赖注入和扩展协议 |
+| 前端构建 | 默认 Client 和扩展 Worker 使用 Rspack 2 + SWC；配置与自有脚本使用 TypeScript，仓库不再保留 `.mjs`/`.cjs` | 缩短默认编译链，并减少旧式配置格式的维护成本 |
+| 低内存开发 | 默认读取预编译 `packages/*/lib` 与 `server/dist`，关闭 source map，启动前检查可用内存并限制各 Node 进程堆 | 避免一次开发启动把整个框架源码图和多层监听器同时常驻内存 |
+| 连接与进程 | WebSocket 增加连接数、消息体、发送缓冲、心跳和慢消费者边界；退出时回收 Server、Rspack、扩展宿主与 Watcher 进程树 | 降低异常连接、重复重连和孤儿进程持续占用服务器资源的风险 |
+| 协同编辑 | Yjs 增加连接、文档、CRDT 状态、并发初始化和空闲回收上限，超压时重建房间文档 | 防止协同房间与历史更新无界增长 |
+| 兼容边界 | 生产后端保持单一 Node.js 24 运行时，不引入 Go/Bun；AI、Notebook、协同按需启用，传统 VS Code Node 扩展继续运行 | 避免双运行时代理成本，并保留现有插件生态 |
+
+完整设计、资源参数、验证数据与 Go/Bun 取舍见 [Node 24 单运行时改造方案](./docs/architecture/client-server-runtime.md)；目录归属规则见[仓库目录说明](./docs/architecture/repository-layout.md)。文档中的本机内存数据是点样本，不是生产容量承诺，正式部署仍需按工作区、扩展数量和协同连接数进行阶梯压测。
 
 <div align="center">
 

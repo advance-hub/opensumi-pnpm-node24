@@ -2,9 +2,38 @@
 	<a href="https://github.com/opensumi/core"><img src="https://img.alicdn.com/imgextra/i2/O1CN01dqjQei1tpbj9z9VPH_!!6000000005951-55-tps-87-78.svg" width="150" /></a>
 </p>
 
-<h1 align="center">OpenSumi</h1>
+<h1 align="center">OpenSumi · Node 24 / pnpm Upgrade</h1>
 
-<p align="center">A framework helps you quickly build AI Native IDE products.</p>
+<p align="center">A lower-memory, resource-bounded OpenSumi distribution that keeps VS Code Node extension compatibility.</p>
+
+> **Project status:** this is an independent engineering upgrade based on [OpenSumi Core](https://github.com/opensumi/core) commit `9fee6aa`, not an official OpenSumi release branch.
+
+## Why This Version Exists
+
+The selected upstream baseline still used Node.js 18 and Yarn across a large workspace, with product startup, framework source compilation, and development tooling closely coupled. That arrangement works, but it makes ordinary WebIDE development retain more source graphs, watchers, and supervisors than necessary.
+
+The migration also found concrete runtime risks beyond the choice of language:
+
+1. WebSocket heartbeat ownership, payload size, connection count, and slow-consumer buffering did not have one complete resource boundary.
+2. Extension hosts and file watchers could leave callbacks, sockets, timers, or descendant processes alive after reconnects and shutdown.
+3. Yjs rooms needed explicit limits for clients, documents, CRDT state, concurrent initialization, and idle history cleanup.
+4. Product entry points were mixed with many reusable packages, making it difficult to tell what actually runs in the browser and on the server.
+
+A Go or Bun rewrite was evaluated but not adopted. Traditional VS Code extensions, OpenSumi RPC, PTY, file watching, and existing native modules still require the Node ecosystem, so a second runtime would add a proxy and deployment boundary without removing Node memory. This version instead keeps one Node.js 24 backend and places measurable limits around it.
+
+## What Changed
+
+| Area | Main change | Practical value |
+| --- | --- | --- |
+| Toolchain | Pin Node.js 24.16, pnpm 11.21, TypeScript 5.9, and React 18.3; remove Yarn | Installation, CI, builds, and local development share one version contract |
+| Product layout | Make `client/` and `server/` the only runnable product entries while keeping `packages/` as the internal framework | Product ownership is clearer without breaking OpenSumi package identities, dependency injection, or extension protocols |
+| Frontend build | Use Rspack 2 + SWC for the default client and extension worker; keep repository-owned configuration and scripts in TypeScript with no `.mjs`/`.cjs` files | Shorter default compilation path and less legacy configuration maintenance |
+| Low-memory development | Consume precompiled `packages/*/lib` and `server/dist`, disable source maps by default, check memory headroom, and cap Node heaps | Avoid retaining the entire framework source graph and multiple source watchers during normal development |
+| Connections and processes | Bound WebSocket connections, payloads, send buffers, heartbeats, and slow consumers; clean up the Server, Rspack, extension-host, and Watcher process trees on exit | Reduce resource growth caused by abnormal clients, reconnect loops, and orphan processes |
+| Collaboration | Bound Yjs clients, documents, CRDT state, concurrent initialization, and idle lifetime; rebuild rooms under pressure | Prevent collaboration rooms and update history from growing without limits |
+| Compatibility boundary | Keep one Node.js 24 production backend instead of adding Go/Bun; load AI, Notebook, and collaboration on demand while retaining traditional VS Code Node extensions | Preserve the extension ecosystem without introducing a second runtime and proxy layer |
+
+See the [Node 24 single-runtime design](./docs/architecture/client-server-runtime.md) for implementation details, resource limits, validation evidence, and the Go/Bun decision. See the [repository layout](./docs/architecture/repository-layout.md) for ownership rules. Local memory figures are point samples rather than production capacity guarantees; production deployments still need staged load tests across workspaces, extensions, and collaboration clients.
 
 <div align="center">
 
