@@ -107,3 +107,4 @@ go/workspace-agent/bin/
 output/playwright/
 output/runtime-profiles/
 output/workspace-agent/
+output/extension-host/

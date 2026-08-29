@@ -100,6 +100,10 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
   private commonChannelPathHandler: CommonChannelPathHandler;
 
   private clientExtProcessMap: Map<string, number> = new Map();
+  // Clients whose extension host fork is still in flight. The process maps
+  // only fill in once the fork resolves, so a browser that disconnects during
+  // that window would otherwise bypass the disconnect disposal.
+  private pendingExtHostClients: Set<string> = new Set();
   private clientExtProcessInspectPortMap: Map<string, number> = new Map();
   private clientExtProcessInitDeferredMap: Map<string, Deferred<void>> = new Map();
   private clientExtProcessExtConnection: Map<string, NetSocketConnection> = new Map();
@@ -547,6 +551,7 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
   }
 
   private async _createExtHostProcess(clientId: string, options?: ICreateProcessOptions) {
+    this.pendingExtHostClients.add(clientId);
     let preloadPath: string;
     let forkOptions: cp.ForkOptions = {
       // 防止 childProcess.stdout 为 null
@@ -647,11 +652,18 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
 
     const forkTimer = this.reporterService.time(`${clientId} fork ext process`);
     const configuredForkOptions = this.appConfig.extHostForkOptions;
-    const extProcessId = await this.extensionHostManager.fork(extProcessPath, forkArgs, {
-      ...forkOptions,
-      ...configuredForkOptions,
-      execArgv: [...forkOptions.execArgv, ...(configuredForkOptions?.execArgv || [])],
-    });
+    let extProcessId: number;
+    try {
+      extProcessId = await this.extensionHostManager.fork(extProcessPath, forkArgs, {
+        ...forkOptions,
+        ...configuredForkOptions,
+        execArgv: [...forkOptions.execArgv, ...(configuredForkOptions?.execArgv || [])],
+      });
+    } finally {
+      // From here the process maps own the lifecycle; a failed fork must not
+      // leave the client marked as pending.
+      this.pendingExtHostClients.delete(clientId);
+    }
     this.clientExtProcessMap.set(clientId, extProcessId);
     this.extensionHostCounters.created += 1;
     const extProcessInitDeferred = new Deferred<void>();
@@ -825,7 +837,27 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
           this.closeExtProcessWhenConnectionClose(clientId);
         });
       },
-      dispose: () => {},
+      dispose: (channel: unknown, clientId: string) => {
+        // The physical browser connection went away. The main-thread channel
+        // may never have opened for this client (fast open/close before any
+        // extension activation), in which case the channel.onceClose path
+        // above never ran even though the forked extension host process is
+        // still alive and would leak until the process count saturates. The
+        // timer in closeExtProcessWhenConnectionClose is cancel-and-rearm, so
+        // running after the channel path stays a single disposal.
+        if (
+          !this.clientExtProcessMap.has(clientId) &&
+          !this.pendingExtHostClients.has(clientId) &&
+          !this.maybeZombieClients.has(clientId)
+        ) {
+          return;
+        }
+        this.logger.log(`The connection client ${clientId} disposed without an open main-thread channel`);
+        this.clientMainThreadChannelMap.delete(clientId);
+        this.maybeZombieClients.add(clientId);
+        this.reportExtensionHostStatus();
+        this.closeExtProcessWhenConnectionClose(clientId);
+      },
     });
   }
 

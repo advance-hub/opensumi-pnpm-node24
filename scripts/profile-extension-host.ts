@@ -74,6 +74,7 @@ interface ExtensionHostProfileEvidence {
   durationMs: number;
   options: ProfileOptions;
   workspaceAgentPackaged: boolean;
+  baselineReclaimedWithinMs: number;
   baseline: {
     extHostCount: number;
     extHostRssBytes: number | undefined;
@@ -428,6 +429,9 @@ async function runProfile(options: ProfileOptions): Promise<void> {
       `Extension host did not reach ${options.sessions} active hosts within 60 seconds`,
     );
 
+    // Let the freshly activated ext host settle (V8 warmup, extension scan)
+    // so the baseline reflects steady state instead of the fork image.
+    await delay(3_000);
     const baselineSnapshot = await collectProcessTreeMemory(server.pid!);
     const baselineHosts = findExtensionHosts(baselineSnapshot);
     const baselineTrace = await readMemoryTrace(memoryTracePath);
@@ -487,13 +491,37 @@ async function runProfile(options: ProfileOptions): Promise<void> {
         await context.close();
       }
     };
+    await closeBaseline();
+    // The recycling cycles below require a quiet server: every active ext
+    // host from the baseline must be reclaimed before cycling starts, or the
+    // per-cycle counts would be polluted by the idle session.
+    let baselineReclaimedWithinMs = -1;
+    const baselineReclaimStartedAt = Date.now();
+    try {
+      await waitUntil(
+        async () => {
+          const health = await readHealth(port).catch(() => undefined);
+          return (health?.extensionHost?.active ?? 1) === 0;
+        },
+        Math.max(30_000, options.extHostIdleTimeoutMs * 10),
+        'Baseline extension hosts were not reclaimed after closing the browser',
+      );
+      baselineReclaimedWithinMs = Date.now() - baselineReclaimStartedAt;
+    } catch (error) {
+      console.error(String(error));
+    }
 
     // Recycling cycles: open a fresh session, sample it, close it and require
     // the ext host to be reclaimed before continuing. The server is NOT
     // restarted between cycles, so server-side retention shows up directly.
     const cycles: CycleEvidence[] = [];
     for (let cycle = 1; cycle <= options.cycles; cycle++) {
-      const page = await openSession(browser, port, workspacePath);
+      // A whole-browser close is what the product lifecycle sees when a user
+      // closes the tab; a Playwright context.close() leaves the browser
+      // process holding the WebSocket open, so the server never observes the
+      // disconnect.
+      const cycleBrowser = await chromium.launch({ headless: options.headless });
+      const page = await openSession(cycleBrowser, port, workspacePath);
       page.on('console', (message) => {
         if (message.type() === 'error' && consoleErrors.length < 30) {
           consoleErrors.push(message.text());
@@ -511,7 +539,7 @@ async function runProfile(options: ProfileOptions): Promise<void> {
       const openedHosts = findExtensionHosts(openedSnapshot);
       const openedAt = Date.now();
 
-      await page.context().close();
+      await cycleBrowser.close();
       let reclaimedWithinMs = -1;
       try {
         await waitUntil(
@@ -538,7 +566,6 @@ async function runProfile(options: ProfileOptions): Promise<void> {
         postCloseServerRssBytes: roleRss(postCloseSnapshot, 'server') ?? 0,
       });
     }
-    await closeBaseline().catch(() => undefined);
 
     const finalSnapshot = await collectProcessTreeMemory(server.pid!);
     const leftoverExtensionHostPids = findExtensionHosts(finalSnapshot).map((host) => host.pid);
@@ -557,6 +584,7 @@ async function runProfile(options: ProfileOptions): Promise<void> {
       durationMs: Date.now() - startedAt,
       options,
       workspaceAgentPackaged,
+      baselineReclaimedWithinMs,
       baseline,
       idle,
       cycles,

@@ -524,3 +524,21 @@ Go 定向测试使用真实 JavaScript Fury hex fixture 覆盖 typed `readFile` 
 根因是连接时序：`createPrivateChannelListener` 先创建并 `listen` 私有 unix socket，随后 gateway 进程启动，`gateway.New` 内 `newMultiplexBackend` **立即拨号**；而 `MultiplexElectronChannelHandler.listen()`（注册 `server.on('connection')`）要等 `ServerApp.start(channelServer)` 才执行。Node 的 net.Server 会接收 backlog 中的连接，但对「任何监听器注册之前已接受的连接」**不补发事件**（本仓库用 20 行最小复现验证：后挂监听永远收不到首个连接，写入黑洞且无错误）。于是 gateway 的唯一物理传输被永久黑洞，healthz 仍报 `running`。direct 通道模式按浏览器连接惰性拨号，不触此竞态——这解释了更早的 direct 证据全部通过。
 
 修复采用持有-移交（hold-and-adopt）：`createPrivateChannelListener` 在创建时即挂 `holdConnection` 监听，把早期连接 `pause()` 后暂存；`WsGatewayRuntime.adoptHeldChannelConnections()` 在 `serverApp.start(channelServer)` 之后移除持有监听、`resume()` 并通过 `server.emit('connection', socket)` 同步移交给已注册的 multiplex handler。不改变 gateway↔Node 协议、浏览器协议与探针启动/失败回退语义。`server/scripts/ws-gateway.test.ts` 新增真实 unix socket 单测：先拨号、后挂监听、再移交，断言持有连接被重放且双向数据可达；`test:diagnostics` 26/26 通过。修复后真实链路复验：channel open 获得 `server-ready`、`nodeFramesForwarded` 开始递增，最小 go-file-rpc 门禁通过（见 10.18 证据）；完整 Chromium 产品门禁随后在 10.18 边界复跑中记录。
+
+### 10.20 Extension Host 断连回收缺口、E1 基线与共享 host 评估
+
+**回收缺口（真实泄漏）**：为回答「Extension Host 是否是内存大头、其生命周期是否可信」，新增 `scripts/profile-extension-host.ts`（基线/空闲斜率/堆-RSS 拆分/开关循环）与 `EXTENSION_HOST_MEMORY_DIAGNOSTICS_PATH` 进程内 JSONL 采样（`packages/extension/src/hosted/memory-diagnostics.ts`，默认无操作）。首轮循环测量即暴露：浏览器关闭后 Extension Host **从不回收**，进程数逐轮累加直到 `MAX_EXTENSION_HOSTS`（默认 3）饱和，随后新会话拿不到 ext host。钩子链路（net→ws→WSWebSocketConnection→channel close→pathHandler）逐层证明 ws close 正常传播、`disposeConnectionClientId` 正常执行，但 extension service 注册的 `dispose: () => {}` 是**空实现**：回收完全依赖「主线程扩展通道」的 `onceClose`，而快速开关的会话（未触发任何扩展激活）根本不会打开该通道，fork 出的 ext host 进程从此无人认领。这也是 8 月 28 日 `product-smoke-default-gateway-migration` 23:37 之后所有失败的相邻根因——冒烟的 browser close 阶段进程树不为零。产品冒烟此前能通过，是因为其会话完成了完整交互（主线程通道已建立）。
+
+修复（`packages/extension/src/node/extension.service.ts`）：注册表 `dispose` 从空实现改为真实回收路径——客户端仍持有 ext host（含 fork in-flight 的 `pendingExtHostClients` 标记，覆盖 fork 未完成的窗口）时，走与 `onceClose` 相同的 `closeExtProcessWhenConnectionClose`；该路径的定时器本就是 cancel-and-rearm，与通道路径叠加仍是单次处置，重连取消逻辑（`setExtProcessConnectionForward`）保持不变。复验：主线程通道未打开的场景下浏览器关闭后 ext host 在 `EXTENSION_HOST_IDLE_TIMEOUT`（2000ms）阈值处精确回收；同一进程树内 5 轮开关循环全部 `postCloseExtensionHostCount: 0`、`leftoverExtensionHostPids: []`。
+
+**E1 基线结论**（macOS arm64，生产构建，证据 `output/extension-host/ext-host-profile-darwin.json` 与 `ext-host-memory-darwin.jsonl`）：
+
+| 指标 | 实测值 |
+| --- | --- |
+| 单会话稳态 ext host RSS / V8 heap / external | `50.9 / 20.9 / 2.6 MiB`（heap 占 RSS 41%） |
+| 60s 空闲 RSS 斜率 | `‑21 MB/min`（GC 回落，无增长型泄漏） |
+| 堆上限（`EXTENSION_HOST_MAX_OLD_SPACE_SIZE`，默认 256） | 已在 ext host 命令行生效（`--max-old-space-size=256` 实测可见） |
+| 开关循环每轮 ext host RSS | `35–58 MiB`，回收 `~2.1s` |
+| 单会话整树（含 server+agent+browser 采样口径） | `129 MiB` |
+
+**E2 共享 host 可行性评估（结论：暂不做）**：多会话共享一个 Extension Host 可把每会话 50–97 MiB 摊薄为「一份底座 + 每会话增量」，是当前架构下最大的单一内存杠杆；但 OpenSumi 的 ext host 进程模型按 `clientId` 一对一 fork（`clientExtProcessMap`），VS Code 扩展 API 的全局状态（workspace storage、认证、secret、globalState）都假设单 workspace。共享需要引入租户化的 storage/secret 路由与隔离的激活上下文，崩溃域也从单会话扩大到全部会话——一次扩展崩溃拖垮所有会话。在 10 会话口径下 ext host 占整树 50–85% 的场景（多会话 + 重扩展）收益巨大，但当前产品形态（每会话独立工作区 + 完整 VS Code 兼容目标）下风险收益比不成立。决策：保持每会话独立 host + 堆上限 + 断连回收的组合；若未来出现「一个用户多窗口同工作区」的主力场景，再按 §6.1 门槛重新立项。Ext Host 与 Yjs 一样属于「长期保留在 Node」的兼容内核（§2.3），本节不改变该边界。
