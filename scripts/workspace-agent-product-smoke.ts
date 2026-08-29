@@ -1143,7 +1143,12 @@ async function runSmoke(options: SmokeOptions): Promise<void> {
       await terminateServer(artifacts.server).catch(() => undefined);
     }
     if (artifacts.workspacePath && !options.keepWorkspace) {
-      await rm(artifacts.workspacePath, { force: true, recursive: true });
+      await rm(artifacts.workspacePath, {
+        force: true,
+        recursive: true,
+        maxRetries: 10,
+        retryDelay: 200,
+      });
     }
   }
 }
