@@ -12,6 +12,7 @@ const createManager = (watcherHost?: string, watcherHostForkOptions?: Record<str
 
 describe('WatcherProcessManagerImpl', () => {
   const originalExtMode = process.env.EXT_MODE;
+  const originalWatcherStdioDiagnostics = process.env.OPENSUMI_WATCHER_STDIO_DIAGNOSTICS;
   const originalExecArgv = process.execArgv.slice();
 
   afterEach(() => {
@@ -19,6 +20,11 @@ describe('WatcherProcessManagerImpl', () => {
       delete process.env.EXT_MODE;
     } else {
       process.env.EXT_MODE = originalExtMode;
+    }
+    if (originalWatcherStdioDiagnostics === undefined) {
+      delete process.env.OPENSUMI_WATCHER_STDIO_DIAGNOSTICS;
+    } else {
+      process.env.OPENSUMI_WATCHER_STDIO_DIAGNOSTICS = originalWatcherStdioDiagnostics;
     }
     process.execArgv.splice(0, process.execArgv.length, ...originalExecArgv);
   });
@@ -95,6 +101,16 @@ describe('WatcherProcessManagerImpl', () => {
     expect(options.execArgv).toContain('--max-old-space-size=256');
     expect(options.execArgv).not.toContain('--max-old-space-size=512');
     expect(options.silent).toBe(true);
+  });
+
+  it('enables Watcher Host console mirroring only for diagnostic smoke runs', () => {
+    expect.assertions(2);
+    process.env.OPENSUMI_WATCHER_STDIO_DIAGNOSTICS = '1';
+
+    const options = (createManager() as any).getWatcherProcessForkOptions();
+
+    expect(options.env.OPENSUMI_WATCHER_STDIO_DIAGNOSTICS).toBe('1');
+    expect(options.env.KTLOG_SHOW_DEBUG).toBe('1');
   });
 
   it('releases connection watch streams without stopping the server-scoped agent', async () => {

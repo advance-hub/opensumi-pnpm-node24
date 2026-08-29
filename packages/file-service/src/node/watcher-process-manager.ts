@@ -333,6 +333,7 @@ export class WatcherProcessManagerImpl implements IWatcherProcessManager {
   private getWatcherProcessForkOptions(): ForkOptions {
     const configuredOptions = this.appConfig.watcherHostForkOptions;
     const configuredExecArgv = configuredOptions?.execArgv || [];
+    const stdioDiagnostics = process.env.OPENSUMI_WATCHER_STDIO_DIAGNOSTICS === '1';
     const overridesHeapLimit = configuredExecArgv.some(
       (argument) => argument.startsWith('--max-old-space-size=') || argument.startsWith('--max_old_space_size='),
     );
@@ -347,6 +348,9 @@ export class WatcherProcessManagerImpl implements IWatcherProcessManager {
       silent: true,
       execArgv: [...inheritedExecArgv, ...configuredExecArgv],
       cwd: configuredOptions?.cwd || this.getWatcherProcessCwd(),
+      env: stdioDiagnostics
+        ? { ...process.env, ...configuredOptions?.env, KTLOG_SHOW_DEBUG: '1' }
+        : configuredOptions?.env,
     };
   }
 
@@ -365,6 +369,15 @@ export class WatcherProcessManagerImpl implements IWatcherProcessManager {
 
     this.logger.log('Watcher process path: ', this.watcherHost);
     this.watcherProcess = fork(this.watcherHost, forkArgs, this.getWatcherProcessForkOptions());
+
+    if (process.env.OPENSUMI_WATCHER_STDIO_DIAGNOSTICS === '1') {
+      this.watcherProcess.stdout?.on('data', (chunk) => {
+        process.stderr.write(`[watcher-host:stdout] ${String(chunk)}`);
+      });
+      this.watcherProcess.stderr?.on('data', (chunk) => {
+        process.stderr.write(`[watcher-host:stderr] ${String(chunk)}`);
+      });
+    }
 
     this.logger.log('Watcher process fork success, pid: ', this.watcherProcess.pid);
 

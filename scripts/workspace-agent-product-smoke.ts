@@ -654,6 +654,7 @@ async function runSmoke(options: SmokeOptions): Promise<void> {
       EXTENSION_HOST_SHUTDOWN_TIMEOUT: '1000',
       TERMINAL_IDLE_TIMEOUT: '1000',
       TERMINAL_PERSISTENT_SESSION_TIMEOUT: '1000',
+      OPENSUMI_WATCHER_STDIO_DIAGNOSTICS: '1',
     };
     const serverStartedAt = Date.now();
     artifacts.server = spawn(process.execPath, [serverEntry], {
