@@ -185,7 +185,12 @@ export class UnRecursiveFileSystemWatcher implements IWatcher {
       return disposables;
     }
 
-    const realPath = await fs.realpath(basePath);
+    let realPath: string;
+    try {
+      realPath = await fs.realpath.native(basePath);
+    } catch {
+      realPath = await fs.realpath(basePath);
+    }
     if (this.watcherCollections.has(realPath)) {
       return disposables;
     }
@@ -215,9 +220,13 @@ export class UnRecursiveFileSystemWatcher implements IWatcher {
     // 尝试解析 realPath，保持与 start 方法一致
     let realPath = basePath;
     try {
-      realPath = fs.realpathSync(basePath);
+      realPath = fs.realpathSync.native(basePath);
     } catch {
-      // 如果解析失败（如路径不存在），使用原始路径
+      try {
+        realPath = fs.realpathSync(basePath);
+      } catch {
+        // 如果解析失败（如路径不存在），使用原始路径
+      }
     }
 
     // 尝试使用 realPath 和 basePath 两种方式查找

@@ -140,9 +140,17 @@ export class RecursiveFileSystemWatcher extends Disposable implements IWatcher {
 
   private async resolveWatchPath(basePath: string): Promise<string> {
     try {
-      return await fs.realpath(basePath);
+      // On Windows the non-native implementation can retain an 8.3 alias such
+      // as RUNNER~1. Parcel Watcher receives long paths from ReadDirectoryChangesW
+      // and asserts that they start with the subscribed directory, so the
+      // physical subscription must use the native final path.
+      return await fs.realpath.native(basePath);
     } catch {
-      return basePath;
+      try {
+        return await fs.realpath(basePath);
+      } catch {
+        return basePath;
+      }
     }
   }
 
