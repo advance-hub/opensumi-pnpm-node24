@@ -11,6 +11,39 @@ import type ws from 'ws';
 
 export { NodeModule };
 
+export interface ExtensionHostRuntimeStatus {
+  active: number;
+  disconnected: number;
+  clientServiceProxies: number;
+  mainThreadConnections: number;
+  limit: number;
+  saturated: boolean;
+  counters: {
+    created: number;
+    crashed: number;
+    disposed: number;
+    reclaimed: number;
+    rejected: number;
+    startupTimeouts: number;
+  };
+  activationDiagnostics?: {
+    reportedHosts: number;
+    topExtensions: Array<{
+      extensionId: string;
+      reportingHosts: number;
+      activationCount: number;
+      failureCount: number;
+      maxActivationDurationMs: number;
+      maxModuleCount: number;
+      maxSubscriptionCount: number;
+      maxObservedHeapUsedBytes: number;
+      maxObservedRssBytes: number;
+      maxPositiveHeapUsedDeltaBytes: number;
+      maxPositiveRssDeltaBytes: number;
+    }>;
+  };
+}
+
 export type ModuleConstructor = ConstructorOf<NodeModule>;
 export type ContributionConstructor = ConstructorOf<ServerAppContribution>;
 
@@ -74,9 +107,23 @@ interface Config {
    */
   extensionHostShutdownTimeout?: number;
   /**
+   * 插件进程完成启动握手的最长等待时间，超时后强制结束并释放名额
+   */
+  extensionHostStartupTimeout?: number;
+  /**
+   * 收集插件激活阶段的有界内存、模块与订阅诊断。
+   * 该诊断会暴露插件标识并增加少量采样开销，生产环境默认关闭。
+   */
+  extensionHostActivationDiagnostics?: boolean;
+  /**
    * 终端 pty 进程退出时间
    */
   terminalPtyCloseThreshold?: number;
+  /**
+   * 最后一个客户端断开后，持久化终端允许被恢复的最长时间。
+   * 超时后必须结束 pty，避免永久遗留无人持有的 shell。
+   */
+  terminalPersistentSessionTimeout?: number;
   /**
    * 访问静态资源允许的 origin
    */
@@ -94,6 +141,10 @@ interface Config {
    * @deprecated 自测 1.30.0 后，不在提供给 IDE 后端发送插件进程的方法
    */
   onDidCreateExtensionHostProcess?: (cp: cp.ChildProcess) => void;
+  /**
+   * 扩展宿主数量与生命周期状态变化回调，用于服务健康检查和容量观测
+   */
+  onDidChangeExtensionHostStatus?: (status: ExtensionHostRuntimeStatus) => void;
   /**
    * Watcher Node 进程入口文件
    */
@@ -154,6 +205,7 @@ export interface IServerAppOpts extends Partial<Config> {
   wsMaxConnections?: number;
   wsMaxBufferedAmount?: number;
   wsShouldAcceptConnection?: () => boolean;
+  netChannelMode?: 'direct' | 'multiplex-v1';
   pathMatchOptions?: {
     // When true the regexp will match to the end of the string.
     end?: boolean;

@@ -38,7 +38,7 @@ describe('DefaultACPConfigProvider', () => {
     };
 
     await jest.isolateModulesAsync(async () => {
-      const { DefaultACPConfigProvider } = await import('../../../src/browser/chat/default-acp-config-provider');
+      const { DefaultACPConfigProvider } = require('../../../src/browser/chat/default-acp-config-provider');
       const isMultiRoot = options.isMultiRoot ?? false;
       const roots = [rootA, rootB].map((root) => ({ uri: URI.file(root).toString() }));
       const quickPickResult =

@@ -98,3 +98,12 @@ tools/workspace
 .worktrees/
 
 .understand-anything/
+
+# Local Go Workspace Agent build output
+go/workspace-agent/bin/
+
+# Local browser and runtime profiling evidence
+.playwright-cli/
+output/playwright/
+output/runtime-profiles/
+output/workspace-agent/

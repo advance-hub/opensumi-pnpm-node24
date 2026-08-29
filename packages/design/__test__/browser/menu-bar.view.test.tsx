@@ -219,7 +219,7 @@ describe('DesignMenuBarView', () => {
   });
 
   async function renderMenuBar(): Promise<void> {
-    const { DesignMenuBarView } = await import('../../src/browser/menu-bar/menu-bar.view');
+    const { DesignMenuBarView } = require('../../src/browser/menu-bar/menu-bar.view');
 
     await act(async () => {
       root.render(<DesignMenuBarView />);

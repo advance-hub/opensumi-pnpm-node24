@@ -66,6 +66,7 @@ allowBuilds:
   nx: true
   '@vscode/spdlog': true
   unrs-resolver: true
+  protobufjs: false
 
 minimumReleaseAgeExclude:
   - '@rspack/binding-darwin-arm64@2.1.10'

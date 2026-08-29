@@ -8,7 +8,10 @@ import type { Readable, Writable } from 'stream';
 export class StreamConnection extends BaseConnection<Uint8Array> {
   protected decoder = new LengthFieldBasedFrameDecoder();
 
-  constructor(public readable: Readable, public writable: Writable) {
+  constructor(
+    public readable: Readable,
+    public writable: Writable,
+  ) {
     super();
     const decode = (chunk: Uint8Array) => {
       this.decoder.push(chunk);
@@ -21,6 +24,12 @@ export class StreamConnection extends BaseConnection<Uint8Array> {
   }
 
   send(data: Uint8Array): void {
+    // A physical socket close disposes its logical channels synchronously. The
+    // close messages produced by that cleanup must not be written back to an
+    // already-destroyed stream (which otherwise surfaces as an EPIPE).
+    if (this.writable.destroyed || !this.writable.writable) {
+      return;
+    }
     const result = LengthFieldBasedFrameDecoder.construct(data);
     this.writable.write(result, () => {
       // TODO: logger error

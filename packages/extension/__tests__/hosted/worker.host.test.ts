@@ -1,7 +1,7 @@
 import { Injector } from '@opensumi/di';
 import { ProxyIdentifier } from '@opensumi/ide-connection';
 import { SumiConnectionMultiplexer } from '@opensumi/ide-connection/lib/common/rpc/multiplexer';
-import { DefaultReporter, IReporter } from '@opensumi/ide-core-common';
+import { DefaultReporter, Deferred, IReporter } from '@opensumi/ide-core-common';
 
 import { MainThreadExtensionLog } from '../../__mocks__/api/mainthread.extension.log';
 import { MainThreadExtensionService } from '../../__mocks__/api/mainthread.extension.service';
@@ -20,6 +20,7 @@ import { ExtensionWorkerHost } from '../../src/hosted/worker.host';
 describe('Extension Worker Thread Test Suites', () => {
   let extHostImpl: ExtensionWorkerHost;
   let rpcProtocol: SumiConnectionMultiplexer;
+  let mainThreadExtensionService: MainThreadExtensionService;
 
   beforeAll(async () => {
     const injector = new Injector();
@@ -30,7 +31,8 @@ describe('Extension Worker Thread Test Suites', () => {
 
     const { rpcProtocolExt, rpcProtocolMain } = await createMockPairRPCProtocol();
 
-    rpcProtocolExt.set(ProxyIdentifier.for('MainThreadExtensionService'), new MainThreadExtensionService());
+    mainThreadExtensionService = new MainThreadExtensionService();
+    rpcProtocolExt.set(ProxyIdentifier.for('MainThreadExtensionService'), mainThreadExtensionService);
     rpcProtocolExt.set(ProxyIdentifier.for('MainThreadStorage'), new MainThreadStorage());
     rpcProtocolExt.set(ProxyIdentifier.for('MainThreadExtensionLog'), new MainThreadExtensionLog());
 
@@ -50,6 +52,49 @@ describe('Extension Worker Thread Test Suites', () => {
     const id = mockExtensionProps.id;
     await extHostImpl.$activateExtension(id);
     expect(extHostImpl.isActivated(id)).toBe(true);
+  });
+
+  it('coalesces concurrent activation requests and releases the in-flight reference', async () => {
+    expect.assertions(4);
+    const activation = new Deferred<void>();
+    const doActivateExtension = jest
+      .spyOn(extHostImpl as any, 'doActivateExtension')
+      .mockReturnValueOnce(activation.promise)
+      .mockResolvedValueOnce(undefined);
+    const id = mockExtensionProps2.id;
+
+    const first = extHostImpl.activateExtension(id);
+    const second = extHostImpl.activateExtension(id);
+
+    expect(doActivateExtension).toHaveBeenCalledTimes(1);
+    expect((extHostImpl as any).activatingExtensions.size).toBe(1);
+    activation.resolve();
+    await Promise.all([first, second]);
+    expect((extHostImpl as any).activatingExtensions.size).toBe(0);
+
+    await extHostImpl.activateExtension(id);
+    expect(doActivateExtension).toHaveBeenCalledTimes(2);
+    doActivateExtension.mockRestore();
+  });
+
+  it('waits for an in-flight activation before releasing a stale extension', async () => {
+    expect.assertions(2);
+    const activation = new Deferred<void>();
+    const doActivateExtension = jest
+      .spyOn(extHostImpl as any, 'doActivateExtension')
+      .mockReturnValueOnce(activation.promise);
+    const deactivateExtension = jest.spyOn(extHostImpl as any, 'deactivateExtension');
+
+    const activating = extHostImpl.activateExtension(mockExtensionProps2.id);
+    const releasing = (extHostImpl as any).releaseStaleExtensions([mockExtensionProps]);
+    await Promise.resolve();
+    expect(deactivateExtension).not.toHaveBeenCalled();
+
+    activation.resolve();
+    await Promise.all([activating, releasing]);
+    expect(deactivateExtension).toHaveBeenCalledWith(mockExtensionProps2.id);
+    doActivateExtension.mockRestore();
+    deactivateExtension.mockRestore();
   });
 
   it('test for activated extension exportsAPI', async () => {
@@ -85,5 +130,17 @@ describe('Extension Worker Thread Test Suites', () => {
     } as ProxyIdentifier<any>);
     // 这里其实没法覆盖到，因为 getProxy 永远都返回不为空..
     expect(proxies).toBeDefined();
+  });
+
+  it('releases an activated extension when it is removed from worker data', async () => {
+    expect.hasAssertions();
+    const id = mockExtensionProps.id;
+    expect(extHostImpl.isActivated(id)).toBe(true);
+
+    mainThreadExtensionService.extensions = [mockExtensionProps2];
+    await extHostImpl.$updateExtHostData();
+
+    expect(extHostImpl.isActivated(id)).toBe(false);
+    expect(extHostImpl.getExtension(id)).toBeUndefined();
   });
 });

@@ -1,34 +1,20 @@
+/** @jest-environment-options {"url":"https://ide.aliababa.com/workspace?id=1"} */
+
 import { createBrowserInjector } from '../../../../tools/dev-tool/src/injector-helper';
 import { MockInjector } from '../../../../tools/dev-tool/src/mock-injector';
 import { AppConfig, URI } from '../../src';
 import { IExternalUriService } from '../../src/services';
 
 describe('external-uri service test', () => {
-  const oldWindowLocationHostname = window.location.hostname;
-  const oldWindowLocationHref = window.location.href;
-  const ideHostName = 'ide.aliababa.com';
-  const ideUrl = `https://${ideHostName}/workspace?id=1`;
   let externalUriService: IExternalUriService;
   let injector: MockInjector;
 
   beforeEach(() => {
     injector = createBrowserInjector([]);
     externalUriService = injector.get(IExternalUriService);
-    Object.defineProperty(window, 'location', {
-      value: {
-        href: ideUrl,
-        hostname: ideHostName,
-      },
-    });
   });
 
   afterEach(async () => {
-    Object.defineProperty(window, 'location', {
-      value: {
-        href: oldWindowLocationHref,
-        hostname: oldWindowLocationHostname,
-      },
-    });
     await injector.disposeAll();
   });
 

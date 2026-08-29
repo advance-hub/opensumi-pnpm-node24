@@ -48,7 +48,7 @@ class ExtHostProxyRPCService extends RPCService implements IExtHostProxyRPCServi
   async $fork(modulePath: string, args: string[] = [], options: ForkOptions = {}) {
     const configuredHeapLimit = Number(process.env.EXTENSION_HOST_MAX_OLD_SPACE_SIZE);
     const hardHeapLimit =
-      Number.isSafeInteger(configuredHeapLimit) && configuredHeapLimit > 0 ? configuredHeapLimit : 512;
+      Number.isSafeInteger(configuredHeapLimit) && configuredHeapLimit > 0 ? configuredHeapLimit : 256;
     const sourceExecArgv = options.execArgv || process.execArgv;
     const requestedHeapLimit = sourceExecArgv
       .map((argument) => argument.match(/^--max[-_]old[-_]space[-_]size=(\d+)$/)?.[1])

@@ -27,7 +27,6 @@ import {
 import { typeAndModifierIdPattern } from '@opensumi/ide-theme/lib/common/semantic-tokens-registry';
 import { IIconService, IconType, ThemeType } from '@opensumi/ide-theme/lib/common/theme.service';
 
-
 import { ExtHostStorage } from '../hosted/api/vscode/ext.host.storage';
 import { Extension } from '../hosted/vscode.extension';
 
@@ -518,8 +517,21 @@ export const WorkerHostAPIIdentifier = {
   ExtWorkerHostExtensionService: createExtHostContextProxyIdentifier('ExtWorkerHostExtensionService'),
 };
 
+export interface ExtensionActivationDiagnosticMessage {
+  extensionId: string;
+  failed: boolean;
+  durationMs: number;
+  moduleCount: number;
+  subscriptionCount: number;
+  heapUsedBytes: number;
+  heapUsedDeltaBytes: number;
+  rssBytes: number;
+  rssDeltaBytes: number;
+}
+
 export enum ProcessMessageType {
   REPORTER,
+  EXTENSION_ACTIVATION_DIAGNOSTIC,
 }
 
 export enum EXTENSION_ENABLE {

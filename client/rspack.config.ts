@@ -147,7 +147,10 @@ const config: Configuration = {
   resolve: {
     extensions: ['.ts', '.tsx', '.js', '.json', '.less'],
     extensionAlias: {
-      '.js': ['.ts', '.tsx', '.js'],
+      // Prefer published JavaScript when a dependency ships both .js and its
+      // TypeScript source (for example ansi_up). Source-only .js specifiers
+      // still fall back to the matching .ts/.tsx file.
+      '.js': ['.js', '.ts', '.tsx'],
     },
     // The default profile consumes each workspace package's precompiled lib.
     // Mapping every @opensumi import to packages/*/src makes Rspack retain the
@@ -301,7 +304,7 @@ const config: Configuration = {
       'process.env.OTHER_EXTENSION_DIR': JSON.stringify(path.join(repoRoot, 'other')),
       'process.env.EXTENSION_WORKER_HOST': JSON.stringify(
         process.env.EXTENSION_WORKER_HOST ||
-          `http://${host}:8080/assets${withSlash}${path.join(repoRoot, 'packages/extension/lib/worker-host.js')}`,
+          `http://${host}:${port}/assets${withSlash}${path.join(repoRoot, 'packages/extension/lib/worker-host.js')}`,
       ),
       'process.env.WS_PATH': JSON.stringify(process.env.WS_PATH || `ws://${host}:8000`),
       'process.env.WEBVIEW_HOST': JSON.stringify(process.env.WEBVIEW_HOST || host),

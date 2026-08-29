@@ -24,16 +24,16 @@ describe('Extension Service', () => {
 
   beforeAll(async () => {
     injector = createNodeInjector([]);
-    injector.addProviders(
-      {
-        token: AppConfig,
-        useValue: {
-          marketplace: {
-            extensionDir,
-            ignoreId: [],
-          },
+    injector.overrideProviders({
+      token: AppConfig,
+      useValue: {
+        marketplace: {
+          extensionDir,
+          ignoreId: [],
         },
       },
+    });
+    injector.addProviders(
       {
         token: IReporterService,
         useValue: {

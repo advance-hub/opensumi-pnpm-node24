@@ -1,3 +1,4 @@
+import { createRequire } from 'module';
 import os from 'os';
 import path from 'path';
 import process from 'process';
@@ -19,6 +20,8 @@ import {
 } from '../common/';
 
 import type { Logger } from '@vscode/spdlog';
+
+const requireNative = createRequire(__filename);
 
 export const DEFAULT_LOG_FOLDER = path.join(os.homedir(), '.sumi/logs/');
 
@@ -160,7 +163,7 @@ export class BaseLogService implements IBaseLogService {
   protected async createSpdLogLoggerPromise(namespace: string, logsFolder: string): Promise<SpdLogger | null> {
     // Do not crash if spdlog cannot be loaded
     try {
-      const spdlog = await import('@vscode/spdlog');
+      const spdlog = requireNative('@vscode/spdlog') as typeof import('@vscode/spdlog');
       const logFilePath = path.join(logsFolder, `${namespace}.log`);
       return spdlog
         .createAsyncRotatingLogger(namespace, logFilePath, 1024 * 1024 * 5, 6)

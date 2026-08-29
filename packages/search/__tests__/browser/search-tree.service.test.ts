@@ -22,6 +22,7 @@ import { MockContentSearchServer } from '../../__mocks__/content-search.service'
 import { SearchModule } from '../../src/browser/';
 import { SearchPreferences } from '../../src/browser/search-preferences';
 import { SearchTreeService } from '../../src/browser/tree/search-tree.service';
+import { SearchModelService } from '../../src/browser/tree/tree-model.service';
 import {
   ContentSearchResult,
   ContentSearchServerPath,
@@ -98,6 +99,7 @@ describe('search-tree.service.ts', () => {
   let injector: Injector;
   let searchService: IContentSearchClientService;
   let searchTreeService: SearchTreeService;
+  let searchModelService: SearchModelService;
 
   const searchFileUri = root.resolve('test.js');
   const searchResult = {
@@ -171,6 +173,7 @@ describe('search-tree.service.ts', () => {
 
     searchService = injector.get(IContentSearchClientService);
     searchTreeService = injector.get(ISearchTreeService);
+    searchModelService = injector.get(SearchModelService);
 
     searchService.searchResults = searchResults;
     searchService.resultTotal = { resultNum: 2, fileNum: 1 };
@@ -195,6 +198,11 @@ describe('search-tree.service.ts', () => {
     expect(SearchFileNode.is(fileNode)).toBeTruthy();
     const contents = await searchTreeService.resolveChildren(fileNode);
     expect(contents.length).toBe(2);
+  });
+
+  test('activate is safe before the scoped search context keys are ready', () => {
+    expect(() => searchModelService.activate()).not.toThrow();
+    expect(() => searchModelService.deactivate()).not.toThrow();
   });
 
   test('init contextKey with dom', () => {

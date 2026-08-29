@@ -6,6 +6,10 @@ import { setTimeout as delay } from 'node:timers/promises';
 
 import WS from 'ws';
 
+import { collectProcessTreeMemory } from './process-tree';
+
+import type { ProcessRole, ProcessTreeMemorySnapshot } from './process-tree';
+
 interface HealthResponse {
   ready: boolean;
   memory: NodeJS.MemoryUsage;
@@ -14,6 +18,31 @@ interface HealthResponse {
 const connectionCount = Number(process.env.MEMORY_SMOKE_CONNECTIONS || 100);
 const reconnectCycles = Number(process.env.MEMORY_SMOKE_CYCLES || 5);
 const maxRetainedBytes = Number(process.env.MEMORY_SMOKE_MAX_RETAINED_MB || 32) * 1024 * 1024;
+const maxTreeRetainedBytes =
+  Number(process.env.MEMORY_SMOKE_MAX_TREE_RETAINED_MB || process.env.MEMORY_SMOKE_MAX_RETAINED_MB || 32) * 1024 * 1024;
+
+function updateRolePeaks(
+  peaks: Partial<Record<ProcessRole, number>>,
+  sample: ProcessTreeMemorySnapshot,
+): Partial<Record<ProcessRole, number>> {
+  const next = { ...peaks };
+  for (const [role, summary] of Object.entries(sample.byRole) as Array<
+    [ProcessRole, { count: number; rssBytes: number }]
+  >) {
+    next[role] = Math.max(next[role] || 0, summary.rssBytes);
+  }
+  return next;
+}
+
+function summarizeTreeSample(sample: ProcessTreeMemorySnapshot) {
+  return {
+    timestamp: sample.timestamp,
+    processCount: sample.processCount,
+    totalRssBytes: sample.totalRssBytes,
+    byRole: sample.byRole,
+    linuxCgroup: sample.linuxCgroup,
+  };
+}
 
 async function getFreePort(): Promise<number> {
   const server = net.createServer();
@@ -106,22 +135,53 @@ async function main(): Promise<void> {
   let runError: unknown;
   try {
     const baseline = await waitUntilReady(port);
+    const baselineTree = await collectProcessTreeMemory(child.pid!);
+    const treeSamples: ProcessTreeMemorySnapshot[] = [baselineTree];
     let peakRss = baseline.memory.rss;
     let peakHeapUsed = baseline.memory.heapUsed;
+    let peakTreeRss = baselineTree.totalRssBytes;
+    let peakTree = baselineTree;
+    let peakProcessCount = baselineTree.processCount;
+    let peakRoleRssBytes = updateRolePeaks({}, baselineTree);
 
     for (let cycle = 0; cycle < reconnectCycles; cycle++) {
       const sockets = await openConnections(port);
       const active = await readHealth(port);
+      const activeTree = await collectProcessTreeMemory(child.pid!);
+      treeSamples.push(activeTree);
       peakRss = Math.max(peakRss, active.memory.rss);
       peakHeapUsed = Math.max(peakHeapUsed, active.memory.heapUsed);
+      peakTreeRss = Math.max(peakTreeRss, activeTree.totalRssBytes);
+      if (activeTree.totalRssBytes > peakTree.totalRssBytes) {
+        peakTree = activeTree;
+      }
+      peakProcessCount = Math.max(peakProcessCount, activeTree.processCount);
+      peakRoleRssBytes = updateRolePeaks(peakRoleRssBytes, activeTree);
       await closeConnections(sockets);
+      const closedTree = await collectProcessTreeMemory(child.pid!);
+      treeSamples.push(closedTree);
+      peakTreeRss = Math.max(peakTreeRss, closedTree.totalRssBytes);
+      if (closedTree.totalRssBytes > peakTree.totalRssBytes) {
+        peakTree = closedTree;
+      }
+      peakProcessCount = Math.max(peakProcessCount, closedTree.processCount);
+      peakRoleRssBytes = updateRolePeaks(peakRoleRssBytes, closedTree);
     }
 
     await delay(2_000);
     const final = await readHealth(port);
+    const finalTree = await collectProcessTreeMemory(child.pid!);
+    treeSamples.push(finalTree);
     peakRss = Math.max(peakRss, final.memory.rss);
     peakHeapUsed = Math.max(peakHeapUsed, final.memory.heapUsed);
+    peakTreeRss = Math.max(peakTreeRss, finalTree.totalRssBytes);
+    if (finalTree.totalRssBytes > peakTree.totalRssBytes) {
+      peakTree = finalTree;
+    }
+    peakProcessCount = Math.max(peakProcessCount, finalTree.processCount);
+    peakRoleRssBytes = updateRolePeaks(peakRoleRssBytes, finalTree);
     const retainedRss = final.memory.rss - baseline.memory.rss;
+    const retainedTreeRss = finalTree.totalRssBytes - baselineTree.totalRssBytes;
     if (retainedRss > maxRetainedBytes) {
       throw new Error(
         `RSS retained ${Math.ceil(retainedRss / 1024 / 1024)} MiB after reconnect cycles; limit is ${Math.ceil(
@@ -129,16 +189,36 @@ async function main(): Promise<void> {
         )} MiB`,
       );
     }
+    if (retainedTreeRss > maxTreeRetainedBytes) {
+      throw new Error(
+        `Process tree RSS retained ${Math.ceil(
+          retainedTreeRss / 1024 / 1024,
+        )} MiB after reconnect cycles; limit is ${Math.ceil(maxTreeRetainedBytes / 1024 / 1024)} MiB`,
+      );
+    }
 
     process.stdout.write(
       `${JSON.stringify(
         {
+          schemaVersion: 2,
           connectionCount,
           reconnectCycles,
           baseline: baseline.memory,
           peak: { heapUsed: peakHeapUsed, rss: peakRss },
           final: final.memory,
           retainedRss,
+          processTree: {
+            baseline: baselineTree,
+            peak: {
+              sample: peakTree,
+              rssBytes: peakTreeRss,
+              processCount: peakProcessCount,
+              roleRssBytes: peakRoleRssBytes,
+            },
+            final: finalTree,
+            retainedRssBytes: retainedTreeRss,
+            samples: treeSamples.map(summarizeTreeSample),
+          },
         },
         null,
         2,

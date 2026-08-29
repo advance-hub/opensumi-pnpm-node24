@@ -32,6 +32,7 @@ export interface IPtyServiceManager {
   resume(pid: number): void;
   clear(pid: number): void;
   kill(pid: number, signal?: string): void;
+  scheduleSessionCleanup(sessionId: string, timeoutMs: number): void;
   getProcess(pid: number): Promise<string>;
   getCwd(pid: number): Promise<string | undefined>;
   checkSession(sessionId: string): Promise<boolean>;
@@ -157,6 +158,10 @@ export class PtyServiceManager implements IPtyServiceManager {
 
   kill(pid: number, signal?: string): void {
     this.ptyServiceProxy.$kill(pid, signal);
+  }
+
+  scheduleSessionCleanup(sessionId: string, timeoutMs: number): void {
+    this.ptyServiceProxy.$scheduleSessionCleanup(sessionId, timeoutMs);
   }
 
   pause(pid: number): void {

@@ -29,6 +29,7 @@ import { SumiContributionsServiceToken } from '../../../src/browser/sumi/contrib
 import { VSCodeContributesService, VSCodeContributesServiceToken } from '../../../src/browser/vscode/contributes';
 import {
   AbstractExtensionManagementService,
+  ERestartPolicy,
   ExtensionService,
   IExtCommandManagement,
   IRequireInterceptorService,
@@ -237,20 +238,34 @@ describe('Extension service', () => {
   });
 
   describe('extension process restart', () => {
+    const setVisibility = (visibilityState: 'hidden' | 'visible') => {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        get: () => visibilityState,
+      });
+    };
+
+    afterEach(() => {
+      setVisibility('visible');
+      jest.restoreAllMocks();
+      extensionService['isExtProcessWaitingForRestart'] = undefined;
+      extensionService['requestedRestartPolicy'] = undefined;
+      extensionService['restartRequestPromise'] = undefined;
+      extensionService['restartAfterVisibilityDelay'] = false;
+      extensionService['isExtProcessRestarting'] = false;
+    });
+
     it('restart ext process when visibility change', async () => {
       /**
        * 如果页面不可见，那么不会执行插件进程重启操作
        */
-      Object.defineProperty(document, 'visibilityState', {
-        configurable: true,
-        get() {
-          return 'hidden';
-        },
-      });
+      setVisibility('hidden');
 
-      const extProcessRestartHandler = jest.spyOn(extensionService as any, 'extProcessRestartHandler');
+      const extProcessRestartHandler = jest
+        .spyOn(extensionService as any, 'extProcessRestartHandler')
+        .mockResolvedValue(undefined);
 
-      extensionService.restartExtProcess();
+      await extensionService.restartExtProcess();
 
       expect(extProcessRestartHandler).not.toHaveBeenCalled();
       expect(extensionService['isExtProcessWaitingForRestart']).toBeTruthy();
@@ -258,12 +273,7 @@ describe('Extension service', () => {
       /**
        * 页面变为可见后，开始执行插件进程重启操作
        */
-      Object.defineProperty(document, 'visibilityState', {
-        configurable: true,
-        get() {
-          return 'visible';
-        },
-      });
+      setVisibility('visible');
 
       // 手动派发一个 visibilitychange 事件
       const visibilityChangeEvent = new Event('visibilitychange');
@@ -272,6 +282,53 @@ describe('Extension service', () => {
       document.dispatchEvent(visibilityChangeEvent);
 
       expect(extProcessRestartHandler).toHaveBeenCalled();
+    });
+
+    it('coalesces duplicate Always restart requests into one transaction', async () => {
+      expect.hasAssertions();
+      setVisibility('visible');
+      let finishRestart: (restarted: boolean) => void = () => undefined;
+      const restartProgress = jest.spyOn(extensionService, 'restartProgress').mockImplementation(
+        () =>
+          new Promise<boolean>((resolve) => {
+            finishRestart = resolve;
+          }),
+      );
+
+      const first = extensionService.restartExtProcess(ERestartPolicy.Always);
+      const second = extensionService.restartExtProcess(ERestartPolicy.Always);
+
+      expect(first).toBe(second);
+      expect(restartProgress).toHaveBeenCalledTimes(1);
+      finishRestart(true);
+      await first;
+      expect(extensionService['restartRequestPromise']).toBeUndefined();
+      expect(extensionService['isExtProcessRestarting']).toBe(false);
+    });
+
+    it('serially upgrades an in-flight conditional request to Always', async () => {
+      expect.hasAssertions();
+      setVisibility('visible');
+      const resolvers: Array<(restarted: boolean) => void> = [];
+      const restartProgress = jest.spyOn(extensionService, 'restartProgress').mockImplementation(
+        () =>
+          new Promise<boolean>((resolve) => {
+            resolvers.push(resolve);
+          }),
+      );
+
+      const conditional = extensionService.restartExtProcess(ERestartPolicy.WhenExit);
+      const forced = extensionService.restartExtProcess(ERestartPolicy.Always);
+
+      expect(conditional).toBe(forced);
+      expect(restartProgress).toHaveBeenNthCalledWith(1, ERestartPolicy.WhenExit);
+      resolvers[0](false);
+      await Promise.resolve();
+      expect(restartProgress).toHaveBeenNthCalledWith(2, ERestartPolicy.Always);
+      resolvers[1](true);
+      await conditional;
+      expect(restartProgress).toHaveBeenCalledTimes(2);
+      expect(extensionService['isExtProcessRestarting']).toBe(false);
     });
   });
 });

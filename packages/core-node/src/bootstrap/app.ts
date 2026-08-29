@@ -156,7 +156,7 @@ export class ServerApp implements IServerApp {
         // 创建 websocket 通道
         createServerConnection2(server, this.injector, this.modulesInstances, this.webSocketHandler, this.opts);
       } else if (server instanceof net.Server) {
-        createNetServerConnection(server, this.injector, this.modulesInstances);
+        createNetServerConnection(server, this.injector, this.modulesInstances, this.opts);
       }
     }
 

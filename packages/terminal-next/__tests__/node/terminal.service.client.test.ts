@@ -77,23 +77,11 @@ describe('TerminalServiceClientImpl', () => {
     expect(receiveData.indexOf('message test') > -1).toEqual(true);
   });
 
-  it('Should be disposed.', async () => {
-    (process as any).env.IS_DEV = 0;
-    const mockId = '2';
-    await terminalServiceClient.create2(mockId, 200, 200, {
-      name: 'test',
-      executable: shellPath,
-    });
-
-    terminalServiceClient.disposeById(mockId);
+  it('releases its connection-scoped client on dispose', () => {
+    const closeClient = jest.spyOn(terminalService, 'closeClient');
+    terminalServiceClient.setConnectionClientId(mockClientId);
     terminalServiceClient.dispose();
 
-    await new Promise<void>((resolve) => {
-      setTimeout(() => {
-        resolve();
-      }, 20);
-    });
-
-    expect((terminalService as any).clientTerminalMap.get(mockClientId)).toBeUndefined();
+    expect(closeClient).toHaveBeenCalledWith(mockClientId);
   });
 });

@@ -14,6 +14,8 @@ export const ALLOW_MIME = {
   woff: 'font/woff',
   woff2: 'font/woff2',
   js: 'application/javascript',
+  cjs: 'application/javascript',
+  mjs: 'application/javascript',
   css: 'text/css',
   mp4: 'video/mp4',
   ogg: 'video/ogg',

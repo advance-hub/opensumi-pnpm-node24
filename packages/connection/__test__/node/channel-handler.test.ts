@@ -15,7 +15,7 @@ const clientId = 'test-client-id';
 
 describe('channel handler', () => {
   it('can handle websocket channel', async () => {
-    expect.assertions(2);
+    expect.assertions(3);
 
     const server = new net.Server();
     const ipcPath = await normalizedIpcHandlerPathAsync('test', true);
@@ -79,6 +79,9 @@ describe('channel handler', () => {
     const socketClosed = new Promise<void>((resolve) => socket.once('close', () => resolve()));
     connection.destroy();
     await socketClosed;
+    const writeAfterClose = jest.spyOn(socket, 'write');
+    connection.send(new Uint8Array([1, 2, 3]));
+    expect(writeAfterClose).not.toHaveBeenCalled();
     connection.dispose();
     nodeChannelHandler.dispose();
     await new Promise<void>((resolve, reject) => {

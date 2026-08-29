@@ -18,7 +18,7 @@ import { DiskFileSystemProvider } from '@opensumi/ide-file-service/lib/node/disk
 import { WatcherProcessManagerToken } from '@opensumi/ide-file-service/lib/node/watcher-process-manager';
 import { SumiReadableStream } from '@opensumi/ide-utils/lib/stream';
 
-import { FileServicePath, IDiskFileProvider, IFileServiceClient } from '../../src';
+import { FileServicePath, FileSystemError, IDiskFileProvider, IFileServiceClient } from '../../src';
 import { FileServiceClientModule } from '../../src/browser';
 import { RecursiveFileSystemWatcher } from '../../src/node/hosted/recursive/file-service-watcher';
 
@@ -151,6 +151,26 @@ describe('FileServiceClient should be work', () => {
       const result = await fileServiceClient.readFile(stat.uri);
       expect(result.content.toString()).toBe(content);
     }
+  });
+
+  it('setContent serializes compare-and-write for the same disk file', async () => {
+    const sourceFile = tempDir.resolve('concurrent-content.json');
+    await fileServiceClient.createFile(sourceFile.toString());
+    const stat = await fileServiceClient.getFileStat(sourceFile.toString());
+    expect(stat).toBeDefined();
+
+    const results = await Promise.allSettled([
+      fileServiceClient.setContent(stat!, 'first', { expectedContent: '' }),
+      fileServiceClient.setContent(stat!, 'other', { expectedContent: '' }),
+    ]);
+    const fulfilled = results.filter((result) => result.status === 'fulfilled');
+    const rejected = results.filter((result) => result.status === 'rejected') as PromiseRejectedResult[];
+
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect(FileSystemError.FileIsOutOfSync.is(rejected[0].reason)).toBeTruthy();
+    const content = (await fileServiceClient.readFile(sourceFile.toString())).content.toString();
+    expect(['first', 'other']).toContain(content);
   });
 
   it('isReadonly', async () => {

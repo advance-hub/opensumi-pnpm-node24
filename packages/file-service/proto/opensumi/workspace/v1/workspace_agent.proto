@@ -1,0 +1,135 @@
+syntax = "proto3";
+
+package opensumi.workspace.v1;
+
+option go_package = "github.com/opensumi/core/go/workspace-agent/gen/opensumi/workspace/v1;workspacev1";
+
+service AgentControl {
+  rpc GetCapabilities(GetCapabilitiesRequest) returns (GetCapabilitiesResponse);
+  rpc Health(HealthRequest) returns (HealthResponse);
+  rpc Shutdown(ShutdownRequest) returns (ShutdownResponse);
+}
+
+service WorkspaceWatcher {
+  rpc Watch(WatchRequest) returns (stream WatchEvent);
+}
+
+service WorkspaceSearch {
+  rpc Search(SearchRequest) returns (stream SearchEvent);
+}
+
+service WorkspaceFileSearch {
+  rpc Find(FileSearchRequest) returns (stream FileSearchEvent);
+}
+
+message GetCapabilitiesRequest {}
+
+message GetCapabilitiesResponse {
+  uint32 protocol_major = 1;
+  uint32 protocol_minor = 2;
+  repeated string services = 3;
+  string build_revision = 4;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  bool ready = 1;
+  uint64 active_watches = 2;
+  uint64 active_searches = 3;
+  uint64 active_file_searches = 4;
+}
+
+message ShutdownRequest {}
+
+message ShutdownResponse {}
+
+message WatchRequest {
+  string workspace_id = 1;
+  string root_path = 2;
+  bool recursive = 3;
+  repeated string excludes = 4;
+}
+
+enum FileChangeType {
+  FILE_CHANGE_TYPE_UPDATED = 0;
+  FILE_CHANGE_TYPE_ADDED = 1;
+  FILE_CHANGE_TYPE_DELETED = 2;
+}
+
+message FileChange {
+  string uri = 1;
+  FileChangeType type = 2;
+}
+
+message WatcherOverflow {
+  string resolved_uri = 1;
+  uint64 event_count = 2;
+  uint64 limit = 3;
+  int64 timestamp_ms = 4;
+}
+
+message WatcherFailure {
+  string resolved_uri = 1;
+  string message = 2;
+  uint32 attempts = 3;
+  int64 timestamp_ms = 4;
+}
+
+message WatchEvent {
+  repeated FileChange changes = 1;
+  WatcherOverflow overflow = 2;
+  WatcherFailure failure = 3;
+}
+
+message SearchRequest {
+  uint64 request_id = 1;
+  string query = 2;
+  repeated string root_paths = 3;
+  bool match_case = 4;
+  bool match_whole_word = 5;
+  bool use_regexp = 6;
+  bool include_ignored = 7;
+  repeated string include = 8;
+  repeated string exclude = 9;
+  string encoding = 10;
+  bool follow_symlinks = 11;
+  uint64 max_results = 12;
+  string ripgrep_path = 13;
+}
+
+message SearchMatch {
+  string path = 1;
+  uint64 line = 2;
+  string line_text = 3;
+  uint64 start_byte = 4;
+  uint64 end_byte = 5;
+}
+
+message SearchEvent {
+  repeated SearchMatch matches = 1;
+  bool limit_hit = 2;
+}
+
+message FileSearchRoot {
+  string root_path = 1;
+  repeated string include = 2;
+  repeated string exclude = 3;
+  bool use_git_ignore = 4;
+  bool no_ignore_parent = 5;
+  bool follow_symlinks = 6;
+}
+
+message FileSearchRequest {
+  string pattern = 1;
+  repeated FileSearchRoot roots = 2;
+  bool fuzzy_match = 3;
+  uint64 max_results = 4;
+  string ripgrep_path = 5;
+}
+
+message FileSearchEvent {
+  repeated string exact_paths = 1;
+  repeated string fuzzy_paths = 2;
+  bool limit_hit = 3;
+}

@@ -1,6 +1,6 @@
 import { Autowired, Injectable } from '@opensumi/di';
 import { Deferred, Emitter, Event, ILogger, STORAGE_SCHEMA, URI, path } from '@opensumi/ide-core-common';
-import { IFileServiceClient } from '@opensumi/ide-file-service';
+import { FileSystemError, IFileServiceClient } from '@opensumi/ide-file-service';
 
 import { IStoragePathServer, IStorageServer, IUpdateRequest, StorageChange, StringKeyToAnyValue } from '../common';
 
@@ -8,6 +8,8 @@ const { Path } = path;
 
 @Injectable()
 export abstract class StorageServer implements IStorageServer {
+  private static readonly UPDATE_RETRY_LIMIT = 10;
+
   @Autowired(IFileServiceClient)
   protected readonly fileSystem: IFileServiceClient;
 
@@ -91,6 +93,72 @@ export abstract class StorageServer implements IStorageServer {
 
     return storagePath ? new URI(storagePath).resolve(`${storageName}.json`).toString() : undefined;
   }
+
+  protected applyUpdateRequest(raw: Record<string, any>, request: IUpdateRequest): Record<string, any> {
+    const updated = request.insert
+      ? {
+          ...raw,
+          ...request.insert,
+        }
+      : { ...raw };
+    for (const key of request.delete || []) {
+      delete updated[key];
+    }
+    return updated;
+  }
+
+  protected async updateStorageFile(
+    storagePath: string,
+    storageName: string,
+    update: (raw: Record<string, any>) => Record<string, any>,
+  ): Promise<Record<string, any>> {
+    let lastConflict: unknown;
+    for (let attempt = 1; attempt <= StorageServer.UPDATE_RETRY_LIMIT; attempt += 1) {
+      const storageFile = await this.fileSystem.getFileStat(storagePath);
+      if (!storageFile) {
+        const raw = update({});
+        const content = JSON.stringify(raw);
+        try {
+          const createdFile = await this.fileSystem.createFile(storagePath, { content });
+          this._cache[storageName] = raw;
+          this.onDidChangeEmitter.fire({ path: createdFile.uri, data: content });
+          return raw;
+        } catch (error) {
+          if (FileSystemError.FileExists.is(error as any)) {
+            lastConflict = error;
+            continue;
+          }
+          throw error;
+        }
+      }
+
+      const latestContent = await this.fileSystem.readFile(storagePath);
+      let raw: Record<string, any> = {};
+      try {
+        raw = JSON.parse(latestContent.content.toString());
+      } catch (error) {
+        this.logger.error(`Storage [${storageName}] content can not be parse. Error: ${error.stack}`);
+      }
+      raw = update(raw);
+      const content = JSON.stringify(raw);
+      try {
+        const writtenFile = await this.fileSystem.setContent(storageFile, content, {
+          expectedContent: latestContent.content.buffer,
+        });
+        this._cache[storageName] = raw;
+        this.onDidChangeEmitter.fire({ path: writtenFile?.uri || storageFile.uri, data: content });
+        return raw;
+      } catch (error) {
+        if (FileSystemError.FileIsOutOfSync.is(error as any)) {
+          lastConflict = error;
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw lastConflict || new Error(`Storage [${storageName}] update retry limit reached.`);
+  }
 }
 
 @Injectable()
@@ -144,63 +212,18 @@ export class WorkspaceStorageServer extends StorageServer {
 
   async updateItems(storageName: string, request: IUpdateRequest) {
     await this.whenReady;
-    let raw = {};
     const workspaceNamespace = this.workspaceNamespace;
-    if (this._cache[storageName]) {
-      raw = this._cache[storageName];
-    } else {
-      raw = await this.getItems(storageName);
-      if (workspaceNamespace) {
-        raw = raw[workspaceNamespace];
-      }
-    }
-    // INSERT
-    if (request.insert) {
-      if (workspaceNamespace) {
-        raw[workspaceNamespace] = {
-          ...raw[workspaceNamespace],
-          ...request.insert,
-        };
-      } else {
-        raw = {
-          ...raw,
-          ...request.insert,
-        };
-      }
-    }
-
-    // DELETE
-    if (request.delete && request.delete.length > 0) {
-      const deleteSet = new Set(request.delete);
-      deleteSet.forEach((key) => {
-        if (workspaceNamespace) {
-          if (raw[workspaceNamespace][key]) {
-            delete raw[workspaceNamespace][key];
-          }
-        } else {
-          if (raw[key]) {
-            delete raw[key];
-          }
-        }
-      });
-    }
-
-    this._cache[storageName] = raw;
-
     const storagePath = await this.getStoragePath(STORAGE_SCHEMA.SCOPE, storageName);
-
     if (storagePath) {
-      const uriString = new URI(storagePath).toString();
-      let storageFile = await this.fileSystem.getFileStat(uriString);
-      if (!storageFile) {
-        storageFile = await this.fileSystem.createFile(uriString);
-      }
-      await this.fileSystem.setContent(storageFile, JSON.stringify(raw));
-      const change: StorageChange = {
-        path: storageFile.uri,
-        data: JSON.stringify(raw),
-      };
-      this.onDidChangeEmitter.fire(change);
+      await this.updateStorageFile(storagePath, storageName, (raw) => {
+        if (!workspaceNamespace) {
+          return this.applyUpdateRequest(raw, request);
+        }
+        return {
+          ...raw,
+          [workspaceNamespace]: this.applyUpdateRequest(raw[workspaceNamespace] || {}, request),
+        };
+      });
     }
   }
 }
@@ -249,44 +272,9 @@ export class GlobalStorageServer extends StorageServer {
 
   async updateItems(storageName: string, request: IUpdateRequest) {
     await this.whenReady;
-    let raw = {};
-    if (this._cache[storageName]) {
-      raw = this._cache[storageName];
-    } else {
-      raw = await this.getItems(storageName);
-    }
-    // INSERT
-    if (request.insert) {
-      raw = {
-        ...raw,
-        ...request.insert,
-      };
-    }
-
-    // DELETE
-    if (request.delete && request.delete.length > 0) {
-      const deleteSet = new Set(request.delete);
-      deleteSet.forEach((key) => {
-        if (raw[key]) {
-          delete raw[key];
-        }
-      });
-    }
-
-    this._cache[storageName] = raw;
     const storagePath = await this.getStoragePath(STORAGE_SCHEMA.GLOBAL, storageName);
-
     if (storagePath) {
-      let storageFile = await this.fileSystem.getFileStat(storagePath);
-      if (!storageFile) {
-        storageFile = await this.fileSystem.createFile(storagePath, { content: '' });
-      }
-      await this.fileSystem.setContent(storageFile, JSON.stringify(raw));
-      const change: StorageChange = {
-        path: storageFile.uri,
-        data: JSON.stringify(raw),
-      };
-      this.onDidChangeEmitter.fire(change);
+      await this.updateStorageFile(storagePath, storageName, (raw) => this.applyUpdateRequest(raw, request));
     }
   }
 }

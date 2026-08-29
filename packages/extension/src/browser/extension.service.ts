@@ -1,5 +1,3 @@
-import debounce from 'lodash/debounce';
-
 import { Autowired, INJECTOR_TOKEN, Injectable, Injector } from '@opensumi/di';
 import { WSChannelHandler } from '@opensumi/ide-connection/lib/browser';
 import { RPCServiceChannelPath } from '@opensumi/ide-connection/lib/common/server-handler';
@@ -58,6 +56,7 @@ import { MainThreadAPIIdentifier } from '../common/vscode';
 
 import { ActivationEventServiceImpl } from './activation.service';
 import { Extension } from './extension';
+import { shouldRunExtensionInWorker } from './extension-host-kind';
 import { SumiContributionsService, SumiContributionsServiceToken } from './sumi/contributes';
 import {
   AbstractExtInstanceManagementService,
@@ -174,6 +173,9 @@ export class ExtensionServiceImpl extends WithEventBus implements ExtensionServi
 
   // 插件进程是否正在等待重启，页面不可见的时候被设置
   private isExtProcessWaitingForRestart: ERestartPolicy | undefined;
+  private requestedRestartPolicy: ERestartPolicy | undefined;
+  private restartRequestPromise: Promise<void> | undefined;
+  private restartAfterVisibilityDelay = false;
   private pCrashMessageModel: MayCancelablePromise<string | undefined> | undefined;
 
   // 是否正在显示插件重启的 loading 状态
@@ -255,12 +257,8 @@ export class ExtensionServiceImpl extends WithEventBus implements ExtensionServi
         this.isExtProcessRestarting,
       );
 
-      if (
-        document.visibilityState === 'visible' &&
-        this.isExtProcessWaitingForRestart &&
-        !this.isExtProcessRestarting
-      ) {
-        this.extProcessRestartHandler(this.isExtProcessWaitingForRestart);
+      if (document.visibilityState === 'visible' && this.isExtProcessWaitingForRestart) {
+        void this.extProcessRestartHandler(this.isExtProcessWaitingForRestart, true);
       }
     };
 
@@ -355,17 +353,17 @@ export class ExtensionServiceImpl extends WithEventBus implements ExtensionServi
   /**
    * 重启插件进程
    */
-  public async restartExtProcess(restartPolicy: ERestartPolicy = ERestartPolicy.Always) {
+  public restartExtProcess(restartPolicy: ERestartPolicy = ERestartPolicy.Always): Promise<void> {
     /**
      * 只有在页面可见的情况下才执行插件进程重启操作
      * 如果当前页面不可见，那么 chrome 会对 socket 进行限流，导致进程重启的 rpc 调用得不到返回从而卡住
      */
     if (document.visibilityState === 'visible') {
-      this.extProcessRestartHandler(restartPolicy);
-    } else {
-      this.logger.log('[ext-restart]: page is not visible, waiting for restart, policy:', restartPolicy);
-      this.isExtProcessWaitingForRestart = restartPolicy;
+      return this.extProcessRestartHandler(restartPolicy);
     }
+    this.logger.log('[ext-restart]: page is not visible, waiting for restart, policy:', restartPolicy);
+    this.isExtProcessWaitingForRestart = this.mergeRestartPolicy(this.isExtProcessWaitingForRestart, restartPolicy);
+    return Promise.resolve();
   }
 
   private extProcessRestartPromise: CancelablePromise<void> | undefined;
@@ -378,14 +376,12 @@ export class ExtensionServiceImpl extends WithEventBus implements ExtensionServi
     }
   }
 
-  restartProgress = async (restartPolicy: ERestartPolicy = ERestartPolicy.Always) => {
+  restartProgress = async (restartPolicy: ERestartPolicy = ERestartPolicy.Always): Promise<boolean> => {
     const doRestart = async (token: CancellationToken) => {
       this.disposeAllOverlayWindow();
 
       token.onCancellationRequested(() => {
         this.logger.log('[ext-restart]: ext process restart canceled');
-        this.isExtProcessRestarting = false;
-        this.isExtProcessWaitingForRestart = undefined;
         this.isProgressShowing = false;
       });
 
@@ -393,87 +389,143 @@ export class ExtensionServiceImpl extends WithEventBus implements ExtensionServi
         await this.startExtProcess(false);
       } catch (err) {
         this.logger.error(`[ext-restart]: ext-host restart failure, error: ${err}`);
+      } finally {
+        this.disposeAllOverlayWindow();
       }
-
-      this.isExtProcessRestarting = false;
-      this.isExtProcessWaitingForRestart = undefined;
-      this.isProgressShowing = false;
-
-      this.disposeAllOverlayWindow();
     };
 
     await this.channelHandler.awaitChannelReady(RPCServiceChannelPath);
 
-    const policy = this.isExtProcessWaitingForRestart || restartPolicy;
+    const policy = this.mergeRestartPolicy(restartPolicy, this.requestedRestartPolicy);
+    this.requestedRestartPolicy = undefined;
     this.logger.log('[ext-restart]: restart ext process, restart policy:', policy);
 
-    switch (policy) {
-      // @ts-expect-error Need fall-through
-      case ERestartPolicy.WhenExit:
-        // if we can get the pid, then the process is still running, no need to restart.
-        // if pid is null, it means the process is exited, then we need to start it.
-        if (await this.getExtProcessPID()) {
-          this.logger.log('[ext-restart]: ext process is still running, skip');
-          break;
-        }
-      case ERestartPolicy.Always:
-        if (this.isProgressShowing) {
-          this.logger.log('[ext-restart]: progress is already showing, skip');
-          return;
-        }
-
-        this.isProgressShowing = true;
-        await this.progressService.withProgress(
-          {
-            location: ProgressLocation.Notification,
-            title: localize('extension.exthostRestarting.content'),
-            buttons: [
-              {
-                id: 'extension.reload',
-                label: localize('preference.general.language.change.refresh.now'),
-                primary: true,
-                run: async () => {
-                  this.clientApp.fireOnReload();
-                },
-                dispose: () => {},
-              },
-            ],
-          },
-          async () => {
-            // doRestart 存在严重的副作用且不可 Cancel，因此单次重启只允许执行一次
-            this.extProcessRestartPromise = createCancelablePromise(doRestart);
-            await this.extProcessRestartPromise;
-          },
-        );
-
-        break;
+    if (policy === ERestartPolicy.WhenExit) {
+      // If an Always request arrives while the PID check is in flight, the
+      // stronger request upgrades this same transaction instead of starting a
+      // second restart beside it.
+      const processId = await this.getExtProcessPID();
+      if (processId && this.requestedRestartPolicy !== ERestartPolicy.Always) {
+        this.requestedRestartPolicy = undefined;
+        this.logger.log('[ext-restart]: ext process is still running, skip');
+        return false;
+      }
+      this.requestedRestartPolicy = undefined;
     }
 
-    this.isExtProcessRestarting = false;
+    if (this.isProgressShowing) {
+      this.logger.log('[ext-restart]: progress is already showing, reuse current restart');
+      if (this.extProcessRestartPromise) {
+        await this.extProcessRestartPromise;
+      }
+      return true;
+    }
+
+    this.isProgressShowing = true;
+    try {
+      await this.progressService.withProgress(
+        {
+          location: ProgressLocation.Notification,
+          title: localize('extension.exthostRestarting.content'),
+          buttons: [
+            {
+              id: 'extension.reload',
+              label: localize('preference.general.language.change.refresh.now'),
+              primary: true,
+              run: async () => {
+                this.clientApp.fireOnReload();
+              },
+              dispose: () => {},
+            },
+          ],
+        },
+        async () => {
+          // doRestart has non-cancelable side effects. A single tracked
+          // transaction is the only owner allowed to execute it.
+          this.extProcessRestartPromise = createCancelablePromise(doRestart);
+          await this.extProcessRestartPromise;
+        },
+      );
+      return true;
+    } finally {
+      this.extProcessRestartPromise = undefined;
+      this.isProgressShowing = false;
+    }
   };
 
-  restartDebounced = debounce(async () => {
-    await this.restartProgress();
-  }, 500);
+  private mergeRestartPolicy(
+    current: ERestartPolicy | undefined,
+    incoming: ERestartPolicy | undefined,
+  ): ERestartPolicy {
+    return current === ERestartPolicy.Always || incoming === ERestartPolicy.Always
+      ? ERestartPolicy.Always
+      : ERestartPolicy.WhenExit;
+  }
 
-  private async extProcessRestartHandler(restartPolicy: ERestartPolicy = ERestartPolicy.Always) {
-    if (this.isExtProcessRestarting && restartPolicy !== ERestartPolicy.Always) {
-      this.logger.log('[ext-restart]: ext process is restarting, skip');
-      return;
-    }
-
+  private async runRestartRequests(): Promise<void> {
     this.isExtProcessRestarting = true;
+    try {
+      if (this.restartAfterVisibilityDelay) {
+        this.restartAfterVisibilityDelay = false;
+        await sleep(500);
+        if (document.visibilityState !== 'visible') {
+          if (this.requestedRestartPolicy) {
+            this.isExtProcessWaitingForRestart = this.mergeRestartPolicy(
+              this.isExtProcessWaitingForRestart,
+              this.requestedRestartPolicy,
+            );
+            this.requestedRestartPolicy = undefined;
+          }
+          return;
+        }
+      }
 
-    if (this.isExtProcessWaitingForRestart) {
-      /**
-       * 只有当页面不可见的时候被通知执行重启操作，isExtProcessWaitingForRestart 才会为 true
-       * 目前观察到页面从不可见恢复至可见状态后，可能出现 socket 堆积的现象，因此延迟 1000ms 后再进行重启操作
-       * 这里延时并不能保证一定能够正确重启，只是降低失败的可能性。在解决了 socket 堆积的情况后，可以直接去掉
-       */
-      this.restartDebounced();
-    } else {
-      this.restartProgress(restartPolicy);
+      while (this.requestedRestartPolicy) {
+        const policy = this.requestedRestartPolicy;
+        this.requestedRestartPolicy = undefined;
+        const restarted = await this.restartProgress(policy);
+        if (restarted) {
+          // Any request that arrived while a real restart was in flight is
+          // satisfied by that restart and must not start another Host.
+          this.requestedRestartPolicy = undefined;
+          return;
+        }
+        if (this.requestedRestartPolicy === ERestartPolicy.WhenExit) {
+          // Duplicate conditional requests observed the same live process.
+          this.requestedRestartPolicy = undefined;
+          return;
+        }
+      }
+    } finally {
+      this.isExtProcessRestarting = false;
     }
+  }
+
+  private extProcessRestartHandler(
+    restartPolicy: ERestartPolicy = ERestartPolicy.Always,
+    afterVisibilityChange = false,
+  ): Promise<void> {
+    const waitingPolicy = this.isExtProcessWaitingForRestart;
+    this.isExtProcessWaitingForRestart = undefined;
+    const requestedPolicy = this.mergeRestartPolicy(restartPolicy, waitingPolicy);
+    this.requestedRestartPolicy = this.mergeRestartPolicy(this.requestedRestartPolicy, requestedPolicy);
+
+    if (this.restartRequestPromise) {
+      this.logger.log('[ext-restart]: coalesce restart request, policy:', requestedPolicy);
+      return this.restartRequestPromise;
+    }
+
+    this.restartAfterVisibilityDelay = afterVisibilityChange || Boolean(waitingPolicy);
+    const trackedRequest = this.runRestartRequests().finally(() => {
+      if (this.restartRequestPromise === trackedRequest) {
+        this.restartRequestPromise = undefined;
+      }
+    });
+    this.restartRequestPromise = trackedRequest;
+    void trackedRequest.catch((error) => {
+      this.logger.error(`[ext-restart]: restart transaction failure, error: ${error}`);
+    });
+    return trackedRequest;
   }
 
   private async getExtProcessPID(): Promise<number | null> {
@@ -702,38 +754,7 @@ export class ExtensionServiceImpl extends WithEventBus implements ExtensionServi
    * https://code.visualstudio.com/api/extension-guides/web-extensions#web-extension-enablement
    */
   private whetherWebExtension({ packageJSON }: Extension): boolean {
-    const { browser, main } = packageJSON || {};
-    const noExtHost = Boolean(this.appConfig.noExtHost);
-
-    // 如果只包含 browser 入口
-    if (browser && !main) {
-      return true;
-    }
-
-    // 如果同时包含两个入口，那么判断是否启动了node插件进程
-    if (browser && main) {
-      return noExtHost;
-    }
-
-    // 只包含 main 入
-    if (!browser && main) {
-      return false;
-    }
-
-    /**
-     * 都不包含的情况下：
-     * 如果contributes中含有'debuggers', 'terminal', 'typescriptServerPlugins'三个之一，那么不作为web插件启动
-     * 如果不包含，那么判断是否启动了node插件进程
-     */
-    if (typeof packageJSON.contributes !== 'undefined') {
-      for (const id of ['debuggers', 'terminal', 'typescriptServerPlugins']) {
-        if (packageJSON.contributes.hasOwnProperty(id)) {
-          return false;
-        }
-      }
-    }
-
-    return noExtHost;
+    return shouldRunExtensionInWorker(packageJSON || {}, Boolean(this.appConfig.noExtHost));
   }
 
   /**

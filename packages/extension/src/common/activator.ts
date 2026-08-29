@@ -86,41 +86,44 @@ export class ExtensionsActivator {
     return this.activatedExtensions.delete(id);
   }
 
-  private async doDeactivate(extensionModule) {
+  private async doDeactivate(extensionModule): Promise<void> {
     try {
-      const promiseLike = await (extensionModule as Required<IExtensionModule>).deactivate();
-      return promiseLike;
+      await (extensionModule as Required<IExtensionModule>).deactivate();
     } catch (err) {
       this.logger.error(`
         [Extension-Host] deactivate extension module error ${err.message} \n\n
         Stack: ${err.stack && err.stack}
       `);
-      return err;
     }
   }
 
-  deactivate() {
+  async deactivateExtension(id: string): Promise<boolean> {
+    const extension = this.activatedExtensions.get(id);
+    if (!extension) {
+      return false;
+    }
+
     const deactivateTasks: Promise<void>[] = [];
-    this.activatedExtensions.forEach((ext) => {
-      const extModule = ext.module;
-      if (extModule && extModule.deactivate && typeof extModule.deactivate === 'function') {
-        deactivateTasks.push(this.doDeactivate(extModule));
+    for (const extensionModule of [extension.module, extension.extendModule]) {
+      if (extensionModule?.deactivate && typeof extensionModule.deactivate === 'function') {
+        deactivateTasks.push(this.doDeactivate(extensionModule));
       }
+    }
+    await Promise.all(deactivateTasks);
 
-      const extendModule = ext.extendModule;
-      if (extendModule && extendModule.deactivate && typeof extendModule.deactivate === 'function') {
-        deactivateTasks.push(this.doDeactivate(extendModule));
+    for (const disposable of extension.subscriptions) {
+      try {
+        disposable.dispose();
+      } catch (error) {
+        this.logger.log('extension deactivated error');
+        this.logger.warn(error);
       }
+    }
+    this.activatedExtensions.delete(id);
+    return true;
+  }
 
-      ext.subscriptions.forEach((disposable) => {
-        try {
-          disposable.dispose();
-        } catch (e) {
-          this.logger.log('extension deactivated error');
-          this.logger.warn(e);
-        }
-      });
-    });
-    return Promise.all(deactivateTasks);
+  deactivate(): Promise<boolean[]> {
+    return Promise.all(Array.from(this.activatedExtensions.keys(), (id) => this.deactivateExtension(id)));
   }
 }

@@ -38,16 +38,26 @@ describe('template test', () => {
   });
 
   it('can get png if path in whitelist', async () => {
+    expect.assertions(1);
     const res = await fetch(`http://0.0.0.0:50118/assets${path.join(resPath, 'icon.png')}`);
     expect(res.status).toBe(200);
   });
 
+  it.each(['worker.cjs', 'worker.mjs'])('serves %s Worker entry modules as JavaScript', async (fileName) => {
+    expect.assertions(2);
+    const res = await fetch(`http://0.0.0.0:50118/assets${path.join(resPath, fileName)}`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('application/javascript');
+  });
+
   it('response 403 if not in whitelist', async () => {
+    expect.assertions(1);
     const res = await fetch('http://0.0.0.0:50118/assets/test');
     expect(res.status).toBe(403);
   });
 
   it('response 403 if not allowed mime', async () => {
+    expect.assertions(1);
     const res = await fetch(`http://0.0.0.0:50118/assets${path.join(resPath, 'icon.exe')}`);
     expect(res.status).toBe(403);
   });

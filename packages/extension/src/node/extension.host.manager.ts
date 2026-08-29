@@ -18,7 +18,7 @@ export class ExtensionHostManager implements IExtensionHostManager {
 
   private readonly maxProcessCount = (() => {
     const configured = Number(process.env.MAX_MANAGED_EXTENSION_PROCESSES);
-    return Number.isSafeInteger(configured) && configured > 0 ? configured : 8;
+    return Number.isSafeInteger(configured) && configured > 0 ? configured : 3;
   })();
 
   constructor() {

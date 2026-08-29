@@ -89,4 +89,23 @@ describe('WatcherProcessManagerImpl', () => {
     expect(options.execArgv).not.toContain('--max-old-space-size=512');
     expect(options.silent).toBe(true);
   });
+
+  it('releases connection watch streams without stopping the server-scoped agent', async () => {
+    expect.hasAssertions();
+    const manager = createManager() as any;
+    const disposeStream = jest.fn();
+    const disposeAgent = jest.fn();
+    manager.workspaceAgentWatches = new Map([[1, { generation: 0, handle: { dispose: disposeStream } }]]);
+    Object.defineProperty(manager, 'workspaceAgent', { value: { dispose: disposeAgent } });
+    manager.logger = { debug: jest.fn() };
+    manager.watcherRuntime = 'agent';
+    manager.closeWatcherServers = jest.fn().mockResolvedValue(undefined);
+    manager.stopWatcherProcess = jest.fn().mockResolvedValue(undefined);
+
+    await manager.dispose();
+
+    expect(disposeStream).toHaveBeenCalledTimes(1);
+    expect(disposeAgent).not.toHaveBeenCalled();
+    expect(manager.workspaceAgentWatches.size).toBe(0);
+  });
 });

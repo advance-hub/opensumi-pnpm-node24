@@ -9,9 +9,19 @@ import { DidFilesChangedParams, FileChangeType } from '../../src/common/index';
 import { UnRecursiveFileSystemWatcher } from '../../src/node/hosted/un-recursive/file-service-watcher';
 
 const sleepTime = 1000;
+const eventTimeout = 5000;
+
+async function waitForEvent(predicate: () => boolean): Promise<void> {
+  const deadline = Date.now() + eventTimeout;
+  while (!predicate() && Date.now() < deadline) {
+    await sleep(25);
+  }
+}
 
 describe('unRecursively watch for folder additions, deletions, rename,and updates', () => {
   const track = temp.track();
+  const watcherServerList: UnRecursiveFileSystemWatcher[] = [];
+
   async function generateWatcher() {
     const injector = createNodeInjector([]);
     const root = FileUri.create(fse.realpathSync(await temp.mkdir('unRecursive-test')));
@@ -19,14 +29,15 @@ describe('unRecursively watch for folder additions, deletions, rename,and update
     fse.mkdirpSync(FileUri.fsPath(root.resolve('for_rename_folder')));
     fse.writeFileSync(FileUri.fsPath(root.resolve('for_rename')), 'rename');
     await watcherServer.watchFileChanges(root.path.toString());
+    watcherServerList.push(watcherServer);
     return { root, watcherServer };
   }
-  const watcherServerList: UnRecursiveFileSystemWatcher[] = [];
+
   afterAll(async () => {
-    track.cleanupSync();
     watcherServerList.forEach((watcherServer) => {
       watcherServer.dispose();
     });
+    track.cleanupSync();
   });
   it('Rename the files under the folder', async () => {
     const addUris = new Set<string>();
@@ -52,10 +63,9 @@ describe('unRecursively watch for folder additions, deletions, rename,and update
     const expectedDeleteUris = [root.resolve('for_rename').toString()];
 
     fse.renameSync(FileUri.fsPath(root.resolve('for_rename')), FileUri.fsPath(root.resolve('for_rename_renamed')));
-    await sleep(sleepTime);
+    await waitForEvent(() => addUris.has(expectedAddUris[0]) && deleteUris.has(expectedDeleteUris[0]));
     expect([...addUris]).toEqual(expectedAddUris);
     expect([...deleteUris]).toEqual(expectedDeleteUris);
-    watcherServerList.push(watcherServer);
   });
   it('Add the files under the folder', async () => {
     const addUris = new Set<string>();
@@ -81,11 +91,10 @@ describe('unRecursively watch for folder additions, deletions, rename,and update
     const expectedDeleteUris = [];
 
     await fse.ensureFile(root.resolve('README.md').codeUri.fsPath.toString());
-    await sleep(sleepTime);
+    await waitForEvent(() => addUris.has(expectedAddUris[0]));
 
     expect(Array.from(addUris)).toEqual(expectedAddUris);
     expect(Array.from(deleteUris)).toEqual(expectedDeleteUris);
-    watcherServerList.push(watcherServer);
   });
   it('Update the files under the folder', async () => {
     const updatedUris = new Set<string>();
@@ -107,10 +116,9 @@ describe('unRecursively watch for folder additions, deletions, rename,and update
     const expectedDeleteUris = [];
     const expectedUpdatedUris = [root.resolve('for_rename').toString()];
     fse.writeFileSync(root.resolve('for_rename').codeUri.fsPath.toString(), '');
-    await sleep(sleepTime);
+    await waitForEvent(() => updatedUris.has(expectedUpdatedUris[0]));
     expect(Array.from(updatedUris)).toEqual(expectedUpdatedUris);
     expect(Array.from(deleteUris)).toEqual(expectedDeleteUris);
-    watcherServerList.push(watcherServer);
   });
   it('Delete the files under the folder', async () => {
     const addUris = new Set<string>();
@@ -133,11 +141,10 @@ describe('unRecursively watch for folder additions, deletions, rename,and update
     const expectedDeleteUris = [root.resolve('for_rename').toString()];
     const expectedAddUris = [];
     await fse.unlink(root.resolve('for_rename').codeUri.fsPath.toString());
-    await sleep(sleepTime);
+    await waitForEvent(() => deleteUris.has(expectedDeleteUris[0]));
 
     expect(Array.from(addUris)).toEqual(expectedAddUris);
     expect(Array.from(deleteUris)).toEqual(expectedDeleteUris);
-    watcherServerList.push(watcherServer);
   });
   it('Rename the watched folder', async () => {
     const addUris = new Set<string>();
@@ -169,7 +176,6 @@ describe('unRecursively watch for folder additions, deletions, rename,and update
 
     expect([...addUris]).toEqual(expectedAddUris);
     expect([...deleteUris]).toEqual(expectedDeleteUris);
-    watcherServerList.push(watcherServer);
   });
   it('Add the watched folder', async () => {
     const addUris = new Set<string>();
@@ -198,7 +204,6 @@ describe('unRecursively watch for folder additions, deletions, rename,and update
 
     expect(Array.from(addUris)).toEqual(expectedAddUris);
     expect(Array.from(deleteUris)).toEqual(expectedDeleteUris);
-    watcherServerList.push(watcherServer);
   });
 
   it('Delete the watched folder', async () => {
@@ -226,26 +231,28 @@ describe('unRecursively watch for folder additions, deletions, rename,and update
 
     expect(Array.from(addUris)).toEqual(expectedAddUris);
     expect(Array.from(deleteUris)).toEqual(expectedDeleteUris);
-    watcherServerList.push(watcherServer);
   });
 });
 
 describe('Delete and update monitored files', () => {
   const track = temp.track();
+  const watcherServerList: UnRecursiveFileSystemWatcher[] = [];
+
   async function generateWatcher() {
     const injector = createNodeInjector([]);
     const root = FileUri.create(fse.realpathSync(await temp.mkdir('unRecursive-test')));
     const watcherServer = new UnRecursiveFileSystemWatcher(injector.get(ILogServiceManager).getLogger());
     fse.writeFileSync(FileUri.fsPath(root.resolve('for_rename')), 'rename');
     await watcherServer.watchFileChanges(root.toString() + '/for_rename');
+    watcherServerList.push(watcherServer);
     return { root, watcherServer };
   }
-  const watcherServerList: UnRecursiveFileSystemWatcher[] = [];
+
   afterAll(async () => {
-    track.cleanupSync();
     watcherServerList.forEach((watcherServer) => {
       watcherServer.dispose();
     });
+    track.cleanupSync();
   });
 
   it('Delete watched files', async () => {
@@ -271,10 +278,9 @@ describe('Delete and update monitored files', () => {
 
     const expectedAddUris = [];
     await fse.unlink(root.resolve('for_rename').codeUri.fsPath.toString());
-    await sleep(sleepTime);
+    await waitForEvent(() => deleteUris.has(expectedDeleteUris[0]));
     expect(Array.from(addUris)).toEqual(expectedAddUris);
     expect(Array.from(deleteUris)).toEqual(expectedDeleteUris);
-    watcherServerList.push(watcherServer);
   });
 
   it('Update watched files', async () => {
@@ -298,10 +304,9 @@ describe('Delete and update monitored files', () => {
     const expectedDeleteUris = [];
     const expectedUpdatedUris = [root.resolve('for_rename').toString()];
     await fse.writeFile(root.resolve('for_rename').codeUri.fsPath.toString(), 'for');
-    await sleep(sleepTime);
+    await waitForEvent(() => updatedUris.has(expectedUpdatedUris[0]));
     expect(Array.from(updatedUris)).toEqual(expectedUpdatedUris);
     expect(Array.from(deleteUris)).toEqual(expectedDeleteUris);
-    watcherServerList.push(watcherServer);
   });
 });
 

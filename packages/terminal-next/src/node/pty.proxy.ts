@@ -68,6 +68,7 @@ export class PtyServiceProxy implements IPtyProxyRPCService {
   // 存放Session和Pid的映射
   private ptySessionMap = new Map<SessionId, PID>();
   private ptyDisposableMap = new Map<PID, DisposableCollection>();
+  private ptySessionCleanupTimerMap = new Map<SessionId, NodeJS.Timeout>();
 
   private readonly debugLogger = getDebugLogger('PtyServiceProxy');
   private $callback: (callId: number, ...args) => void = () => {};
@@ -95,6 +96,55 @@ export class PtyServiceProxy implements IPtyProxyRPCService {
     }
   }
 
+  private shortSessionId(sessionId: string): string {
+    return sessionId.split(TERMINAL_ID_SEPARATOR).at(-1) || sessionId;
+  }
+
+  private clearSessionCleanupTimer(sessionId: string): void {
+    const timer = this.ptySessionCleanupTimerMap.get(sessionId);
+    if (timer) {
+      clearTimeout(timer);
+      this.ptySessionCleanupTimerMap.delete(sessionId);
+    }
+  }
+
+  private cleanupPty(pid: PID, options: { preserveHistory?: boolean } = {}): void {
+    this.ptyDisposableMap.get(pid)?.dispose();
+    this.ptyDisposableMap.delete(pid);
+    this.ptyInstanceMap.delete(pid);
+    if (!options.preserveHistory) {
+      this.ptyDataCacheMap.delete(pid);
+    }
+    for (const [sessionId, sessionPid] of this.ptySessionMap) {
+      if (sessionPid === pid) {
+        this.clearSessionCleanupTimer(sessionId);
+        this.ptySessionMap.delete(sessionId);
+      }
+    }
+  }
+
+  $scheduleSessionCleanup(longSessionId: string, timeoutMs: number): void {
+    const sessionId = this.shortSessionId(longSessionId);
+    const pid = this.ptySessionMap.get(sessionId);
+    if (!pid) {
+      return;
+    }
+    this.clearSessionCleanupTimer(sessionId);
+    const timer = setTimeout(() => {
+      this.ptySessionCleanupTimerMap.delete(sessionId);
+      if (this.ptySessionMap.get(sessionId) !== pid) {
+        return;
+      }
+      try {
+        this.ptyInstanceMap.get(pid)?.kill();
+      } finally {
+        this.cleanupPty(pid);
+      }
+    }, timeoutMs);
+    timer.unref?.();
+    this.ptySessionCleanupTimerMap.set(sessionId, timer);
+  }
+
   $spawn(
     file: string,
     args: string[] | string,
@@ -103,10 +153,11 @@ export class PtyServiceProxy implements IPtyProxyRPCService {
     spawnOptions?: IPtySpawnOptions,
   ): any {
     // 切割sessionId到短Id
-    const sessionId = longSessionId?.split(TERMINAL_ID_SEPARATOR)?.[1];
+    const sessionId = longSessionId ? this.shortSessionId(longSessionId) : undefined;
     this.debugLogger.log('ptyServiceProxy: spawn sessionId:', sessionId);
     let ptyInstance: pty.IPty | undefined;
     if (sessionId) {
+      this.clearSessionCleanupTimer(sessionId);
       // 查询SessionId对应的Pid
       const pid = this.ptySessionMap.get(sessionId) || -10;
       // 查询Pid是否存活
@@ -117,6 +168,8 @@ export class PtyServiceProxy implements IPtyProxyRPCService {
       } else {
         // 有Session ID 但是没有 Process，说明是被系统杀了，此时需要重新spawn一个Pty
         this.ptyInstanceMap.delete(pid);
+        this.ptyDisposableMap.get(pid)?.dispose();
+        this.ptyDisposableMap.delete(pid);
         ptyInstance = pty.spawn(file, args, options);
         if (spawnOptions?.preserveHistory) {
           // 这种情况下，需要把之前的PtyCache给attach上去，方便用户查看记录
@@ -219,9 +272,11 @@ export class PtyServiceProxy implements IPtyProxyRPCService {
   $kill(pid: number, signal?: string): void {
     this.debugLogger.debug('ptyServiceCenter: kill', 'pid:', pid);
     const ptyInstance = this.ptyInstanceMap.get(pid);
-    ptyInstance?.kill(signal);
-    this.ptyInstanceMap.delete(pid);
-    this.ptyDataCacheMap.delete(pid);
+    try {
+      ptyInstance?.kill(signal);
+    } finally {
+      this.cleanupPty(pid);
+    }
   }
 
   $pause(pid: number): void {

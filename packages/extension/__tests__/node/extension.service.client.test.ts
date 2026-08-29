@@ -1,4 +1,3 @@
-import os from 'os';
 import path from 'path';
 
 import * as fs from 'fs-extra';
@@ -64,7 +63,6 @@ describe('Extension Client Serivce', () => {
       const name = 'vscode-language-pack-zh-hans';
       const publisher = 'vscode-extensions';
       const version = '1.37.1';
-      const lpPath = path.join(os.homedir(), '.sumi', 'workspace-storage', 'languagepacks.json');
       injector.addProviders({
         token: WatcherProcessManagerToken,
         useValue: {
@@ -77,6 +75,7 @@ describe('Extension Client Serivce', () => {
       await hashCalculateService.initialize();
       const targetPath = path.join(extensionDir, `${publisher}.${name}-${version}`);
       const storagePath = (await extensionStorageServer.getLastStoragePath()) || '';
+      const lpPath = path.join(storagePath, 'languagepacks.json');
       await extensionNodeClient.updateLanguagePack('zh-CN', targetPath, storagePath);
       expect(fs.existsSync(lpPath)).toBe(true);
       // const content = fs.readFileSync(lpPath, { encoding: 'utf8' });

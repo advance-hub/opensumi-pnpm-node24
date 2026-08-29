@@ -22,6 +22,17 @@ async function main() {
       },
     },
   };
+  if (!process.env.IS_DEV) {
+    const webSocketProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    productOpts.wsPath = `${webSocketProtocol}//${window.location.host}`;
+    productOpts.staticServicePath = window.location.origin;
+    if (process.env.EXTENSION_WORKER_HOST) {
+      const workerHost = new URL(process.env.EXTENSION_WORKER_HOST);
+      workerHost.protocol = window.location.protocol;
+      workerHost.host = window.location.host;
+      productOpts.extWorkerHost = workerHost.toString();
+    }
+  }
 
   if (process.env.ENABLE_AI === '1') {
     const [{ AI_CHAT_LOGO_AVATAR_ID }, { AILayout }, { AISampleModule }, { AIBrowserModules }] = await Promise.all([

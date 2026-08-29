@@ -21,6 +21,7 @@
     "@opensumi/ide-connection": "workspace:*",
     "@opensumi/ide-core-common": "workspace:*",
     "@opensumi/ide-core-node": "workspace:*",
+    "@opensumi/ide-file-service": "workspace:*",
     "@opensumi/ide-logs": "workspace:*",
     "@opensumi/ide-process": "workspace:*",
     "@opensumi/ripgrep": "^1.4.0"
@@ -30,7 +31,6 @@
     "@opensumi/ide-core-browser": "workspace:*",
     "@opensumi/ide-dev-tool": "workspace:*",
     "@opensumi/ide-editor": "workspace:*",
-    "@opensumi/ide-file-service": "workspace:*",
     "@opensumi/ide-main-layout": "workspace:*",
     "@opensumi/ide-monaco": "workspace:*",
     "@opensumi/ide-overlay": "workspace:*",

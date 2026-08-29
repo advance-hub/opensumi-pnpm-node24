@@ -1,3 +1,5 @@
+import path from 'path';
+
 import { Injector } from '@opensumi/di';
 import { ProxyIdentifier, SumiConnectionMultiplexer } from '@opensumi/ide-connection';
 import {
@@ -11,11 +13,18 @@ import {
   ReporterService,
   Uri,
   arrays,
-  timeout,
+  raceTimeout,
 } from '@opensumi/ide-core-common';
 import { join } from '@opensumi/ide-utils/lib/path';
 
-import { EXTENSION_EXTEND_SERVICE_PREFIX, IExtendProxy, IExtensionHostService, getExtensionId } from '../common';
+import {
+  EXTENSION_EXTEND_SERVICE_PREFIX,
+  ExtensionActivationDiagnosticMessage,
+  IExtendProxy,
+  IExtensionHostService,
+  ProcessMessageType,
+  getExtensionId,
+} from '../common';
 import { ActivatedExtension, ActivatedExtensionJSON, ExtensionsActivator } from '../common/activator';
 import { ExtHostAppConfig } from '../common/ext.process';
 import { getNodeRequire } from '../common/utils';
@@ -88,6 +97,10 @@ abstract class ApiImplFactory {
     }
     return apiImpl;
   }
+
+  public delete(extensionId: string): void {
+    this.extAPIImpl.delete(extensionId);
+  }
 }
 
 class VSCodeAPIImpl extends ApiImplFactory {
@@ -133,14 +146,26 @@ export default class ExtensionHostServiceImpl implements IExtensionHostService {
   private telemetryAPIImpl: TelemetryAPIImpl;
 
   private reporterService: IReporterService;
+  private readonly activationDiagnosticsEnabled: boolean;
+  private readonly activatingExtensions = new Map<string, Promise<void>>();
+  private readonly extensionsPendingDeactivation = new Set<string>();
+  private closing = false;
 
   private extensionErrors = new WeakMap<Error, IExtensionDescription | undefined>();
 
-  constructor(rpcProtocol: SumiConnectionMultiplexer, public logger: IExtensionLogger, injector: Injector) {
+  constructor(
+    rpcProtocol: SumiConnectionMultiplexer,
+    public logger: IExtensionLogger,
+    injector: Injector,
+  ) {
     this.rpcProtocol = rpcProtocol;
     this.storage = new ExtHostStorage(rpcProtocol);
     this.secret = new ExtHostSecret(rpcProtocol);
     const reporter = injector.get(IReporter);
+    const appConfig: ExtHostAppConfig = injector.get(ExtHostAppConfig);
+    this.activationDiagnosticsEnabled =
+      Boolean(appConfig.extensionHostActivationDiagnostics) ||
+      ['1', 'enabled'].includes(process.env.EXTENSION_HOST_ACTIVATION_DIAGNOSTICS || '');
 
     this.vscodeAPIImpl = new VSCodeAPIImpl(rpcProtocol, this, injector);
     this.openSumiAPIImpl = new OpenSumiAPIImpl(rpcProtocol, this, injector);
@@ -174,7 +199,11 @@ export default class ExtensionHostServiceImpl implements IExtensionHostService {
   }
 
   public async close() {
-    await Promise.race([timeout(4000), this.extensionsActivator.deactivate]);
+    this.closing = true;
+    const settleAndDeactivate = Promise.allSettled(Array.from(this.activatingExtensions.values())).then(() =>
+      this.extensionsActivator.deactivate(),
+    );
+    await raceTimeout(settleAndDeactivate, 4000);
   }
 
   public async init() {
@@ -231,7 +260,7 @@ export default class ExtensionHostServiceImpl implements IExtensionHostService {
       .$getExtensions();
     // node 层 extensionLocation 不使用 static 直接使用 file
     // node 层 extension 实例和 vscode 保持一致，并继承 IExtensionProps
-    this.extensions = extensions.map((item) => ({
+    const nextExtensions = extensions.map((item) => ({
       ...item,
       l10n: item.packageJSON?.l10n,
       displayName: item.displayName || item.packageJSON.displayName,
@@ -243,12 +272,100 @@ export default class ExtensionHostServiceImpl implements IExtensionHostService {
       uuid: item.packageJSON?.__metadata?.id,
       extensionLocation: Uri.file(item.path),
     }));
+    await this.releaseStaleExtensions(nextExtensions);
+    this.extensions = nextExtensions;
     this.logger.debug(
       'extensions',
       this.extensions.map((extension) => extension.packageJSON.name),
     );
 
     this.extendExtHostErrorStackTrace();
+  }
+
+  private async releaseStaleExtensions(nextExtensions: IExtensionDescription[]): Promise<void> {
+    if (!this.extensions?.length) {
+      return;
+    }
+
+    const nextById = new Map(nextExtensions.map((extension) => [extension.id, extension]));
+    const staleExtensions = this.extensions.filter((extension) => {
+      const next = nextById.get(extension.id);
+      return (
+        !next || next.realPath !== extension.realPath || next.packageJSON?.version !== extension.packageJSON?.version
+      );
+    });
+
+    staleExtensions.forEach((extension) => this.extensionsPendingDeactivation.add(extension.id));
+    try {
+      for (const extension of staleExtensions) {
+        try {
+          await this.activatingExtensions.get(extension.id);
+        } catch {
+          // Failed activation is retained by the activator and follows the same cleanup path.
+        }
+        await this.extensionsActivator.deactivateExtension(extension.id);
+        this.vscodeAPIImpl.delete(extension.id);
+        this.openSumiAPIImpl.delete(extension.id);
+        this.telemetryAPIImpl.delete(extension.id);
+        this.clearExtensionModuleCache(extension.realPath);
+      }
+    } finally {
+      staleExtensions.forEach((extension) => this.extensionsPendingDeactivation.delete(extension.id));
+    }
+  }
+
+  private clearExtensionModuleCache(extensionRealPath: string): void {
+    if (!extensionRealPath) {
+      return;
+    }
+    const requireCache = getNodeRequire().cache;
+    for (const modulePath of Object.keys(requireCache)) {
+      if (this.isModuleInsideExtension(extensionRealPath, modulePath)) {
+        delete requireCache[modulePath];
+      }
+    }
+  }
+
+  private isModuleInsideExtension(extensionRealPath: string, modulePath: string): boolean {
+    const relativePath = path.relative(extensionRealPath, modulePath);
+    return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
+  }
+
+  private reportActivationDiagnostic(
+    extension: IExtensionDescription,
+    failed: boolean,
+    subscriptionCount: number,
+    startedAt: number,
+    memoryBefore: NodeJS.MemoryUsage,
+  ): void {
+    if (!this.activationDiagnosticsEnabled || !process.connected || typeof process.send !== 'function') {
+      return;
+    }
+
+    const memoryAfter = process.memoryUsage();
+    const moduleCount = Object.keys(getNodeRequire().cache).filter((modulePath) =>
+      this.isModuleInsideExtension(extension.realPath, modulePath),
+    ).length;
+    const diagnostic: ExtensionActivationDiagnosticMessage = {
+      extensionId: extension.id,
+      failed,
+      durationMs: Math.max(0, Date.now() - startedAt),
+      moduleCount,
+      subscriptionCount,
+      heapUsedBytes: memoryAfter.heapUsed,
+      heapUsedDeltaBytes: memoryAfter.heapUsed - memoryBefore.heapUsed,
+      rssBytes: memoryAfter.rss,
+      rssDeltaBytes: memoryAfter.rss - memoryBefore.rss,
+    };
+
+    try {
+      process.send({
+        type: ProcessMessageType.EXTENSION_ACTIVATION_DIAGNOSTIC,
+        data: diagnostic,
+      });
+    } catch (error) {
+      this.logger.warn(`Failed to report activation diagnostics for ${extension.id}`, error);
+    }
   }
 
   public async $fireChangeEvent() {
@@ -376,19 +493,42 @@ export default class ExtensionHostServiceImpl implements IExtensionHostService {
     }
   }
 
-  public async activateExtension(id: string) {
+  public activateExtension(id: string): Promise<void> {
+    if (this.closing || this.extensionsPendingDeactivation.has(id)) {
+      this.logger.warn(`extension ${id} activation skipped while the host is releasing it.`);
+      return Promise.resolve();
+    }
+    if (this.extensionsActivator.has(id)) {
+      this.logger.warn(`extension ${id} is already activated.`);
+      return Promise.resolve();
+    }
+    const pendingActivation = this.activatingExtensions.get(id);
+    if (pendingActivation) {
+      return pendingActivation;
+    }
+
+    const activation = this.doActivateExtension(id);
+    this.activatingExtensions.set(id, activation);
+    const clearActivation = () => {
+      if (this.activatingExtensions.get(id) === activation) {
+        this.activatingExtensions.delete(id);
+      }
+    };
+    void activation.then(clearActivation, clearActivation);
+    return activation;
+  }
+
+  private async doActivateExtension(id: string): Promise<void> {
     const extension: IExtensionDescription | undefined = this.extensions.find((ext) => ext.id === id);
 
     if (!extension) {
       this.logger.error(`extension ${id} not found`);
       return;
     }
+    const activationDiagnosticContext = this.activationDiagnosticsEnabled
+      ? { startedAt: Date.now(), memoryBefore: process.memoryUsage() }
+      : undefined;
     await this.localization.initializeLocalizedMessages(extension);
-
-    if (this.extensionsActivator.get(id)) {
-      this.logger.warn(`extension ${id} is already activated.`);
-      return;
-    }
 
     const isSumiContributes = this.containsSumiContributes(extension);
 
@@ -483,6 +623,15 @@ export default class ExtensionHostServiceImpl implements IExtensionHostService {
         extendModule,
       ),
     );
+    if (activationDiagnosticContext) {
+      this.reportActivationDiagnostic(
+        extension,
+        activationFailed,
+        context.subscriptions.length,
+        activationDiagnosticContext.startedAt,
+        activationDiagnosticContext.memoryBefore,
+      );
+    }
     // 如果有异常，则向上抛出
     if (activationFailedError) {
       throw activationFailedError;

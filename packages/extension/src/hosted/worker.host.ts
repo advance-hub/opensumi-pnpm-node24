@@ -55,6 +55,8 @@ export class ExtensionWorkerHost implements IExtensionWorkerHost {
   private initDeferred = new Deferred();
 
   private activatedExtensions: Map<string, ActivatedExtension> = new Map<string, ActivatedExtension>();
+  private readonly activatingExtensions = new Map<string, Promise<void>>();
+  private readonly extensionsPendingDeactivation = new Set<string>();
 
   private mainThreadExtensionService: SumiWorkerExtensionService;
 
@@ -68,7 +70,10 @@ export class ExtensionWorkerHost implements IExtensionWorkerHost {
 
   private reporterService: IReporterService;
 
-  constructor(private rpcProtocol: SumiConnectionMultiplexer, private injector: Injector) {
+  constructor(
+    private rpcProtocol: SumiConnectionMultiplexer,
+    private injector: Injector,
+  ) {
     const reporter = this.injector.get(IReporter);
     this.logger = new ExtensionLogger(rpcProtocol);
     this.storage = new ExtHostStorage(rpcProtocol);
@@ -134,11 +139,13 @@ export class ExtensionWorkerHost implements IExtensionWorkerHost {
     await this.init();
 
     const extensions = await this.mainThreadExtensionService.$getExtensions();
-    this.extensions = extensions.map((ext) => ({
+    const nextExtensions = extensions.map((ext) => ({
       ...ext,
       identifier: new ExtensionIdentifier(ext.id),
       extensionLocation: Uri.from(ext.extensionLocation),
     }));
+    await this.releaseStaleExtensions(nextExtensions);
+    this.extensions = nextExtensions;
     this.logger.verbose(
       'worker $handleExtHostCreated',
       this.extensions.map((extension) => extension.packageJSON.name),
@@ -147,6 +154,54 @@ export class ExtensionWorkerHost implements IExtensionWorkerHost {
     this.extendExtHostErrorStackTrace();
 
     this.initDeferred.resolve(undefined);
+  }
+
+  private async releaseStaleExtensions(nextExtensions: IExtensionProps[]): Promise<void> {
+    if (!this.extensions?.length) {
+      return;
+    }
+
+    const nextById = new Map(nextExtensions.map((extension) => [extension.id, extension]));
+    const staleExtensions = this.extensions.filter((extension) => {
+      const next = nextById.get(extension.id);
+      return (
+        !next || next.realPath !== extension.realPath || next.packageJSON?.version !== extension.packageJSON?.version
+      );
+    });
+
+    staleExtensions.forEach((extension) => this.extensionsPendingDeactivation.add(extension.id));
+    try {
+      for (const extension of staleExtensions) {
+        try {
+          await this.activatingExtensions.get(extension.id);
+        } catch {
+          // Failed activation still needs its API and subscription state released.
+        }
+        await this.deactivateExtension(extension.id);
+      }
+    } finally {
+      staleExtensions.forEach((extension) => this.extensionsPendingDeactivation.delete(extension.id));
+    }
+  }
+
+  private async deactivateExtension(id: string): Promise<void> {
+    const extension = this.activatedExtensions.get(id);
+    if (extension) {
+      try {
+        await extension.module?.deactivate?.();
+      } catch (error) {
+        this.logger.error(`[Worker-Host] failed to deactivate extension ${id}`, error);
+      }
+      for (const disposable of extension.subscriptions) {
+        try {
+          disposable.dispose();
+        } catch (error) {
+          this.logger.error(`[Worker-Host] failed to dispose extension ${id}`, error);
+        }
+      }
+      this.activatedExtensions.delete(id);
+    }
+    this.sumiExtAPIImpl.delete(id);
   }
 
   private _extHostErrorStackTraceExtended = false;
@@ -279,7 +334,32 @@ export class ExtensionWorkerHost implements IExtensionWorkerHost {
     return this.activateExtension(id);
   }
 
-  public async activateExtension(id: string) {
+  public activateExtension(id: string): Promise<void> {
+    if (this.extensionsPendingDeactivation.has(id)) {
+      this.logger.warn(`[Worker-Host] extension ${id} activation skipped while it is being released`);
+      return Promise.resolve();
+    }
+    if (this.activatedExtensions.has(id)) {
+      this.logger.verbose(`[Worker-Host] extension ${id} is already activated`);
+      return Promise.resolve();
+    }
+    const pendingActivation = this.activatingExtensions.get(id);
+    if (pendingActivation) {
+      return pendingActivation;
+    }
+
+    const activation = this.doActivateExtension(id);
+    this.activatingExtensions.set(id, activation);
+    const clearActivation = () => {
+      if (this.activatingExtensions.get(id) === activation) {
+        this.activatingExtensions.delete(id);
+      }
+    };
+    void activation.then(clearActivation, clearActivation);
+    return activation;
+  }
+
+  private async doActivateExtension(id: string): Promise<void> {
     const extension = this.extensions.find((extension) => extension.id === id);
 
     if (!extension) {

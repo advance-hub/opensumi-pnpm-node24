@@ -186,7 +186,7 @@ export class ContentSearchClientService extends Disposable implements IContentSe
   private searchCancelToken: CancellationTokenSource;
   private searchOnType: boolean;
 
-  public searchDebounce: () => void;
+  public searchDebounce: ReturnType<typeof debounce>;
 
   constructor() {
     super();
@@ -205,6 +205,7 @@ export class ContentSearchClientService extends Disposable implements IContentSe
         maxWait: timeout * 5,
       },
     );
+    this.addDispose({ dispose: () => this.searchDebounce.cancel() });
 
     this.addDispose(
       this.searchPreferences.onPreferenceChanged((e) => {
@@ -230,6 +231,9 @@ export class ContentSearchClientService extends Disposable implements IContentSe
   }
 
   async search(insertUIState?: IUIState) {
+    // An explicit Enter/search action supersedes the queued search-on-type invocation.
+    // Without this, the trailing debounce can cancel and replace the explicit request while it is starting.
+    this.searchDebounce.cancel();
     const value = this.searchValue;
     this.cleanSearchResults();
     if (!value) {

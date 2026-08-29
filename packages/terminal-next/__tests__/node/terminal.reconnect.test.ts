@@ -16,6 +16,7 @@ class MockPtyServiceManager implements IPtyServiceManager {
   private disconnectEmitter = new Emitter<void>();
   onDidReconnect: Event<void> = this.reconnectEmitter.event;
   onDidDisconnect: Event<void> = this.disconnectEmitter.event;
+  scheduledCleanups: Array<{ sessionId: string; timeoutMs: number }> = [];
 
   fireReconnect() {
     this.reconnectEmitter.fire();
@@ -36,6 +37,9 @@ class MockPtyServiceManager implements IPtyServiceManager {
   resume(): void {}
   clear(): void {}
   kill(): void {}
+  scheduleSessionCleanup(sessionId: string, timeoutMs: number): void {
+    this.scheduledCleanups.push({ sessionId, timeoutMs });
+  }
   getProcess(): Promise<string> {
     return Promise.resolve('');
   }
@@ -168,6 +172,7 @@ describe('TerminalServiceImpl reconnect flow', () => {
         token: AppConfig,
         useValue: {
           terminalPtyCloseThreshold: 0,
+          terminalPersistentSessionTimeout: 1234,
         },
       },
     );
@@ -197,5 +202,24 @@ describe('TerminalServiceImpl reconnect flow', () => {
 
     manager.fireDisconnect();
     expect(client.disconnectedIds).toContain(sessionId);
+  });
+
+  it('releases connection references and leases persistent PTYs for bounded resume', async () => {
+    expect.assertions(6);
+    const client = new MockTerminalClient();
+    (service as any).setClient(clientId, client);
+    await service.create2(sessionId, 80, 24, launchConfig);
+    const terminal = FakePtyService.instances[0];
+    const kill = jest.spyOn(terminal, 'kill');
+    const dispose = jest.spyOn(terminal, 'dispose');
+
+    (service as any).disposeClient(clientId);
+
+    expect((service as any).serviceClientMap.has(clientId)).toBe(false);
+    expect((service as any).clientTerminalMap.has(clientId)).toBe(false);
+    expect((service as any).terminalProcessMap.has(sessionId)).toBe(false);
+    expect(kill).not.toHaveBeenCalled();
+    expect(dispose).toHaveBeenCalledTimes(1);
+    expect(manager.scheduledCleanups).toEqual([{ sessionId, timeoutMs: 1234 }]);
   });
 });

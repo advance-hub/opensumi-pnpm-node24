@@ -204,7 +204,7 @@ describe('AI tabbar layout BDD', () => {
   });
 
   it('Given classic layout, when the left tab renderer renders, then it uses the design left renderer', async () => {
-    const { AILeftTabRenderer } = await import('../../src/browser/layout/tabbar.view');
+    const { AILeftTabRenderer } = require('../../src/browser/layout/tabbar.view');
 
     act(() => {
       root.render(<AILeftTabRenderer className='slot-class' components={[]} />);
@@ -219,7 +219,7 @@ describe('AI tabbar layout BDD', () => {
 
   it('Given agentic layout, when the left tab renderer renders, then it puts the view tabbar on the right', async () => {
     panelLayoutMode = 'agentic';
-    const { AILeftTabRenderer } = await import('../../src/browser/layout/tabbar.view');
+    const { AILeftTabRenderer } = require('../../src/browser/layout/tabbar.view');
 
     act(() => {
       root.render(<AILeftTabRenderer className='slot-class' components={[]} />);
@@ -266,7 +266,7 @@ describe('AI tabbar layout BDD', () => {
         },
       },
     ];
-    const { AILeftTabRenderer } = await import('../../src/browser/layout/tabbar.view');
+    const { AILeftTabRenderer } = require('../../src/browser/layout/tabbar.view');
 
     act(() => {
       root.render(<AILeftTabRenderer className='slot-class' components={[]} />);
@@ -281,8 +281,8 @@ describe('AI tabbar layout BDD', () => {
 
   it('Given agentic layout, when the view slot restores size, then it uses the previous resize handle', async () => {
     panelLayoutMode = 'agentic';
-    const { PanelContext } = await import('@opensumi/ide-core-browser/lib/components');
-    const { AILeftTabRenderer } = await import('../../src/browser/layout/tabbar.view');
+    const { PanelContext } = require('@opensumi/ide-core-browser/lib/components');
+    const { AILeftTabRenderer } = require('../../src/browser/layout/tabbar.view');
     const parentResizeHandle = {
       setSize: jest.fn(),
       setRelativeSize: jest.fn(),
@@ -320,8 +320,8 @@ describe('AI tabbar layout BDD', () => {
     panelLayoutMode = 'agentic';
     mockViewCurrentContainerId = 'workbench.explorer.fileView';
     mockViewTabbarService.prevSize = 384;
-    const { PanelContext } = await import('@opensumi/ide-core-browser/lib/components');
-    const { AILeftTabRenderer } = await import('../../src/browser/layout/tabbar.view');
+    const { PanelContext } = require('@opensumi/ide-core-browser/lib/components');
+    const { AILeftTabRenderer } = require('../../src/browser/layout/tabbar.view');
     const parentResizeHandle = {
       setSize: jest.fn(),
       setRelativeSize: jest.fn(),
@@ -348,8 +348,8 @@ describe('AI tabbar layout BDD', () => {
   it('Given agentic layout has an active Explorer without cached width, when view is ready, then it restores the default usable width', async () => {
     panelLayoutMode = 'agentic';
     mockViewCurrentContainerId = 'workbench.explorer.fileView';
-    const { PanelContext } = await import('@opensumi/ide-core-browser/lib/components');
-    const { AILeftTabRenderer } = await import('../../src/browser/layout/tabbar.view');
+    const { PanelContext } = require('@opensumi/ide-core-browser/lib/components');
+    const { AILeftTabRenderer } = require('../../src/browser/layout/tabbar.view');
     const parentResizeHandle = {
       setSize: jest.fn(),
       setRelativeSize: jest.fn(),
@@ -376,8 +376,8 @@ describe('AI tabbar layout BDD', () => {
     panelLayoutMode = 'agentic';
     mockViewCurrentContainerId = 'workbench.explorer.fileView';
     mockViewReadyPromise = new Promise(() => {});
-    const { PanelContext } = await import('@opensumi/ide-core-browser/lib/components');
-    const { AILeftTabRenderer } = await import('../../src/browser/layout/tabbar.view');
+    const { PanelContext } = require('@opensumi/ide-core-browser/lib/components');
+    const { AILeftTabRenderer } = require('../../src/browser/layout/tabbar.view');
     const parentResizeHandle = {
       setSize: jest.fn(),
       setRelativeSize: jest.fn(),
@@ -401,7 +401,7 @@ describe('AI tabbar layout BDD', () => {
   });
 
   it('Given classic layout, when the hidden AI chat renderer renders, then it keeps the main branch direction', async () => {
-    const { AIChatTabRenderer } = await import('../../src/browser/layout/tabbar.view');
+    const { AIChatTabRenderer } = require('../../src/browser/layout/tabbar.view');
 
     act(() => {
       root.render(<AIChatTabRenderer className='slot-class' components={[]} />);
@@ -413,8 +413,8 @@ describe('AI tabbar layout BDD', () => {
   });
 
   it('Given classic layout, when AI chat collapses, then it uses the latter split child resize side', async () => {
-    const { PanelContext } = await import('@opensumi/ide-core-browser/lib/components');
-    const { AIChatTabRenderer } = await import('../../src/browser/layout/tabbar.view');
+    const { PanelContext } = require('@opensumi/ide-core-browser/lib/components');
+    const { AIChatTabRenderer } = require('../../src/browser/layout/tabbar.view');
     const parentResizeHandle = {
       setSize: jest.fn(),
       setRelativeSize: jest.fn(),
@@ -441,7 +441,7 @@ describe('AI tabbar layout BDD', () => {
   });
 
   it('Given classic layout, when the tabbed AI chat renderer renders, then it keeps the main branch right-side direction', async () => {
-    const { AIChatTabRendererWithTab } = await import('../../src/browser/layout/tabbar.view');
+    const { AIChatTabRendererWithTab } = require('../../src/browser/layout/tabbar.view');
 
     act(() => {
       root.render(<AIChatTabRendererWithTab className='slot-class' components={[]} />);
@@ -453,8 +453,8 @@ describe('AI tabbar layout BDD', () => {
 
   it('Given agentic layout, when AI chat restores size, then it uses the first split child resize side', async () => {
     panelLayoutMode = 'agentic';
-    const { PanelContext } = await import('@opensumi/ide-core-browser/lib/components');
-    const { AIChatTabRenderer } = await import('../../src/browser/layout/tabbar.view');
+    const { PanelContext } = require('@opensumi/ide-core-browser/lib/components');
+    const { AIChatTabRenderer } = require('../../src/browser/layout/tabbar.view');
     const parentResizeHandle = {
       setSize: jest.fn(),
       setRelativeSize: jest.fn(),
@@ -483,7 +483,7 @@ describe('AI tabbar layout BDD', () => {
 
   it('Given agentic layout, when the hidden AI chat tabbar renders, then it does not render overflow tabs', async () => {
     panelLayoutMode = 'agentic';
-    const { AIChatTabRenderer } = await import('../../src/browser/layout/tabbar.view');
+    const { AIChatTabRenderer } = require('../../src/browser/layout/tabbar.view');
 
     act(() => {
       root.render(<AIChatTabRenderer className='slot-class' components={[]} />);

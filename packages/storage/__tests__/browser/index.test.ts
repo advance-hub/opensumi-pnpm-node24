@@ -7,7 +7,7 @@ import { Injectable, Injector } from '@opensumi/di';
 import { WSChannelHandler } from '@opensumi/ide-connection/lib/browser';
 import { AppConfig, Disposable, FileUri, STORAGE_SCHEMA, URI } from '@opensumi/ide-core-browser';
 import { createBrowserInjector } from '@opensumi/ide-dev-tool/src/injector-helper';
-import { IDiskFileProvider, IFileServiceClient } from '@opensumi/ide-file-service';
+import { FileSystemError, IDiskFileProvider, IFileServiceClient } from '@opensumi/ide-file-service';
 import { FileServiceClient } from '@opensumi/ide-file-service/lib/browser/file-service-client';
 import { DiskFileSystemProvider } from '@opensumi/ide-file-service/lib/node/disk-file-system.provider';
 import { WatcherProcessManagerToken } from '@opensumi/ide-file-service/lib/node/watcher-process-manager';
@@ -48,6 +48,7 @@ export class MockDatabaseStoragePathServer implements IStoragePathServer {
 describe('WorkspaceStorage should be work', () => {
   let workspaceStorage: IStorageServer;
   let globalStorage: IStorageServer;
+  let fileServiceClient: FileServiceClient;
   let injector: Injector;
   let databaseStorageContribution: DatabaseStorageContribution;
   const storageName = 'testStorage';
@@ -100,7 +101,7 @@ describe('WorkspaceStorage should be work', () => {
         },
       },
     );
-    const fileServiceClient: FileServiceClient = injector.get(IFileServiceClient);
+    fileServiceClient = injector.get(IFileServiceClient);
     fileServiceClient.registerProvider('file', injector.get(IDiskFileProvider));
     workspaceStorage = injector.get(IWorkspaceStorageServer);
     globalStorage = injector.get(IGlobalStorageServer);
@@ -204,6 +205,25 @@ describe('WorkspaceStorage should be work', () => {
       expect(Object.keys(res).length).toBe(1);
       expect(res.id).toBe(undefined);
       expect(res.name).toBe(updateRequest.insert!.name);
+    });
+
+    it('reloads and retries a global storage update after a concurrent write conflict', async () => {
+      const conflictStorageName = 'concurrentStorage';
+      await globalStorage.updateItems(conflictStorageName, { insert: { first: 'kept' } });
+      const originalSetContent = fileServiceClient.setContent.bind(fileServiceClient);
+      const setContent = jest
+        .spyOn(fileServiceClient, 'setContent')
+        .mockRejectedValueOnce(FileSystemError.FileIsOutOfSync(conflictStorageName))
+        .mockImplementation(originalSetContent);
+
+      await globalStorage.updateItems(conflictStorageName, { insert: { second: 'written' } });
+
+      const persisted = JSON.parse(
+        fs.readFileSync(path.join(root.path.toString(), `${conflictStorageName}.json`), 'utf8'),
+      );
+      expect(setContent).toHaveBeenCalledTimes(2);
+      expect(persisted).toEqual({ first: 'kept', second: 'written' });
+      setContent.mockRestore();
     });
   });
 

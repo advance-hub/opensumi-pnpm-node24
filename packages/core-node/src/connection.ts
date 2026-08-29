@@ -4,7 +4,7 @@ import net from 'net';
 import { ClassCreator, FactoryCreator, Injector, InstanceCreator } from '@opensumi/di';
 import { RPCServiceCenter, WSChannel, initRPCService } from '@opensumi/ide-connection';
 import { CommonChannelPathHandler, RPCServiceChannelPath } from '@opensumi/ide-connection/lib/common/server-handler';
-import { ElectronChannelHandler } from '@opensumi/ide-connection/lib/electron';
+import { ElectronChannelHandler, MultiplexElectronChannelHandler } from '@opensumi/ide-connection/lib/electron';
 import { CommonChannelHandler, WebSocketHandler, WebSocketServerRoute } from '@opensumi/ide-connection/lib/node';
 import {
   CLIENT_ID_TOKEN,
@@ -79,11 +79,22 @@ export function createServerConnection2(
   socketRoute.init();
 }
 
-export function createNetServerConnection(server: net.Server, injector: Injector, modulesInstances: NodeModule[]) {
+export function createNetServerConnection(
+  server: net.Server,
+  injector: Injector,
+  modulesInstances: NodeModule[],
+  serverAppOpts: IServerAppOpts,
+) {
   const logger = injector.get(INodeLogger) as INodeLogger;
   const commonChannelPathHandler = injector.get(CommonChannelPathHandler);
 
-  const handler = new ElectronChannelHandler(server, commonChannelPathHandler, logger);
+  const handler =
+    serverAppOpts.netChannelMode === 'multiplex-v1'
+      ? new MultiplexElectronChannelHandler(server, commonChannelPathHandler, logger, {
+          maxPayload: serverAppOpts.wsServerOptions?.maxPayload,
+          maxBufferedAmount: serverAppOpts.wsMaxBufferedAmount,
+        })
+      : new ElectronChannelHandler(server, commonChannelPathHandler, logger);
   // 事件由 connection 的时机来触发
   commonChannelPathHandler.register(RPCServiceChannelPath, {
     handler: (channel: WSChannel, clientId: string) => {

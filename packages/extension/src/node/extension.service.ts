@@ -15,7 +15,6 @@ import {
   SupportLogNamespace,
   getDebugLogger,
   isUndefined,
-  pMemoize,
   timeout,
 } from '@opensumi/ide-core-common';
 import { findFreePort } from '@opensumi/ide-core-common/lib/node/port';
@@ -23,6 +22,7 @@ import { normalizedIpcHandlerPathAsync } from '@opensumi/ide-core-common/lib/uti
 import {
   AppConfig,
   Deferred,
+  ExtensionHostRuntimeStatus,
   INodeLogger,
   IReporter,
   IReporterService,
@@ -39,6 +39,7 @@ import { process as processUtil } from '@opensumi/ide-utils';
 
 import {
   CONNECTION_HANDLE_BETWEEN_EXTENSION_AND_MAIN_THREAD,
+  ExtensionActivationDiagnosticMessage,
   ICreateProcessOptions,
   IExtensionHostManager,
   IExtensionMetaData,
@@ -55,10 +56,26 @@ import { ExtensionScanner } from './extension.scanner';
 
 import type cp from 'child_process';
 
+interface RecordedExtensionActivationDiagnostic {
+  extensionId: string;
+  activationCount: number;
+  failureCount: number;
+  maxActivationDurationMs: number;
+  maxModuleCount: number;
+  maxSubscriptionCount: number;
+  maxObservedHeapUsedBytes: number;
+  maxObservedRssBytes: number;
+  maxPositiveHeapUsedDeltaBytes: number;
+  maxPositiveRssDeltaBytes: number;
+}
+
 @Injectable()
 export class ExtensionNodeServiceImpl implements IExtensionNodeService {
   private LOG_TAG = 'ExtensionNodeServiceImpl:' + Date.now();
-  static MaxExtProcessCount = 5;
+  static MaxExtProcessCount = 3;
+  static MaxActivationDiagnosticsPerHost = 64;
+  static MaxReportedActivationDiagnostics = 10;
+  static ExtensionHostStartupTimeout = 15_000;
   // ws 断开 5 分钟后杀掉插件进程
   static ProcessCloseExitThreshold: number = 5 * 60 * 1000;
 
@@ -91,8 +108,21 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
   private clientExtProcessFinishDeferredMap: Map<string, Deferred<void>> = new Map();
   private clientExtProcessThresholdExitTimerMap: Map<string, NodeJS.Timeout> = new Map();
   private clientServiceMap: Map<string, IExtensionNodeClientService> = new Map();
+  private clientMainThreadChannelMap: Map<string, WSServerChannel> = new Map();
   private maybeZombieClients: Set<string> = new Set();
   private intentionallyStoppedExtProcesses: Set<number> = new Set();
+  private createProcessPromises: Map<string, Promise<void>> = new Map();
+  private extensionHostCreationQueue: Promise<void> = Promise.resolve();
+  private clientExtensionActivationDiagnostics: Map<string, Map<string, RecordedExtensionActivationDiagnostic>> =
+    new Map();
+  private extensionHostCounters: ExtensionHostRuntimeStatus['counters'] = {
+    created: 0,
+    crashed: 0,
+    disposed: 0,
+    reclaimed: 0,
+    rejected: 0,
+    startupTimeouts: 0,
+  };
 
   private inspectPort = 9889;
 
@@ -111,6 +141,173 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
   public async initialize() {
     await this.extensionHostManager.init();
     this.setExtProcessConnectionForward();
+    this.reportExtensionHostStatus();
+  }
+
+  private isExtensionActivationDiagnosticsEnabled(): boolean {
+    return (
+      Boolean(this.appConfig.extensionHostActivationDiagnostics) ||
+      ['1', 'enabled'].includes(process.env.EXTENSION_HOST_ACTIVATION_DIAGNOSTICS || '')
+    );
+  }
+
+  private reportExtensionHostStatus() {
+    const listener = this.appConfig.onDidChangeExtensionHostStatus;
+    if (!listener) {
+      return;
+    }
+    const limit = this.appConfig.maxExtProcessCount || ExtensionNodeServiceImpl.MaxExtProcessCount;
+    const disconnected = Array.from(this.clientExtProcessMap.keys()).filter(
+      (clientId) => this.maybeZombieClients.has(clientId) || this.clientExtProcessThresholdExitTimerMap.has(clientId),
+    ).length;
+    try {
+      const activationDiagnostics = this.summarizeExtensionActivationDiagnostics();
+      listener({
+        active: this.clientExtProcessMap.size,
+        disconnected,
+        clientServiceProxies: this.clientServiceMap.size,
+        mainThreadConnections: this.clientMainThreadChannelMap.size,
+        limit,
+        saturated: this.clientExtProcessMap.size >= limit,
+        counters: { ...this.extensionHostCounters },
+        ...(activationDiagnostics ? { activationDiagnostics } : {}),
+      });
+    } catch (error) {
+      this.logger.warn('Report extension host status failed', error);
+    }
+  }
+
+  private summarizeExtensionActivationDiagnostics():
+    NonNullable<ExtensionHostRuntimeStatus['activationDiagnostics']> | undefined {
+    if (!this.isExtensionActivationDiagnosticsEnabled() || this.clientExtensionActivationDiagnostics.size === 0) {
+      return undefined;
+    }
+
+    const summaries = new Map<
+      string,
+      NonNullable<ExtensionHostRuntimeStatus['activationDiagnostics']>['topExtensions'][number]
+    >();
+    for (const hostDiagnostics of this.clientExtensionActivationDiagnostics.values()) {
+      for (const diagnostic of hostDiagnostics.values()) {
+        const summary = summaries.get(diagnostic.extensionId) || {
+          extensionId: diagnostic.extensionId,
+          reportingHosts: 0,
+          activationCount: 0,
+          failureCount: 0,
+          maxActivationDurationMs: 0,
+          maxModuleCount: 0,
+          maxSubscriptionCount: 0,
+          maxObservedHeapUsedBytes: 0,
+          maxObservedRssBytes: 0,
+          maxPositiveHeapUsedDeltaBytes: 0,
+          maxPositiveRssDeltaBytes: 0,
+        };
+        summary.reportingHosts += 1;
+        summary.activationCount += diagnostic.activationCount;
+        summary.failureCount += diagnostic.failureCount;
+        summary.maxActivationDurationMs = Math.max(summary.maxActivationDurationMs, diagnostic.maxActivationDurationMs);
+        summary.maxModuleCount = Math.max(summary.maxModuleCount, diagnostic.maxModuleCount);
+        summary.maxSubscriptionCount = Math.max(summary.maxSubscriptionCount, diagnostic.maxSubscriptionCount);
+        summary.maxObservedHeapUsedBytes = Math.max(
+          summary.maxObservedHeapUsedBytes,
+          diagnostic.maxObservedHeapUsedBytes,
+        );
+        summary.maxObservedRssBytes = Math.max(summary.maxObservedRssBytes, diagnostic.maxObservedRssBytes);
+        summary.maxPositiveHeapUsedDeltaBytes = Math.max(
+          summary.maxPositiveHeapUsedDeltaBytes,
+          diagnostic.maxPositiveHeapUsedDeltaBytes,
+        );
+        summary.maxPositiveRssDeltaBytes = Math.max(
+          summary.maxPositiveRssDeltaBytes,
+          diagnostic.maxPositiveRssDeltaBytes,
+        );
+        summaries.set(diagnostic.extensionId, summary);
+      }
+    }
+
+    return {
+      reportedHosts: this.clientExtensionActivationDiagnostics.size,
+      topExtensions: Array.from(summaries.values())
+        .sort(
+          (left, right) =>
+            right.maxPositiveHeapUsedDeltaBytes - left.maxPositiveHeapUsedDeltaBytes ||
+            right.maxModuleCount - left.maxModuleCount ||
+            left.extensionId.localeCompare(right.extensionId),
+        )
+        .slice(0, ExtensionNodeServiceImpl.MaxReportedActivationDiagnostics),
+    };
+  }
+
+  private recordExtensionActivationDiagnostic(clientId: string, value: unknown): void {
+    if (!this.isExtensionActivationDiagnosticsEnabled()) {
+      return;
+    }
+    const diagnostic = this.normalizeExtensionActivationDiagnostic(value);
+    if (!diagnostic) {
+      return;
+    }
+
+    let hostDiagnostics = this.clientExtensionActivationDiagnostics.get(clientId);
+    if (!hostDiagnostics) {
+      hostDiagnostics = new Map();
+      this.clientExtensionActivationDiagnostics.set(clientId, hostDiagnostics);
+    }
+    const existing = hostDiagnostics.get(diagnostic.extensionId);
+    if (existing) {
+      existing.activationCount += 1;
+      existing.failureCount += diagnostic.failed ? 1 : 0;
+      existing.maxActivationDurationMs = Math.max(existing.maxActivationDurationMs, diagnostic.durationMs);
+      existing.maxModuleCount = Math.max(existing.maxModuleCount, diagnostic.moduleCount);
+      existing.maxSubscriptionCount = Math.max(existing.maxSubscriptionCount, diagnostic.subscriptionCount);
+      existing.maxObservedHeapUsedBytes = Math.max(existing.maxObservedHeapUsedBytes, diagnostic.heapUsedBytes);
+      existing.maxObservedRssBytes = Math.max(existing.maxObservedRssBytes, diagnostic.rssBytes);
+      existing.maxPositiveHeapUsedDeltaBytes = Math.max(
+        existing.maxPositiveHeapUsedDeltaBytes,
+        diagnostic.heapUsedDeltaBytes,
+      );
+      existing.maxPositiveRssDeltaBytes = Math.max(existing.maxPositiveRssDeltaBytes, diagnostic.rssDeltaBytes);
+    } else {
+      if (hostDiagnostics.size >= ExtensionNodeServiceImpl.MaxActivationDiagnosticsPerHost) {
+        const oldestExtensionId = hostDiagnostics.keys().next().value;
+        if (oldestExtensionId) {
+          hostDiagnostics.delete(oldestExtensionId);
+        }
+      }
+      hostDiagnostics.set(diagnostic.extensionId, {
+        extensionId: diagnostic.extensionId,
+        activationCount: 1,
+        failureCount: diagnostic.failed ? 1 : 0,
+        maxActivationDurationMs: diagnostic.durationMs,
+        maxModuleCount: diagnostic.moduleCount,
+        maxSubscriptionCount: diagnostic.subscriptionCount,
+        maxObservedHeapUsedBytes: diagnostic.heapUsedBytes,
+        maxObservedRssBytes: diagnostic.rssBytes,
+        maxPositiveHeapUsedDeltaBytes: Math.max(0, diagnostic.heapUsedDeltaBytes),
+        maxPositiveRssDeltaBytes: Math.max(0, diagnostic.rssDeltaBytes),
+      });
+    }
+    this.reportExtensionHostStatus();
+  }
+
+  private normalizeExtensionActivationDiagnostic(value: unknown): ExtensionActivationDiagnosticMessage | undefined {
+    if (!value || typeof value !== 'object') {
+      return undefined;
+    }
+    const candidate = value as Partial<ExtensionActivationDiagnosticMessage>;
+    const extensionId = typeof candidate.extensionId === 'string' ? candidate.extensionId.trim() : '';
+    if (!/^[a-z0-9][a-z0-9._-]{0,255}$/i.test(extensionId) || typeof candidate.failed !== 'boolean') {
+      return undefined;
+    }
+
+    const nonNegativeFields = ['durationMs', 'moduleCount', 'subscriptionCount', 'heapUsedBytes', 'rssBytes'] as const;
+    const deltaFields = ['heapUsedDeltaBytes', 'rssDeltaBytes'] as const;
+    if (
+      nonNegativeFields.some((field) => !Number.isSafeInteger(candidate[field]) || (candidate[field] as number) < 0) ||
+      deltaFields.some((field) => !Number.isSafeInteger(candidate[field]))
+    ) {
+      return undefined;
+    }
+    return candidate as ExtensionActivationDiagnosticMessage;
   }
 
   public async getAllExtensions(
@@ -172,7 +369,9 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
   private setExtProcessConnectionForward() {
     this.logger.log('setExtProcessConnectionForward', this.LOG_TAG);
     this._setMainThreadConnection(async ({ channel, clientId }) => {
+      this.clientMainThreadChannelMap.set(clientId, channel);
       this.maybeZombieClients.delete(clientId);
+      this.reportExtensionHostStatus();
 
       if (this.clientExtProcessExtConnectionDeferredMap.get(clientId)) {
         // means that we are creating the ext process or the ext process is created.
@@ -194,7 +393,7 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
          * 1. 用户关闭电脑超过 ProcessCloseExitThreshold 设定的最大时间，插件进程被杀死后，前端再次建立连接时
          * 2. Node 进程被杀死，插件进程也会被杀死
          */
-        this.restartExtProcessByClient(clientId);
+        await this.restartExtProcessByClient(clientId);
         this.reporterService.point(REPORT_NAME.EXTENSION_NOT_EXIST, clientId);
         return;
       }
@@ -223,24 +422,91 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
     });
   }
 
-  @pMemoize((clientId: string) => clientId)
-  public async createProcess(clientId: string, options?: ICreateProcessOptions) {
+  public createProcess(clientId: string, options?: ICreateProcessOptions): Promise<void> {
+    const pending = this.createProcessPromises.get(clientId);
+    if (pending) {
+      return pending;
+    }
+
+    const creation = this.runWithExtensionHostCreationLock(async () => {
+      await this.createProcessWithCapacity(clientId, options);
+    });
+    this.createProcessPromises.set(clientId, creation);
+    void creation.then(
+      () => this.createProcessPromises.delete(clientId),
+      () => this.createProcessPromises.delete(clientId),
+    );
+    return creation;
+  }
+
+  private async runWithExtensionHostCreationLock<T>(task: () => Promise<T>): Promise<T> {
+    const previous = this.extensionHostCreationQueue;
+    let release: () => void = () => undefined;
+    this.extensionHostCreationQueue = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await previous;
+    try {
+      return await task();
+    } finally {
+      release();
+    }
+  }
+
+  private async createProcessWithCapacity(clientId: string, options?: ICreateProcessOptions): Promise<void> {
     this.logger.log(this.LOG_TAG, 'create extension process for client:', clientId);
     this.logger.log('appconfig exthost', this.appConfig.extHost);
 
-    // 检查是否超过限制最大的进程数
-    const processClientIdArr = Array.from(this.clientExtProcessMap.keys());
-    const maxExtProcessCount = this.appConfig.maxExtProcessCount || ExtensionNodeServiceImpl.MaxExtProcessCount;
-    if (processClientIdArr.length >= maxExtProcessCount) {
-      const killProcessClientId = processClientIdArr[0];
-      await this.disposeClientExtProcess(killProcessClientId);
-      this.logger.error(
-        `Process count is over limit, max count is ${maxExtProcessCount}, try kill`,
-        killProcessClientId,
-      );
+    const existingProcessId = this.clientExtProcessMap.get(clientId);
+    if (!isUndefined(existingProcessId)) {
+      if (await this.extensionHostManager.isRunning(existingProcessId)) {
+        this.logger.log(`Reuse existing extension host ${existingProcessId} for client ${clientId}`);
+        return;
+      }
+      await this.disposeClientExtProcess(clientId, false, false);
     }
-    await this._createExtServer(clientId, options);
-    await this._createExtHostProcess(clientId, options);
+
+    await this.ensureExtensionHostCapacity(clientId);
+    try {
+      await this._createExtServer(clientId, options);
+      await this._createExtHostProcess(clientId, options);
+    } catch (error) {
+      await this.disposeClientExtProcess(clientId, false);
+      throw error;
+    }
+  }
+
+  private async ensureExtensionHostCapacity(clientId: string): Promise<void> {
+    const maxExtProcessCount = this.appConfig.maxExtProcessCount || ExtensionNodeServiceImpl.MaxExtProcessCount;
+    if (this.clientExtProcessMap.size < maxExtProcessCount) {
+      return;
+    }
+
+    // Only reclaim disconnected or already-dead hosts. An active session must
+    // never be evicted just because a new browser reached the server later.
+    for (const [trackedClientId, processId] of this.clientExtProcessMap) {
+      const disconnected =
+        this.maybeZombieClients.has(trackedClientId) || this.clientExtProcessThresholdExitTimerMap.has(trackedClientId);
+      const running = disconnected ? true : await this.extensionHostManager.isRunning(processId);
+      if (disconnected || !running) {
+        this.logger.warn(`Reclaim extension host ${processId} for ${trackedClientId} before admitting ${clientId}`);
+        this.extensionHostCounters.reclaimed += 1;
+        await this.disposeClientExtProcess(trackedClientId, false, running);
+        if (this.clientExtProcessMap.size < maxExtProcessCount) {
+          return;
+        }
+      }
+    }
+
+    const error = new Error(
+      `Extension host capacity reached (${this.clientExtProcessMap.size}/${maxExtProcessCount}); ` +
+        `client ${clientId} was not admitted`,
+    );
+    error.name = 'ExtensionHostCapacityError';
+    this.extensionHostCounters.rejected += 1;
+    this.reportExtensionHostStatus();
+    this.logger.error(error.message);
+    throw error;
   }
 
   private async _createExtServer(clientId: string, options?: ICreateProcessOptions) {
@@ -259,8 +525,19 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
 
     this.clientExtProcessExtConnectionDeferredMap.set(clientId, new Deferred<void>());
 
-    extServer.listen(extServerListenOptions, () => {
-      this.logger.log(`${clientId} ext server listen on ${JSON.stringify(extServerListenOptions)}`);
+    await new Promise<void>((resolve, reject) => {
+      const onError = (error: Error) => {
+        reject(error);
+      };
+      extServer.once('error', onError);
+      extServer.listen(extServerListenOptions, () => {
+        extServer.off('error', onError);
+        extServer.on('error', (error) => {
+          this.logger.error(`Extension host IPC server failed for ${clientId}`, error);
+        });
+        this.logger.log(`${clientId} ext server listen on ${JSON.stringify(extServerListenOptions)}`);
+        resolve();
+      });
     });
 
     // 重启时，旧的 path 已经不再使用，但是系统未清理，导致 listen 会失败，所以在连接关闭时，主动清理
@@ -270,8 +547,6 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
   }
 
   private async _createExtHostProcess(clientId: string, options?: ICreateProcessOptions) {
-    // 在新进程创建前销毁可能存在的僵尸进程
-    this.destoryZombineClients();
     let preloadPath: string;
     let forkOptions: cp.ForkOptions = {
       // 防止 childProcess.stdout 为 null
@@ -348,6 +623,7 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
         logDir: this.appConfig.logDir,
         logLevel: this.appConfig.logLevel,
         extLogServiceClassPath: this.appConfig.extLogServiceClassPath,
+        extensionHostActivationDiagnostics: this.isExtensionActivationDiagnosticsEnabled(),
       })}`,
     );
 
@@ -376,7 +652,16 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
       ...configuredForkOptions,
       execArgv: [...forkOptions.execArgv, ...(configuredForkOptions?.execArgv || [])],
     });
-    this.logger.log(`Fork extension host process with id ${extProcessId}`);
+    this.clientExtProcessMap.set(clientId, extProcessId);
+    this.extensionHostCounters.created += 1;
+    const extProcessInitDeferred = new Deferred<void>();
+    this.clientExtProcessInitDeferredMap.set(clientId, extProcessInitDeferred);
+    this.processHandshake(extProcessId, forkTimer, clientId);
+    this.logger.log(
+      `Fork extension host process with id ${extProcessId} ` +
+        `(${this.clientExtProcessMap.size}/${this.appConfig.maxExtProcessCount || ExtensionNodeServiceImpl.MaxExtProcessCount})`,
+    );
+    this.reportExtensionHostStatus();
     // 监听进程输出，用于获取调试端口
     this.extensionHostManager.onOutput(extProcessId, (output) => {
       const inspectorUrlMatch = output.data && output.data.match(/ws:\/\/([^\s]+:(\d+)\/[^\s]+)/);
@@ -398,8 +683,9 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
       this.logger.log(`Extension host process ${extProcessId} exit by code ${code} signal ${signal}`);
       const intentionallyStopped = this.intentionallyStoppedExtProcesses.delete(extProcessId);
       if (!intentionallyStopped && this.clientExtProcessMap.get(clientId) === extProcessId) {
+        this.extensionHostCounters.crashed += 1;
         await this.disposeClientExtProcess(clientId, false, false);
-        this.infoProcessCrash(clientId);
+        await this.infoProcessCrash(clientId);
         this.reporterService.point(REPORT_NAME.EXTENSION_CRASH, clientId, {
           code,
           signal,
@@ -409,19 +695,42 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
       }
     });
 
-    this.clientExtProcessMap.set(clientId, extProcessId);
-    const extProcessInitDeferred = new Deferred<void>();
-    this.clientExtProcessInitDeferredMap.set(clientId, extProcessInitDeferred);
-    this.processHandshake(extProcessId, forkTimer, clientId);
+    if (!(await this.extensionHostManager.isRunning(extProcessId))) {
+      throw new Error(`Extension host process ${extProcessId} exited before completing startup`);
+    }
   }
 
   public async ensureProcessReady(clientId: string): Promise<boolean> {
-    if (!this.clientExtProcessInitDeferredMap.has(clientId)) {
+    const initDeferred = this.clientExtProcessInitDeferredMap.get(clientId);
+    if (!initDeferred) {
       return false;
     }
 
-    await this.clientExtProcessInitDeferredMap.get(clientId)?.promise;
-    return true;
+    const startupTimeout =
+      this.appConfig.extensionHostStartupTimeout ?? ExtensionNodeServiceImpl.ExtensionHostStartupTimeout;
+    let startupTimer: NodeJS.Timeout | undefined;
+    try {
+      const ready = await Promise.race([
+        initDeferred.promise.then(() => true),
+        new Promise<boolean>((resolve) => {
+          startupTimer = setTimeout(() => resolve(false), startupTimeout);
+          startupTimer.unref?.();
+        }),
+      ]);
+      if (ready) {
+        return true;
+      }
+
+      this.logger.error(`Extension host startup timed out for ${clientId} after ${startupTimeout} ms`);
+      this.extensionHostCounters.startupTimeouts += 1;
+      this.reportExtensionHostStatus();
+      await this.disposeClientExtProcess(clientId, false);
+      throw new Error(`Extension host startup timed out after ${startupTimeout} ms`);
+    } finally {
+      if (startupTimer) {
+        clearTimeout(startupTimer);
+      }
+    }
   }
 
   private processHandshake(extProcessId: number, forkTimer: IReporterTimer, clientId: string): void {
@@ -436,6 +745,8 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
         if (finishDeferred) {
           finishDeferred.resolve();
         }
+      } else if (typeof msg === 'object' && msg.type === ProcessMessageType.EXTENSION_ACTIVATION_DIAGNOSTIC) {
+        this.recordExtensionActivationDiagnostic(clientId, msg.data);
       } else if (typeof msg === 'object' && msg.type === ProcessMessageType.REPORTER) {
         const reporterMessage: ReporterProcessMessage = msg.data;
         if (reporterMessage.reportType === REPORT_TYPE.PERFORMANCE) {
@@ -502,9 +813,15 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
 
         channel.onceClose(() => {
           channel.dispose();
+          if (this.clientMainThreadChannelMap.get(clientId) !== channel) {
+            this.logger.log(`Ignore stale extension main-thread connection close for ${clientId}`);
+            return;
+          }
+          this.clientMainThreadChannelMap.delete(clientId);
           this.logger.log(`The connection client ${clientId} closed`);
 
           this.maybeZombieClients.add(clientId);
+          this.reportExtensionHostStatus();
           this.closeExtProcessWhenConnectionClose(clientId);
         });
       },
@@ -513,21 +830,21 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
   }
 
   private closeExtProcessWhenConnectionClose(connectionClientId: string) {
-    if (this.clientExtProcessMap.has(connectionClientId)) {
-      if (isElectronNode()) {
-        // in electron, if current connection is closed, kill the ext process immediately
-        void this.disposeClientExtProcess(connectionClientId);
-      } else {
-        this.cancelExtProcessDisposal(connectionClientId);
-        const timer = setTimeout(() => {
-          this.clientExtProcessThresholdExitTimerMap.delete(connectionClientId);
-          this.logger.log(`Dispose client by connectionClientId ${connectionClientId}`);
-          void this.disposeClientExtProcess(connectionClientId);
-        }, this.appConfig.processCloseExitThreshold ?? ExtensionNodeServiceImpl.ProcessCloseExitThreshold);
-        timer.unref?.();
-        this.clientExtProcessThresholdExitTimerMap.set(connectionClientId, timer);
-      }
+    if (isElectronNode()) {
+      // Release all client-scoped references immediately even when the
+      // extension host already exited before the browser connection closed.
+      void this.disposeClientExtProcess(connectionClientId, false);
+      return;
     }
+
+    this.cancelExtProcessDisposal(connectionClientId);
+    const timer = setTimeout(() => {
+      this.clientExtProcessThresholdExitTimerMap.delete(connectionClientId);
+      this.logger.log(`Dispose client by connectionClientId ${connectionClientId}`);
+      void this.disposeClientExtProcess(connectionClientId, false);
+    }, this.appConfig.processCloseExitThreshold ?? ExtensionNodeServiceImpl.ProcessCloseExitThreshold);
+    timer.unref?.();
+    this.clientExtProcessThresholdExitTimerMap.set(connectionClientId, timer);
   }
 
   private cancelExtProcessDisposal(clientId: string) {
@@ -553,10 +870,18 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
     }
   }
 
-  private infoProcessNotExist(clientId: string) {
-    if (this.clientServiceMap.has(clientId)) {
-      (this.clientServiceMap.get(clientId) as IExtensionNodeClientService).infoProcessNotExist();
-      this.clientServiceMap.delete(clientId);
+  private async infoProcessNotExist(clientId: string): Promise<void> {
+    const clientService = this.clientServiceMap.get(clientId) as IExtensionNodeClientService | undefined;
+    if (!clientService) {
+      return;
+    }
+    try {
+      await Promise.resolve(clientService.infoProcessNotExist());
+    } catch (error) {
+      // The browser can disconnect between selecting the client service and
+      // sending the restart notification. Cleanup must not turn that expected
+      // race into an unhandled rejection in the server process.
+      this.logger.warn(`Notify missing extension host failed for ${clientId}`, error);
     }
   }
 
@@ -564,29 +889,40 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
    * 如果插件进程已被销毁，如 websocket 连接断开超过 `ExtensionNodeServiceImpl.ProcessCloseExitThreshold` 时
    * 那么当用户重新连接至服务时，需要通知重启整个插件进程
    */
-  private restartExtProcessByClient(clientId: string) {
-    if (this.clientServiceMap.has(clientId)) {
-      (this.clientServiceMap.get(clientId) as IExtensionNodeClientService).restartExtProcessByClient();
+  private async restartExtProcessByClient(clientId: string): Promise<void> {
+    const clientService = this.clientServiceMap.get(clientId) as IExtensionNodeClientService | undefined;
+    if (!clientService) {
+      return;
+    }
+    try {
+      await Promise.resolve(clientService.restartExtProcessByClient());
+    } catch (error) {
+      this.logger.warn(`Restart missing extension host notification failed for ${clientId}`, error);
     }
   }
 
-  private infoProcessCrash(clientId: string) {
-    if (this.clientServiceMap.has(clientId)) {
-      (this.clientServiceMap.get(clientId) as IExtensionNodeClientService).infoProcessCrash();
+  private async infoProcessCrash(clientId: string): Promise<void> {
+    const clientService = this.clientServiceMap.get(clientId) as IExtensionNodeClientService | undefined;
+    if (!clientService) {
+      return;
+    }
+    try {
+      await Promise.resolve(clientService.infoProcessCrash());
+    } catch (error) {
+      this.logger.warn(`Extension host crash notification failed for ${clientId}`, error);
     }
   }
 
   public async disposeClientExtProcess(clientId: string, info = true, killProcess = true) {
     this.cancelExtProcessDisposal(clientId);
     const extProcessId = this.clientExtProcessMap.get(clientId);
-    if (isUndefined(extProcessId)) {
-      return;
-    }
-    if (killProcess) {
+    if (!isUndefined(extProcessId) && killProcess) {
       this.intentionallyStoppedExtProcesses.add(extProcessId);
     }
 
-    await this.requestExtProcessShutdown(clientId, extProcessId);
+    if (!isUndefined(extProcessId)) {
+      await this.requestExtProcessShutdown(clientId, extProcessId);
+    }
 
     const extServer = this.clientExtProcessExtConnectionServer.get(clientId);
     if (extServer) {
@@ -613,9 +949,16 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
     this.clientExtProcessFinishDeferredMap.delete(clientId);
     this.clientExtProcessInitDeferredMap.delete(clientId);
     this.clientExtProcessMap.delete(clientId);
-    this.maybeZombieClients.delete(clientId);
+    this.clientExtProcessInspectPortMap.delete(clientId);
+    this.extServerListenOptions.delete(clientId);
+    this.electronMainThreadListenPaths.delete(clientId);
+    this.clientExtensionActivationDiagnostics.delete(clientId);
+    if (!isUndefined(extProcessId)) {
+      this.extensionHostCounters.disposed += 1;
+    }
+    this.reportExtensionHostStatus();
 
-    if (killProcess) {
+    if (!isUndefined(extProcessId) && killProcess) {
       try {
         await this.extensionHostManager.treeKill(extProcessId);
       } catch (error) {
@@ -624,10 +967,22 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
         await this.extensionHostManager.disposeProcess(extProcessId);
       }
     }
-    if (info) {
-      this.infoProcessNotExist(clientId);
+    // Read the connection state after the asynchronous host shutdown. The
+    // browser can disconnect or reconnect while that shutdown is in flight.
+    const clientDisconnected = this.maybeZombieClients.has(clientId);
+    if (info && !clientDisconnected && !isUndefined(extProcessId)) {
+      await this.infoProcessNotExist(clientId);
+    } else if (clientDisconnected) {
+      // Host restarts and browser disconnects are separate lifecycles. Keep
+      // the proxy across a host-only restart, but release it once the browser
+      // connection itself has gone away.
+      this.clientServiceMap.delete(clientId);
+      this.maybeZombieClients.delete(clientId);
+      this.reportExtensionHostStatus();
     }
-    this.logger.log(`Extension host process disposed by clientId ${clientId}`);
+    if (!isUndefined(extProcessId)) {
+      this.logger.log(`Extension host process disposed by clientId ${clientId}`);
+    }
   }
 
   public async getExtProcessId(clientId: string): Promise<number | null> {
@@ -642,12 +997,9 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
     await Promise.all(
       Array.from(this.clientExtProcessMap.keys(), (clientId) => this.disposeClientExtProcess(clientId, false)),
     );
+    this.clientServiceMap.clear();
+    this.clientMainThreadChannelMap.clear();
+    this.maybeZombieClients.clear();
     await this.extensionHostManager.dispose();
-  }
-
-  private destoryZombineClients() {
-    for (const clientId of this.maybeZombieClients) {
-      this.disposeClientExtProcess(clientId);
-    }
   }
 }

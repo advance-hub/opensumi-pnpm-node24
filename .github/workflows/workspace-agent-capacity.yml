@@ -1,0 +1,92 @@
+name: Workspace Agent capacity qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      query:
+        description: Search query used by every browser session
+        required: true
+        type: string
+        default: ServerApp
+      expected_result:
+        description: Exact Search UI result, for example 107 results found in 22 files
+        required: true
+        type: string
+      file_search_query:
+        description: Quick Open file-name query used by every browser session
+        required: true
+        type: string
+        default: workspace_agent.proto
+      expected_file_search_result:
+        description: Exact accessible Quick Open file-name result
+        required: true
+        type: string
+        default: workspace_agent.proto
+
+permissions:
+  contents: read
+
+concurrency:
+  group: workspace-agent-capacity-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  capacity:
+    name: 50 sessions, Node and Agent, three runs each
+    runs-on: [self-hosted, linux, x64, workspace-agent-capacity]
+    timeout-minutes: 120
+    env:
+      CAPACITY_OUTPUT: output/runtime-profiles/capacity-s50-${{ github.run_id }}-${{ github.run_attempt }}
+      CAPACITY_QUERY: ${{ inputs.query }}
+      CAPACITY_EXPECTED_RESULT: ${{ inputs.expected_result }}
+      CAPACITY_FILE_SEARCH_QUERY: ${{ inputs.file_search_query }}
+      CAPACITY_EXPECTED_FILE_SEARCH_RESULT: ${{ inputs.expected_file_search_result }}
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Reject an undersized runner before dependency installation
+        run: >-
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/run-workspace-agent-capacity.ts --preflight-only --expected-result "$CAPACITY_EXPECTED_RESULT" --file-search-query "$CAPACITY_FILE_SEARCH_QUERY" --expected-file-search-result "$CAPACITY_EXPECTED_FILE_SEARCH_RESULT" --sessions 50 --runs 3 --minimum-available-memory-gb 40 --output-dir "$CAPACITY_OUTPUT"
+
+      - name: Use Go from workspace-agent/go.mod
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go/workspace-agent/go.mod
+          cache-dependency-path: go/workspace-agent/go.sum
+
+      - name: Install Linux desktop dependencies
+        run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev
+
+      - name: Install dependencies
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+        run: pnpm install --frozen-lockfile
+
+      - name: Build production client, server and native Workspace Agent
+        run: |
+          pnpm run init
+          pnpm run build:client
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON server/scripts/package-workspace-agent.ts --revision capacity-${{ github.sha }}
+
+      - name: Install Chromium and browser dependencies
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run the fixed 50 by 3 by 2 qualification suite
+        run: >-
+          pnpm capacity:workspace-agent -- --workspace . --query "$CAPACITY_QUERY" --expected-result "$CAPACITY_EXPECTED_RESULT" --file-search-query "$CAPACITY_FILE_SEARCH_QUERY" --expected-file-search-result "$CAPACITY_EXPECTED_FILE_SEARCH_RESULT" --sessions 50 --runs 3 --minimum-available-memory-gb 40 --output-dir "$CAPACITY_OUTPUT"
+
+      - name: Upload raw profiles and comparison report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace-agent-capacity-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 30
+          path: ${{ env.CAPACITY_OUTPUT }}

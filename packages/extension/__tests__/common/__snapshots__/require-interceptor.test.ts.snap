@@ -1,4 +1,4 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
 
 exports[`require-interceptor test registerRequireInterceptor 1`] = `
 {
@@ -36,6 +36,7 @@ exports[`require-interceptor test registerRequireInterceptor 1`] = `
       "setExtraStackFrame": [Function],
     },
   },
+  "act": [Function],
   "cloneElement": [Function],
   "createContext": [Function],
   "createElement": [Function],
@@ -62,6 +63,6 @@ exports[`require-interceptor test registerRequireInterceptor 1`] = `
   "useState": [Function],
   "useSyncExternalStore": [Function],
   "useTransition": [Function],
-  "version": "18.2.0",
+  "version": "18.3.1",
 }
 `;

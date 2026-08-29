@@ -11,9 +11,10 @@ import { ElectronMainMenuService } from '../src/bootstrap/services/menu';
 const mockedWindows = new Map<number, any>();
 
 jest.mock('electron', () => ({
-  Menu: mockService({
-    buildFromTemplate: (p) => p,
-  }),
+  Menu: {
+    buildFromTemplate: jest.fn((p) => p),
+    setApplicationMenu: jest.fn(),
+  },
   BrowserWindow: {
     fromId: (id) => {
       if (!mockedWindows.has(id)) {

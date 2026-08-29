@@ -142,6 +142,18 @@ describe('search.service.ts', () => {
     expect(contentSearchServer.catchSearchOptions.exclude).toEqual(['**/node_modules', '**/bower_components']);
   });
 
+  test('method: explicit search cancels the pending search-on-type debounce', async () => {
+    expect.assertions(1);
+    const service: any = searchService;
+    const cancel = jest.spyOn(service.searchDebounce, 'cancel');
+    searchService.searchValue = 'value';
+
+    await searchService.search();
+
+    expect(cancel).toHaveBeenCalledTimes(1);
+    cancel.mockRestore();
+  });
+
   test('method: search options', async () => {
     const service: any = searchService;
     searchService.searchValue = 'value';

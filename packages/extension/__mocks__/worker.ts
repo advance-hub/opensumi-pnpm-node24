@@ -65,6 +65,7 @@ export class MockWorker {
         },
         navigator: {
           userAgent: 'Node.js Sandbox',
+          language: 'en-US',
         },
         setTimeout,
         attachEvent: () => {},

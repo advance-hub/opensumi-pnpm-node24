@@ -3,7 +3,8 @@
   "version": "3.9.0",
   "files": [
     "lib",
-    "src"
+    "src",
+    "proto"
   ],
   "license": "MIT",
   "main": "lib/index.js",
@@ -19,6 +20,8 @@
   },
   "dependencies": {
     "@furyjs/fury": "0.5.9-beta",
+    "@grpc/grpc-js": "1.14.4",
+    "@grpc/proto-loader": "0.8.1",
     "@opensumi/ide-connection": "workspace:*",
     "@opensumi/ide-core-common": "workspace:*",
     "@opensumi/ide-core-node": "workspace:*",

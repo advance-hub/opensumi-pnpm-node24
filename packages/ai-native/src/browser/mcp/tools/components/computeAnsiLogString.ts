@@ -4,7 +4,10 @@ import filterEraseMultipleLine from './filterEraseMultipleLine';
 
 type LogContent = string;
 
-const ansiUp = new AnsiUp();
+// ansi_up@5 exposes a UMD default that some bundlers wrap one more time when
+// consuming our compiled CommonJS output. Normalize both shapes at runtime.
+const AnsiUpConstructor = (AnsiUp as typeof AnsiUp & { default?: typeof AnsiUp }).default || AnsiUp;
+const ansiUp = new AnsiUpConstructor();
 
 export function computeAnsiLogString(logs: LogContent, enableEraseLineFilter = true, hideEmptyLine = false): string {
   const splittedLogs = logs.split('\n');

@@ -229,6 +229,16 @@ export class FileServiceClient implements IFileServiceClient, IDisposable {
   async setContent(file: FileStat, content: string | Uint8Array, options?: FileSetContentOptions) {
     const _uri = this.convertUri(file.uri);
     const provider = await this.getProvider(_uri.scheme);
+    const buffer = typeof content === 'string' ? BinaryBuffer.fromString(content).buffer : content;
+
+    if (containsExtraFileMethod(provider, 'writeFileWithStat')) {
+      const expectedContent =
+        typeof options?.expectedContent === 'string'
+          ? BinaryBuffer.fromString(options.expectedContent).buffer
+          : options?.expectedContent;
+      return provider.writeFileWithStat(file, buffer, { encoding: options?.encoding, expectedContent });
+    }
+
     const stat = await provider.stat(_uri.codeUri);
 
     if (!stat) {
@@ -240,11 +250,7 @@ export class FileServiceClient implements IFileServiceClient, IDisposable {
     if (!(await this.isInSync(file, stat))) {
       throw this.createOutOfSyncError(file);
     }
-    await provider.writeFile(
-      _uri.codeUri,
-      typeof content === 'string' ? BinaryBuffer.fromString(content).buffer : content,
-      { create: false, overwrite: true, encoding: options?.encoding },
-    );
+    await provider.writeFile(_uri.codeUri, buffer, { create: false, overwrite: true, encoding: options?.encoding });
     const newStat = await provider.stat(_uri.codeUri);
     return newStat;
   }
@@ -362,7 +368,7 @@ export class FileServiceClient implements IFileServiceClient, IDisposable {
         ({
           uri: change.uri,
           type: change.type,
-        } as FileChange),
+        }) as FileChange,
     );
 
     // 触发所有文件变化事件

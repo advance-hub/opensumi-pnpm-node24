@@ -219,7 +219,7 @@ describe('AILayout BDD', () => {
   });
 
   it('Given classic layout, when the shell root renders, then it selects the classic shell', async () => {
-    const { AIShellRoot } = await import('../../src/browser/layout/ai-layout');
+    const { AIShellRoot } = require('../../src/browser/layout/ai-layout');
 
     act(() => {
       root.render(<AIShellRoot />);
@@ -231,7 +231,7 @@ describe('AILayout BDD', () => {
 
   it('Given agentic layout, when the shell root renders, then it selects the agentic shell', async () => {
     panelLayoutMode = 'agentic';
-    const { AIShellRoot } = await import('../../src/browser/layout/ai-layout');
+    const { AIShellRoot } = require('../../src/browser/layout/ai-layout');
 
     act(() => {
       root.render(<AIShellRoot />);
@@ -243,7 +243,7 @@ describe('AILayout BDD', () => {
 
   it('Given the shell root is mounted, when the panel layout changes, then it switches shells without a reload', async () => {
     panelLayoutMode = 'agentic';
-    const { AIShellRoot } = await import('../../src/browser/layout/ai-layout');
+    const { AIShellRoot } = require('../../src/browser/layout/ai-layout');
 
     act(() => {
       root.render(<AIShellRoot />);
@@ -261,7 +261,7 @@ describe('AILayout BDD', () => {
   });
 
   it('Given classic layout, when it renders, then the workbench appears before AI chat', async () => {
-    const { AILayout } = await import('../../src/browser/layout/ai-layout');
+    const { AILayout } = require('../../src/browser/layout/ai-layout');
 
     act(() => {
       root.render(<AILayout />);
@@ -275,7 +275,7 @@ describe('AILayout BDD', () => {
   });
 
   it('Given classic layout, when dragging the AI split handle, then the workbench is the flex-grow resize target', async () => {
-    const { AILayout } = await import('../../src/browser/layout/ai-layout');
+    const { AILayout } = require('../../src/browser/layout/ai-layout');
 
     act(() => {
       root.render(<AILayout />);
@@ -288,7 +288,7 @@ describe('AILayout BDD', () => {
   });
 
   it('Given classic layout has no cached active containers, when it renders, then side slots keep their collapsed defaults', async () => {
-    const { AILayout } = await import('../../src/browser/layout/ai-layout');
+    const { AILayout } = require('../../src/browser/layout/ai-layout');
 
     act(() => {
       root.render(<AILayout />);
@@ -312,7 +312,7 @@ describe('AILayout BDD', () => {
   it('Given agentic layout, when it renders, then AI chat is before the workbench', async () => {
     panelLayoutMode = 'agentic';
     agenticWorkbenchVisible = true;
-    const { AILayout } = await import('../../src/browser/layout/ai-layout');
+    const { AILayout } = require('../../src/browser/layout/ai-layout');
 
     act(() => {
       root.render(<AILayout />);
@@ -327,7 +327,7 @@ describe('AILayout BDD', () => {
 
   it('Given agentic layout, when it renders by default, then AI chat is the only main split child', async () => {
     panelLayoutMode = 'agentic';
-    const { AILayout } = await import('../../src/browser/layout/ai-layout');
+    const { AILayout } = require('../../src/browser/layout/ai-layout');
 
     act(() => {
       root.render(<AILayout />);
@@ -341,7 +341,7 @@ describe('AILayout BDD', () => {
   it('Given agentic workbench is collapsed, when it becomes visible, then the editor and Explorer return', async () => {
     panelLayoutMode = 'agentic';
     agenticWorkbenchVisible = false;
-    const { AILayout } = await import('../../src/browser/layout/ai-layout');
+    const { AILayout } = require('../../src/browser/layout/ai-layout');
 
     act(() => {
       root.render(<AILayout />);
@@ -362,7 +362,7 @@ describe('AILayout BDD', () => {
     panelLayoutMode = 'agentic';
     agenticWorkbenchVisible = true;
     window.innerWidth = 1280;
-    const { AILayout } = await import('../../src/browser/layout/ai-layout');
+    const { AILayout } = require('../../src/browser/layout/ai-layout');
 
     await act(async () => {
       root.render(<AILayout />);
@@ -383,7 +383,7 @@ describe('AILayout BDD', () => {
   it('Given agentic layout, when dragging the AI split handle, then the workbench is the flex-grow resize target', async () => {
     panelLayoutMode = 'agentic';
     agenticWorkbenchVisible = true;
-    const { AILayout } = await import('../../src/browser/layout/ai-layout');
+    const { AILayout } = require('../../src/browser/layout/ai-layout');
 
     act(() => {
       root.render(<AILayout />);
@@ -398,7 +398,7 @@ describe('AILayout BDD', () => {
   it('Given agentic layout, when the workbench renders, then editor stays left of Explorer with a minimum size', async () => {
     panelLayoutMode = 'agentic';
     agenticWorkbenchVisible = true;
-    const { AILayout } = await import('../../src/browser/layout/ai-layout');
+    const { AILayout } = require('../../src/browser/layout/ai-layout');
 
     act(() => {
       root.render(<AILayout />);
@@ -413,7 +413,7 @@ describe('AILayout BDD', () => {
   it('Given agentic layout has no AI chat cache, when it renders, then AI chat opens with the agentic default size', async () => {
     panelLayoutMode = 'agentic';
     agenticWorkbenchVisible = true;
-    const { AILayout } = await import('../../src/browser/layout/ai-layout');
+    const { AILayout } = require('../../src/browser/layout/ai-layout');
 
     act(() => {
       root.render(<AILayout />);
@@ -442,7 +442,7 @@ describe('AILayout BDD', () => {
         size: 720,
       },
     };
-    const { AILayout } = await import('../../src/browser/layout/ai-layout');
+    const { AILayout } = require('../../src/browser/layout/ai-layout');
 
     act(() => {
       root.render(<AILayout />);
@@ -461,7 +461,7 @@ describe('AILayout BDD', () => {
         size: 750,
       },
     };
-    const { AILayout } = await import('../../src/browser/layout/ai-layout');
+    const { AILayout } = require('../../src/browser/layout/ai-layout');
 
     act(() => {
       root.render(<AILayout />);
@@ -484,7 +484,7 @@ describe('AILayout BDD', () => {
         size: 640,
       },
     };
-    const { AILayout } = await import('../../src/browser/layout/ai-layout');
+    const { AILayout } = require('../../src/browser/layout/ai-layout');
 
     act(() => {
       root.render(<AILayout />);
@@ -506,7 +506,7 @@ describe('AILayout BDD', () => {
         currentId: 'AI-Chat-Container',
       },
     };
-    const { AILayout } = await import('../../src/browser/layout/ai-layout');
+    const { AILayout } = require('../../src/browser/layout/ai-layout');
 
     act(() => {
       root.render(<AILayout />);
@@ -537,7 +537,7 @@ describe('AILayout BDD', () => {
         },
       },
     };
-    const { AILayout } = await import('../../src/browser/layout/ai-layout');
+    const { AILayout } = require('../../src/browser/layout/ai-layout');
 
     act(() => {
       root.render(<AILayout />);
@@ -567,7 +567,7 @@ describe('AILayout BDD', () => {
         },
       },
     };
-    const { AILayout } = await import('../../src/browser/layout/ai-layout');
+    const { AILayout } = require('../../src/browser/layout/ai-layout');
 
     act(() => {
       root.render(<AILayout />);
@@ -596,7 +596,7 @@ describe('AILayout BDD', () => {
         },
       },
     };
-    const { AgenticShell, ClassicShell } = await import('../../src/browser/layout/ai-layout');
+    const { AgenticShell, ClassicShell } = require('../../src/browser/layout/ai-layout');
 
     act(() => {
       root.render(<ClassicShell />);

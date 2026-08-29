@@ -688,7 +688,7 @@ describe('FileTree should be work while on single workspace model', () => {
   });
 
   describe('04 #Compact Mode should be work', () => {
-    it('Directory should be compressed while it contain single file', (done) => {
+    it('Directory should be compressed while it contain single file', async () => {
       const treeModel = fileTreeModelService.treeModel;
       const rootNode = treeModel.root;
       const directoryNode = rootNode.getTreeNodeAtIndex(0) as Directory;
@@ -701,19 +701,23 @@ describe('FileTree should be work while on single workspace model', () => {
         return true;
       });
       (fileTreeService as any)._isCompactMode = true;
+      await directoryNode.setExpanded(true);
       expect(directoryNode.expanded).toBeTruthy();
       fs.ensureDirSync(testFile);
-      const dispose = fileTreeService.onNodeRefreshed(() => {
-        dispose.dispose();
-        const directoryNode = rootNode.getTreeNodeAtIndex(0) as Directory;
-        expect(directoryNode.expanded).toBeTruthy();
-        // cause the directory was compressed, branchSize will not increase
-        expect(rootNode.branchSize).toBe(filesMap.length);
-        expect(directoryNode.name).toBe(`${preNodeName}/a/b`);
-        done();
+      const refreshed = new Promise<void>((resolve) => {
+        const dispose = fileTreeService.onNodeRefreshed(() => {
+          dispose.dispose();
+          resolve();
+        });
       });
       fileTreeService.refresh();
       jest.runAllTimers();
+      await refreshed;
+      const refreshedDirectoryNode = rootNode.getTreeNodeAtIndex(0) as Directory;
+      expect(refreshedDirectoryNode.expanded).toBeTruthy();
+      // cause the directory was compressed, branchSize will not increase
+      expect(rootNode.branchSize).toBe(filesMap.length);
+      expect(refreshedDirectoryNode.name).toBe(`${preNodeName}/a/b`);
     });
   });
 });

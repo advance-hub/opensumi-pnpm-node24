@@ -351,9 +351,7 @@ export class SearchModelService extends Disposable {
   }
 
   activate() {
-    if (this.searchTreeService.contextKey) {
-      this.searchTreeService.contextKey.searchViewVisibleKey.set(true);
-    }
+    this.searchTreeService.contextKey?.searchViewVisibleKey?.set(true);
 
     if (this.treeIsDirty) {
       this.refresh();
@@ -362,9 +360,7 @@ export class SearchModelService extends Disposable {
   }
 
   deactivate() {
-    if (this.searchTreeService.contextKey) {
-      this.searchTreeService.contextKey.searchViewVisibleKey.set(false);
-    }
+    this.searchTreeService.contextKey?.searchViewVisibleKey?.set(false);
   }
 
   dispose() {

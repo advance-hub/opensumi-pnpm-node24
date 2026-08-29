@@ -143,7 +143,7 @@ describe('extension/__tests__/hosted/api/vscode/ext.host.authentication.test.ts'
     const session = await authenticationAPI.getSession('github', ['getRepo'], {
       createIfNone: true,
     });
-    expect(loginSpy).toHaveBeenCalledWith(['getRepo']);
+    expect(loginSpy).toHaveBeenCalledWith(['getRepo'], { createIfNone: true });
     expect($ensureProvider).toHaveBeenCalledWith('github');
     expect($getSession).toHaveBeenCalledWith('github', ['getRepo'], 'vscode.vim', 'Vim', { createIfNone: true });
     expect(loginPrompt).toHaveBeenCalled();
@@ -293,12 +293,12 @@ describe('extension/__tests__/hosted/api/vscode/ext.host.authentication.test.ts'
 
   it('onDidChangeAuthenticationProviders', (done) => {
     authenticationAPI.onDidChangeAuthenticationProviders((e) => {
-      expect(e.added[0].id).toBe('github');
-      expect(e.added[0].label).toBe('GitHub');
+      expect(e.added[0].id).toBe('gitlab');
+      expect(e.added[0].label).toBe('GitLab');
       done();
     });
     const onDidChangeSessions = new Emitter<vscode.AuthenticationProviderAuthenticationSessionsChangeEvent>();
-    authenticationAPI.registerAuthenticationProvider('gitlab', 'Github', {
+    authenticationAPI.registerAuthenticationProvider('gitlab', 'GitLab', {
       onDidChangeSessions: onDidChangeSessions.event,
       getSessions: async () => [],
       createSession: async (scopeList) => {

@@ -1,3 +1,4 @@
+import { createRequire } from 'module';
 import { tmpdir } from 'os';
 import paths, { join } from 'path';
 
@@ -29,6 +30,8 @@ import {
 import { INsfw, INsfwFunction } from '../../../common/watcher';
 import { FileChangeCollection } from '../../file-change-collection';
 import { shouldIgnorePath } from '../shared';
+
+const requireNative = createRequire(__filename);
 
 export interface WatcherOptions {
   excludesPattern: ParsedPattern[];
@@ -128,7 +131,7 @@ export class RecursiveFileSystemWatcher extends Disposable implements IWatcher {
   private async resolveWatchPath(basePath: string): Promise<string> {
     try {
       return await fs.realpath(basePath);
-    } catch (e) {
+    } catch {
       return basePath;
     }
   }
@@ -773,8 +776,7 @@ export class RecursiveFileSystemWatcher extends Disposable implements IWatcher {
   }
 
   private async withNSFWModule(): Promise<INsfwFunction> {
-    const { default: nsfw } = await import('nsfw');
-    return nsfw;
+    return requireNative('nsfw') as INsfwFunction;
   }
 
   protected pushAdded(path: string): void {
@@ -789,8 +791,25 @@ export class RecursiveFileSystemWatcher extends Disposable implements IWatcher {
     this.pushFileChange(path, FileChangeType.DELETED);
   }
 
+  private mapEventPathToRequestedPath(eventPath: string): string {
+    let bestResolvedRootLength = -1;
+    let requestedEventPath = eventPath;
+    for (const [requestedRoot, resolvedRoot] of this.watchPathMap) {
+      const relativePath = paths.relative(resolvedRoot, eventPath);
+      const isInsideResolvedRoot =
+        relativePath === '' ||
+        (relativePath !== '..' && !relativePath.startsWith(`..${paths.sep}`) && !paths.isAbsolute(relativePath));
+      if (!isInsideResolvedRoot || resolvedRoot.length <= bestResolvedRootLength) {
+        continue;
+      }
+      bestResolvedRootLength = resolvedRoot.length;
+      requestedEventPath = relativePath ? paths.join(requestedRoot, relativePath) : requestedRoot;
+    }
+    return requestedEventPath;
+  }
+
   protected pushFileChange(path: string, type: FileChangeType): void {
-    const uri = FileUri.create(path).toString();
+    const uri = FileUri.create(this.mapEventPathToRequestedPath(path)).toString();
     this.changes.push({ uri, type });
 
     this.fireDidFilesChanged();
@@ -802,11 +821,11 @@ export class RecursiveFileSystemWatcher extends Disposable implements IWatcher {
     if (isLinux) {
       try {
         return await fs.realpath.native(path);
-      } catch (_e) {
+      } catch {
         try {
           // file does not exist try to resolve directory
           return paths.join(await fs.realpath.native(directory), file);
-        } catch (_e) {
+        } catch {
           // directory does not exist fall back to symlink
           return path;
         }

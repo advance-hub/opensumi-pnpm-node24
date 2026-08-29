@@ -40,6 +40,32 @@ describe('Pty Manager Test Local', () => {
     const sessionAlive = await ptyServiceManager.checkSession('fake-session-1');
     expect(sessionAlive).toBeFalsy();
   });
+
+  it('expires an unowned persistent session after its lease', async () => {
+    expect.assertions(1);
+    ptyServiceManager = injector.get(PtyServiceManager);
+    await ptyServiceManager.spawn(shellPath, [], {}, 'client|expiring-session');
+
+    ptyServiceManager.scheduleSessionCleanup('client|expiring-session', 30);
+    await delay(100);
+
+    await expect(ptyServiceManager.checkSession('expiring-session')).resolves.toBe(false);
+  });
+
+  it('cancels pending cleanup when the persistent session resumes', async () => {
+    expect.assertions(2);
+    ptyServiceManager = injector.get(PtyServiceManager);
+    const first = await ptyServiceManager.spawn(shellPath, [], {}, 'old-client|resumed-session');
+    ptyServiceManager.scheduleSessionCleanup('old-client|resumed-session', 100);
+    await delay(20);
+
+    const resumed = await ptyServiceManager.spawn(shellPath, [], {}, 'new-client|resumed-session');
+    expect(resumed.pid).toBe(first.pid);
+    await delay(150);
+
+    await expect(ptyServiceManager.checkSession('resumed-session')).resolves.toBe(true);
+    resumed.kill();
+  });
 });
 
 describe('Pty Manager Test Remote', () => {

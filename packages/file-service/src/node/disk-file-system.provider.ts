@@ -67,6 +67,8 @@ export interface IWatcher {
   disposable: IDisposable;
 }
 
+export type DirectoryEntry = [string, FileType];
+
 @Injectable({ multiple: true })
 export class DiskFileSystemProvider extends RPCService<IRPCDiskFileSystemProvider> implements IDiskFileProvider {
   private fileChangeEmitter = new Emitter<FileChangeEvent>();
@@ -91,6 +93,7 @@ export class DiskFileSystemProvider extends RPCService<IRPCDiskFileSystemProvide
   private logger: ILogService;
 
   private ignoreNextChangesEvent: Set<string> = new Set();
+  private pendingFileWrites = new Map<string, Promise<void>>();
 
   private recursive: boolean;
 
@@ -202,21 +205,33 @@ export class DiskFileSystemProvider extends RPCService<IRPCDiskFileSystemProvide
     }
   }
 
-  async readDirectory(uri: UriComponents): Promise<[string, FileType][]> {
+  async readDirectory(uri: UriComponents): Promise<DirectoryEntry[]> {
     const _uri = Uri.revive(uri);
-    const result: [string, FileType][] = [];
+    const result: DirectoryEntry[] = [];
     try {
-      const dirList = await fse.readdir(_uri.fsPath);
-
-      dirList.forEach((name) => {
-        const filePath = paths.join(_uri.fsPath, name);
-        // eslint-disable-next-line import-x/namespace
-        result.push([name, this.getFileStatType(fse.statSync(filePath))]);
+      const dirList = await fse.readdir(_uri.fsPath, { withFileTypes: true });
+      dirList.forEach((entry) => {
+        let type: FileType;
+        if (entry.isDirectory()) {
+          type = FileType.Directory;
+        } else if (entry.isFile()) {
+          type = FileType.File;
+        } else if (entry.isSymbolicLink()) {
+          // Preserve the historical statSync behavior: directory listings
+          // report a symbolic link as the type of its target.
+          const filePath = paths.join(_uri.fsPath, entry.name);
+          // eslint-disable-next-line import-x/namespace
+          type = this.getFileStatType(fse.statSync(filePath));
+        } else {
+          type = FileType.Unknown;
+        }
+        result.push([entry.name, type]);
       });
-      return result;
-    } catch (e) {
-      return result;
+    } catch {
+      // Keep the historical contract: callers receive the entries collected
+      // before the first filesystem failure, or an empty directory result.
     }
+    return result;
   }
 
   async createDirectory(uri: UriComponents): Promise<FileStat> {
@@ -238,7 +253,6 @@ export class DiskFileSystemProvider extends RPCService<IRPCDiskFileSystemProvide
 
   async readFile(uri: UriComponents, encoding = 'utf8'): Promise<Uint8Array> {
     const _uri = Uri.revive(uri);
-
     try {
       const buffer = await fse.readFile(FileUri.fsPath(new URI(_uri)));
       return buffer;
@@ -275,6 +289,62 @@ export class DiskFileSystemProvider extends RPCService<IRPCDiskFileSystemProvide
   }
 
   async writeFile(
+    uri: UriComponents,
+    content: Uint8Array,
+    options: { create: boolean; overwrite: boolean; encoding?: string },
+  ): Promise<void | FileStat> {
+    return this.queueFileWrite(uri, () => this.doWriteFile(uri, content, options));
+  }
+
+  async writeFileWithStat(
+    file: FileStat,
+    content: Uint8Array,
+    options?: { encoding?: string; expectedContent?: Uint8Array },
+  ): Promise<FileStat> {
+    const uri = URI.parse(file.uri).codeUri;
+    return this.queueFileWrite(uri, async () => {
+      const stat = await this.doGetStat(uri, 0);
+      if (!stat) {
+        throw FileSystemError.FileNotFound(file.uri, 'File not found.');
+      }
+      if (stat.isDirectory) {
+        throw FileSystemError.FileIsADirectory(file.uri, 'Cannot set the content.');
+      }
+      const contentChanged =
+        options?.expectedContent !== undefined &&
+        !Buffer.from(await this.readFile(uri)).equals(Buffer.from(Uint8Array.from(options.expectedContent)));
+      const statChanged = stat.lastModification !== file.lastModification || stat.size !== file.size;
+      if (contentChanged || (options?.expectedContent === undefined && statChanged)) {
+        throw FileSystemError.FileIsOutOfSync(file.uri);
+      }
+
+      await this.doWriteFile(uri, content, { create: false, overwrite: true, encoding: options?.encoding });
+      const newStat = await this.doGetStat(uri, 0);
+      if (!newStat) {
+        throw FileSystemError.FileNotFound(file.uri, 'File not found.');
+      }
+      return newStat;
+    });
+  }
+
+  private queueFileWrite<T>(uri: UriComponents, task: () => Promise<T>): Promise<T> {
+    const key = Uri.revive(uri).toString();
+    const previous = this.pendingFileWrites.get(key) || Promise.resolve();
+    const current = previous.then(task);
+    const settled = current.then(
+      () => undefined,
+      () => undefined,
+    );
+    this.pendingFileWrites.set(key, settled);
+    void settled.then(() => {
+      if (this.pendingFileWrites.get(key) === settled) {
+        this.pendingFileWrites.delete(key);
+      }
+    });
+    return current;
+  }
+
+  private async doWriteFile(
     uri: UriComponents,
     content: Uint8Array,
     options: { create: boolean; overwrite: boolean; encoding?: string },

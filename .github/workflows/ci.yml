@@ -17,8 +17,15 @@ on:
       - v*.*
     paths:
       - 'client/**'
+      - 'go/**'
       - 'packages/**'
+      - 'scripts/profile-browser-runtime.ts'
+      - 'scripts/run-workspace-agent-capacity.ts'
+      - 'scripts/workspace-agent-product-smoke.ts'
       - 'server/**'
+      - 'configs/ts/tsconfig.runtime-scripts.json'
+      - '.github/workflows/ci.yml'
+      - '.github/workflows/workspace-agent-capacity.yml'
       - package.json
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
@@ -63,3 +70,139 @@ jobs:
           token: ${{ secrets.CORE_CODECOV_TOKEN }}
           flags: ${{ matrix.ci-project }}
           directory: ./coverage
+
+  workspace-agent:
+    name: Workspace Agent (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            binary: workspace-agent
+            gateway-binary: ws-gateway
+            artifact-suffix: macos
+          - os: ubuntu-latest
+            binary: workspace-agent
+            gateway-binary: ws-gateway
+            artifact-suffix: linux
+          - os: windows-latest
+            binary: workspace-agent.exe
+            gateway-binary: ws-gateway.exe
+            artifact-suffix: windows
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Go from workspace-agent/go.mod
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go/workspace-agent/go.mod
+          cache-dependency-path: go/workspace-agent/go.sum
+
+      - name: Use Node.js 24 for the dependency-free packager
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Test native watcher, cancellation and race safety
+        working-directory: go/workspace-agent
+        run: go test -race -v ./...
+
+      - name: Vet
+        working-directory: go/workspace-agent
+        run: go vet ./...
+
+      - name: Build native release binary
+        working-directory: go/workspace-agent
+        run: |
+          go build -buildvcs=false -trimpath -o bin/${{ matrix.binary }} ./cmd/workspace-agent
+          go build -buildvcs=false -trimpath -o bin/${{ matrix.gateway-binary }} ./cmd/ws-gateway
+
+      - name: Package native binary, manifest and startup proof
+        run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON server/scripts/package-workspace-agent.ts --revision ci-${{ github.sha }}
+
+      - name: Cross-build Linux arm64
+        if: ${{ runner.os == 'Linux' }}
+        working-directory: go/workspace-agent
+        env:
+          CGO_ENABLED: 0
+          GOOS: linux
+          GOARCH: arm64
+        run: |
+          go build -buildvcs=false -trimpath -o bin/workspace-agent-linux-arm64 ./cmd/workspace-agent
+          go build -buildvcs=false -trimpath -o bin/ws-gateway-linux-arm64 ./cmd/ws-gateway
+
+      - name: Upload verified native package
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace-agent-${{ matrix.artifact-suffix }}
+          if-no-files-found: error
+          retention-days: 7
+          path: server/dist/workspace-agent/
+
+  workspace-agent-product-smoke:
+    name: Workspace Agent product smoke (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact-suffix: linux
+            output-platform: linux
+          - os: windows-2025
+            artifact-suffix: windows
+            output-platform: win32
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - name: Use Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Use Go from workspace-agent/go.mod
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go/workspace-agent/go.mod
+          cache-dependency-path: go/workspace-agent/go.sum
+
+      - name: Install Linux desktop dependencies
+        if: ${{ runner.os == 'Linux' }}
+        run: sudo apt-get update && sudo apt-get install -y libsecret-1-dev
+
+      - name: Install dependencies
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+        run: pnpm install --frozen-lockfile
+
+      - name: Build production client, server and native Workspace Agent
+        run: |
+          pnpm run init
+          pnpm run build:client
+          node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON server/scripts/package-workspace-agent.ts --revision ci-${{ github.sha }}
+
+      - name: Install Chromium and Linux browser dependencies
+        if: ${{ runner.os == 'Linux' }}
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Install Chromium
+        if: ${{ runner.os == 'Windows' }}
+        run: pnpm exec playwright install chromium
+
+      - name: Exercise Search, Watch, transport and process cleanup
+        run: pnpm run smoke:workspace-agent:product
+
+      - name: Upload Workspace Agent product-smoke evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: workspace-agent-product-smoke-${{ matrix.artifact-suffix }}
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            output/workspace-agent/product-smoke-${{ matrix.output-platform }}.json
+            output/playwright/workspace-agent-product-smoke-${{ matrix.output-platform }}.png

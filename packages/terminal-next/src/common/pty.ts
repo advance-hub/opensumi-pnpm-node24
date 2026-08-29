@@ -101,6 +101,12 @@ export interface IPtyProxyRPCService {
   $kill(pid: number, signal?: string): void;
 
   /**
+   * Schedule an unowned persistent session for final cleanup. Reusing the
+   * session through $spawn cancels the pending cleanup.
+   */
+  $scheduleSessionCleanup(sessionId: string, timeoutMs: number): void;
+
+  /**
    * pause pty 的RPC转发
    * Pauses the pty for customizable flow control.
    * @param pid pty进程的pid，用于辨识pty进程

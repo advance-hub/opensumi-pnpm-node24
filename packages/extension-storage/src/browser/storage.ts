@@ -10,7 +10,7 @@ import {
   isEmptyObject,
   path,
 } from '@opensumi/ide-core-common';
-import { FileStat, IFileServiceClient } from '@opensumi/ide-file-service';
+import { FileStat, FileSystemError, IFileServiceClient } from '@opensumi/ide-file-service';
 
 import {
   DEFAULT_EXTENSION_STORAGE_DIR_NAME,
@@ -27,6 +27,7 @@ const { Path } = path;
 @Injectable()
 export class ExtensionStorageServer implements IExtensionStorageServer {
   private static readonly DEFAULT_FLUSH_DELAY = 100;
+  private static readonly MAX_WRITE_CONFLICT_RETRIES = 3;
 
   private workspaceDataDirPath: string | undefined;
   private globalDataPath: string | undefined;
@@ -68,9 +69,8 @@ export class ExtensionStorageServer implements IExtensionStorageServer {
   }
 
   private async setupDirectories(workspace, roots, extensionStorageDirName): Promise<IExtensionStorageUri> {
-    const workspaceDataDirPath = await this.extensionStoragePathsServer.getWorkspaceDataDirPath(
-      extensionStorageDirName,
-    );
+    const workspaceDataDirPath =
+      await this.extensionStoragePathsServer.getWorkspaceDataDirPath(extensionStorageDirName);
     const wsDataFsPath = URI.file(workspaceDataDirPath).toString();
     if (!(await this.fileSystem.access(wsDataFsPath))) {
       await this.fileSystem.createFolder(wsDataFsPath);
@@ -105,15 +105,41 @@ export class ExtensionStorageServer implements IExtensionStorageServer {
   private async resolveStorageTask(tasks: any) {
     const storagePaths = Object.keys(tasks);
     for (const path of storagePaths) {
-      const data = await this.readFromFile(path);
-      for (const { key, value } of tasks[path]) {
+      await this.withStorageLock(path, () => this.updateStorageFile(path, tasks[path]));
+    }
+  }
+
+  private async withStorageLock<T>(pathToFile: string, task: () => Promise<T>): Promise<T> {
+    const lockManager = typeof navigator === 'undefined' ? undefined : navigator.locks;
+    if (!lockManager) {
+      return task();
+    }
+    return lockManager.request(`opensumi-extension-storage:${pathToFile}`, task);
+  }
+
+  private async updateStorageFile(pathToFile: string, tasks: IExtensionStorageTask[string]): Promise<void> {
+    for (let attempt = 0; attempt <= ExtensionStorageServer.MAX_WRITE_CONFLICT_RETRIES; attempt++) {
+      const fileStat = await this.ensureStorageFile(pathToFile);
+      const { data, rawContent } = await this.readStorageSnapshot(pathToFile);
+      for (const { key, value } of tasks) {
         if (value === undefined || isEmptyObject(value)) {
           delete data[key];
         } else {
           data[key] = value;
         }
       }
-      await this.writeToFile(path, data);
+
+      try {
+        await this.writeToFile(fileStat, data, rawContent);
+        return;
+      } catch (error) {
+        if (
+          attempt === ExtensionStorageServer.MAX_WRITE_CONFLICT_RETRIES ||
+          !FileSystemError.FileIsOutOfSync.is(error as any)
+        ) {
+          throw error;
+        }
+      }
     }
   }
 
@@ -170,31 +196,47 @@ export class ExtensionStorageServer implements IExtensionStorageServer {
   }
 
   private async readFromFile(pathToFile: string): Promise<KeysToKeysToAnyValue> {
+    return (await this.readStorageSnapshot(pathToFile)).data;
+  }
+
+  private async readStorageSnapshot(pathToFile: string): Promise<{ data: KeysToKeysToAnyValue; rawContent?: string }> {
     const target = URI.file(pathToFile);
     const existed = await this.asAccess(target.toString(), true);
     if (!existed) {
-      return {};
+      return { data: {} };
     }
+
+    let rawContent: string;
     try {
       const { content } = await this.fileSystem.readFile(target.toString());
-      return JSON.parse(content.toString());
+      rawContent = content.toString();
+    } catch (error) {
+      this.logger.error('Failed to read data from "', target.toString(), '". Reason:', error);
+      return { data: {} };
+    }
+
+    try {
+      return { data: JSON.parse(rawContent), rawContent };
     } catch (error) {
       this.logger.error('Failed to parse data from "', target.toString(), '". Reason:', error);
-      return {};
+      return { data: {}, rawContent };
     }
   }
 
-  private async writeToFile(pathToFile: string, data: KeysToKeysToAnyValue): Promise<void> {
+  private async ensureStorageFile(pathToFile: string): Promise<FileStat> {
     const target = URI.file(pathToFile);
     const existed = await this.asAccess(target.parent.toString());
     if (!existed) {
       await this.fileSystem.createFolder(target.parent.toString());
     }
-    const rawData = JSON.stringify(data);
     let fileStat = await this.fileSystem.getFileStat(target.toString());
     if (!fileStat) {
       fileStat = await this.fileSystem.createFile(target.toString());
     }
-    await this.fileSystem.setContent(fileStat, rawData);
+    return fileStat;
+  }
+
+  private async writeToFile(fileStat: FileStat, data: KeysToKeysToAnyValue, expectedContent?: string): Promise<void> {
+    await this.fileSystem.setContent(fileStat, JSON.stringify(data), { expectedContent });
   }
 }

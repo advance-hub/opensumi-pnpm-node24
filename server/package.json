@@ -9,7 +9,11 @@
     "dev:collaboration": "cross-env NODE_OPTIONS=--max-old-space-size=512 ENABLE_COLLABORATION=1 PORT=8000 IS_DEV=1 NODE_ENV=development EXT_MODE=js KTLOG_SHOW_DEBUG=0 tsx watch src/main.ts",
     "start": "cross-env NODE_ENV=production node --max-old-space-size=512 dist/main.js",
     "start:ai": "cross-env ENABLE_AI=1 NODE_ENV=production node --max-old-space-size=768 dist/main.js",
+    "compare:runtime": "tsx scripts/compare-runtime-profiles.ts",
+    "package:workspace-agent": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/package-workspace-agent.ts",
+    "profile:runtime": "tsx scripts/profile-runtime.ts",
     "smoke:memory": "pnpm run build && cross-env NODE_OPTIONS=--max-old-space-size=512 tsx scripts/memory-smoke.ts",
+    "test:diagnostics": "tsx --test scripts/extension-directory.test.ts scripts/process-tree.test.ts scripts/runtime-profile-metrics.test.ts scripts/workspace-agent-defaults.test.ts scripts/ws-gateway.test.ts scripts/ws-gateway-defaults.test.ts",
     "typecheck": "cross-env NODE_OPTIONS=--max-old-space-size=512 tsc --noEmit -p tsconfig.json && cross-env NODE_OPTIONS=--max-old-space-size=512 tsc --noEmit -p tsconfig.scripts.json"
   },
   "dependencies": {
@@ -17,6 +21,7 @@
     "@opensumi/ide-collaboration": "workspace:*",
     "@opensumi/ide-core-node": "workspace:*",
     "@opensumi/ide-express-file-server": "workspace:*",
+    "@opensumi/ide-file-service": "workspace:*",
     "@opensumi/ide-remote-opener": "workspace:*",
     "@opensumi/ide-startup": "workspace:*",
     "@opensumi/ide-terminal-next": "workspace:*",

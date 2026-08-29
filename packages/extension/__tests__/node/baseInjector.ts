@@ -19,16 +19,16 @@ export const extensionDir = path.join(__dirname, '../../__mocks__/extensions');
 
 export const getBaseInjector = () => {
   const injector = createNodeInjector([]);
-  injector.addProviders(
-    {
-      token: AppConfig,
-      useValue: {
-        marketplace: {
-          extensionDir,
-          ignoreId: [],
-        },
+  injector.overrideProviders({
+    token: AppConfig,
+    useValue: {
+      marketplace: {
+        extensionDir,
+        ignoreId: [],
       },
     },
+  });
+  injector.addProviders(
     {
       token: INodeLogger,
       useValue: getDebugLogger(),

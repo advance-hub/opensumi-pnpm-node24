@@ -22,6 +22,20 @@ extensionHostManagerTester({
 });
 
 describe('ExtensionHostManager resource cleanup', () => {
+  it('refuses to fork beyond the managed process hard limit', async () => {
+    expect.hasAssertions();
+    const manager = new ExtensionHostManager();
+    const extHostPath = path.join(__dirname, '../../__mocks__/ext.host.js');
+    (manager as any).maxProcessCount = 1;
+    manager.fork(extHostPath, [], { silent: true });
+
+    expect(() => manager.fork(extHostPath, [], { silent: true })).toThrow(
+      'Managed extension child process limit (1) reached',
+    );
+    expect((manager as any).processMap.size).toBe(1);
+    await manager.dispose();
+  });
+
   it('drops process and listener references after a child exits', async () => {
     expect.hasAssertions();
     const manager = new ExtensionHostManager();

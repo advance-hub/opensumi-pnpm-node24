@@ -10,17 +10,28 @@ jest.mock('@opensumi/di', () => {
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import nodeFetch, { RequestInit as NodeFetchRequestInit } from 'node-fetch';
 
 import { OpenSumiMcpHttpServer } from '../../src/node/acp/opensumi-mcp-http-server';
 
 import type { ILogger } from '@opensumi/ide-core-common';
 import type { WebMcpGroupDef, WebMcpToolResult } from '@opensumi/ide-core-common/lib/types/ai-native/acp-types';
 
-(global as any).fetch = require('node-fetch');
-
 const LOWER_SNAKE_TOOL_NAME = /^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/;
 const FILE_MUTATION_TOOL_NAMES = ['file_create', 'file_write', 'file_copy', 'file_move', 'file_delete'];
 const EDITOR_TERMINAL_MUTATION_TOOL_NAMES = ['editor_format', 'editor_save', 'terminal_dispose'];
+
+const mcpTestFetch = async (url: string | URL, init?: RequestInit): Promise<Response> => {
+  const response = await nodeFetch(url.toString(), init as NodeFetchRequestInit);
+  const body = response.body as typeof response.body & {
+    cancel?: () => Promise<void>;
+    destroy: () => void;
+  };
+  if (body && typeof body.cancel !== 'function') {
+    body.cancel = async () => body.destroy();
+  }
+  return response as unknown as Response;
+};
 
 const testGroupDefs = [
   {
@@ -304,7 +315,7 @@ async function listMcpToolNames(groupDefs: WebMcpGroupDef[]): Promise<string[]> 
       capabilities: {},
     },
   );
-  const transport = new StreamableHTTPClientTransport(new URL(server.getUrl()));
+  const transport = new StreamableHTTPClientTransport(new URL(server.getUrl()), { fetch: mcpTestFetch });
 
   try {
     await client.connect(transport);
@@ -357,7 +368,7 @@ describe('OpenSumiMcpHttpServer', () => {
         capabilities: {},
       },
     );
-    const transport = new StreamableHTTPClientTransport(new URL(server.getUrl()));
+    const transport = new StreamableHTTPClientTransport(new URL(server.getUrl()), { fetch: mcpTestFetch });
 
     try {
       await client.connect(transport);
@@ -632,7 +643,7 @@ describe('OpenSumiMcpHttpServer', () => {
         capabilities: {},
       },
     );
-    const transport = new StreamableHTTPClientTransport(new URL(connection.url));
+    const transport = new StreamableHTTPClientTransport(new URL(connection.url), { fetch: mcpTestFetch });
 
     try {
       await client.connect(transport);

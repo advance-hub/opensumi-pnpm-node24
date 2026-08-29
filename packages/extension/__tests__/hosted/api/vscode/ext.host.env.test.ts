@@ -1,3 +1,5 @@
+/** @jest-environment-options {"url":"https://ide.aliababa.com/workspace?id=1"} */
+
 import { WSChannelHandler } from '@opensumi/ide-connection/lib/browser/ws-channel-handler';
 import { Uri, uuid } from '@opensumi/ide-core-common';
 import { MainThreadEnv } from '@opensumi/ide-extension/lib/browser/vscode/api/main.thread.env';
@@ -71,28 +73,6 @@ describe('vscode extHostEnv Test', () => {
   });
 
   describe('asExternalUrl', () => {
-    const oldWindowLocationHostname = window.location.hostname;
-    const oldWindowLocationHref = window.location.href;
-    const ideHostName = 'ide.aliababa.com';
-    const ideUrl = `https://${ideHostName}/workspace?id=1`;
-    beforeAll(() => {
-      Object.defineProperty(window, 'location', {
-        value: {
-          href: ideUrl,
-          hostname: ideHostName,
-        },
-      });
-    });
-
-    afterAll(() => {
-      Object.defineProperty(window, 'location', {
-        value: {
-          href: oldWindowLocationHref,
-          hostname: oldWindowLocationHostname,
-        },
-      });
-    });
-
     it('asExternalUri localhost uri', async () => {
       const uri = Uri.parse('http://localhost:8080?userId=1');
       const externalUri = await env.asExternalUri(uri);

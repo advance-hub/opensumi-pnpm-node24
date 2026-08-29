@@ -10,7 +10,7 @@ import { IHashCalculateService } from '@opensumi/ide-core-common/lib/hash-calcul
 import { createBrowserInjector } from '@opensumi/ide-dev-tool/src/injector-helper';
 import { MockInjector } from '@opensumi/ide-dev-tool/src/mock-injector';
 import { IExtensionStoragePathServer, IExtensionStorageServer } from '@opensumi/ide-extension-storage';
-import { FileStat, IDiskFileProvider } from '@opensumi/ide-file-service';
+import { FileStat, FileSystemError, IDiskFileProvider } from '@opensumi/ide-file-service';
 import { FileServiceClient } from '@opensumi/ide-file-service/lib/browser/file-service-client';
 import { DiskFileSystemProvider } from '@opensumi/ide-file-service/lib/node/disk-file-system.provider';
 import { WatcherProcessManagerToken } from '@opensumi/ide-file-service/lib/node/watcher-process-manager';
@@ -194,5 +194,36 @@ describe('Extension Storage Server -- Data operation should be worked', () => {
     await extensionStorage.set(key, value, isGlobal);
     expect(await extensionStorage.get(key, isGlobal)).toEqual(value);
     expect(await extensionStorage.getAll(isGlobal)).toEqual(data);
+  });
+
+  it('Global -- stale concurrent write should merge the latest data and retry', async () => {
+    const fileServiceClient = injector.get(IFileServiceClient);
+    const setContent = fileServiceClient.setContent.bind(fileServiceClient);
+    const peerValue = { from: 'peer-session' };
+    let conflictInjected = false;
+    const setContentSpy = jest
+      .spyOn(fileServiceClient, 'setContent')
+      .mockImplementation(async (file, content, options) => {
+        if (!conflictInjected) {
+          conflictInjected = true;
+          await setContent(file, JSON.stringify({ peer: peerValue }), options);
+          throw FileSystemError.FileIsOutOfSync(file.uri);
+        }
+        return setContent(file, content, options);
+      });
+
+    const ownValue = { from: 'current-session' };
+    await extensionStorage.set('own', ownValue, true);
+
+    expect(setContentSpy).toHaveBeenCalledTimes(2);
+    expect(await extensionStorage.getAll(true)).toEqual({ peer: peerValue, own: ownValue });
+  });
+
+  it('Global -- non-conflict write errors should not retry', async () => {
+    const fileServiceClient = injector.get(IFileServiceClient);
+    const setContentSpy = jest.spyOn(fileServiceClient, 'setContent').mockRejectedValue(new Error('write failed'));
+
+    await expect(extensionStorage.set('test', { value: true }, true)).rejects.toThrow('write failed');
+    expect(setContentSpy).toHaveBeenCalledTimes(1);
   });
 });

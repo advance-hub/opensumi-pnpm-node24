@@ -1,3 +1,5 @@
+import path from 'path';
+
 import { ProxyIdentifier } from '@opensumi/ide-connection';
 import { Deferred, ILoggerManagerClient, IReporter } from '@opensumi/ide-core-common';
 import { REPORT_NAME } from '@opensumi/ide-core-common';
@@ -19,6 +21,7 @@ describe('Extension process test', () => {
     const proxyMaps = new Map();
     let extHostImpl: ExtensionHostServiceImpl;
     let injector: MockInjector;
+    let mainThreadExtensionService: MainThreadExtensionService;
 
     beforeEach(async () => {
       injector = createBrowserInjector([]);
@@ -41,7 +44,8 @@ describe('Extension process test', () => {
       );
 
       const { rpcProtocolExt, rpcProtocolMain } = createMockPairRPCProtocol();
-      rpcProtocolExt.set(ProxyIdentifier.for('MainThreadExtensionService'), new MainThreadExtensionService());
+      mainThreadExtensionService = new MainThreadExtensionService();
+      rpcProtocolExt.set(ProxyIdentifier.for('MainThreadExtensionService'), mainThreadExtensionService);
       rpcProtocolExt.set(ProxyIdentifier.for('MainThreadStorage'), new MainThreadStorage());
       rpcProtocolExt.set(ProxyIdentifier.for('MainThreadExtensionLog'), new MainThreadExtensionLog());
 
@@ -81,6 +85,86 @@ describe('Extension process test', () => {
       expect(extHostImpl.isActivated(id)).toBe(true);
       expect(extHostImpl.getExtendExports(id)).toEqual({});
       expect(extHostImpl.getExtensionExports(id)).toEqual({});
+    });
+
+    it('coalesces concurrent activation requests and releases the in-flight reference', async () => {
+      expect.assertions(4);
+      const activation = new Deferred<void>();
+      const doActivateExtension = jest
+        .spyOn(extHostImpl as any, 'doActivateExtension')
+        .mockReturnValueOnce(activation.promise)
+        .mockResolvedValueOnce(undefined);
+
+      const first = extHostImpl.activateExtension(mockExtensionProps.id);
+      const second = extHostImpl.activateExtension(mockExtensionProps.id);
+
+      expect(doActivateExtension).toHaveBeenCalledTimes(1);
+      expect((extHostImpl as any).activatingExtensions.size).toBe(1);
+      activation.resolve();
+      await Promise.all([first, second]);
+      expect((extHostImpl as any).activatingExtensions.size).toBe(0);
+
+      await extHostImpl.activateExtension(mockExtensionProps.id);
+      expect(doActivateExtension).toHaveBeenCalledTimes(2);
+      doActivateExtension.mockRestore();
+    });
+
+    it('waits for an in-flight activation before releasing a stale extension', async () => {
+      expect.assertions(2);
+      const activation = new Deferred<void>();
+      const doActivateExtension = jest
+        .spyOn(extHostImpl as any, 'doActivateExtension')
+        .mockReturnValueOnce(activation.promise);
+      const deactivateExtension = jest.spyOn(extHostImpl.extensionsActivator, 'deactivateExtension');
+
+      const activating = extHostImpl.activateExtension(mockExtensionProps.id);
+      const releasing = (extHostImpl as any).releaseStaleExtensions(
+        extHostImpl.$getExtensions().filter((extension) => extension.id !== mockExtensionProps.id),
+      );
+      await Promise.resolve();
+      expect(deactivateExtension).not.toHaveBeenCalled();
+
+      activation.resolve();
+      await Promise.all([activating, releasing]);
+      expect(deactivateExtension).toHaveBeenCalledWith(mockExtensionProps.id);
+      doActivateExtension.mockRestore();
+      deactivateExtension.mockRestore();
+    });
+
+    it('releases an activated extension when it is removed from host data', async () => {
+      expect.hasAssertions();
+      const id = mockExtensionProps.id;
+      const cachedModulePath = path.join(mockExtensionProps.realPath, 'index.js');
+      require.cache[cachedModulePath] = { id: cachedModulePath } as NodeJS.Module;
+      try {
+        await extHostImpl.$activateExtension(id);
+      } catch {
+        // The mock extension may not expose every production API, but it is
+        // still retained by the activator after the attempted activation.
+      }
+      expect(extHostImpl.isActivated(id)).toBe(true);
+
+      mainThreadExtensionService.extensions = [mockExtensionProps2];
+      await extHostImpl.$updateExtHostData();
+
+      expect(extHostImpl.isActivated(id)).toBe(false);
+      expect(extHostImpl.getExtension(id)).toBeUndefined();
+      expect(require.cache[cachedModulePath]).toBeUndefined();
+    });
+
+    it('runs extension deactivation during graceful host close', async () => {
+      expect.assertions(2);
+      const activation = new Deferred<void>();
+      (extHostImpl as any).activatingExtensions.set(mockExtensionProps.id, activation.promise);
+      const deactivate = jest.spyOn(extHostImpl.extensionsActivator, 'deactivate').mockResolvedValue([]);
+
+      const closing = extHostImpl.close();
+      await Promise.resolve();
+      expect(deactivate).not.toHaveBeenCalled();
+      activation.resolve();
+      await closing;
+
+      expect(deactivate).toHaveBeenCalledTimes(1);
     });
 
     it('should caught runtime error', async () => {

@@ -31,6 +31,7 @@ export interface ExtHostAppConfig {
   extLogServiceClassPath?: string;
   logDir?: string;
   logLevel?: LogLevel;
+  extensionHostActivationDiagnostics?: boolean;
   builtinCommands?: IBuiltInCommand[];
   customDebugChildProcess?: CustomChildProcessModule;
   /**

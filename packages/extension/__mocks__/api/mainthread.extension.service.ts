@@ -2,8 +2,10 @@ import { VSCodeExtensionService } from '../../src/common/vscode';
 import { mockExtensionProps, mockExtensionProps2 } from '../extensions';
 
 export class MainThreadExtensionService implements VSCodeExtensionService {
+  constructor(public extensions = [mockExtensionProps, mockExtensionProps2]) {}
+
   $getExtensions() {
-    return Promise.resolve([mockExtensionProps, mockExtensionProps2]);
+    return Promise.resolve(this.extensions);
   }
 
   $activateExtension(extensionPath: string) {

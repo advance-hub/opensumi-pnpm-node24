@@ -48,7 +48,6 @@ testGlobal.navigator = Object.assign(jsdom.window.navigator, {
 testGlobal.Element = jsdom.window.Element;
 testGlobal.HTMLDivElement = jsdom.window.HTMLDivElement;
 testGlobal.HTMLSpanElement = jsdom.window.HTMLSpanElement;
-testGlobal.fetch = jsdom.window.fetch;
 testGlobal.location = jsdom.window.location;
 testGlobal.getComputedStyle = jsdom.window.getComputedStyle;
 testGlobal.window = jsdom.window;
