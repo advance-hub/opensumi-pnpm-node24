@@ -151,6 +151,12 @@ describe('WorkspaceAgentClient protocol gates', () => {
       getActiveRuntime: jest.fn().mockResolvedValue({
         child: { pid: 123 },
         token: 'test-token',
+        capabilities: {
+          protocolMajor: 1,
+          protocolMinor: 1,
+          services: ['workspace.watch.v1'],
+          buildRevision: 'test',
+        },
         watcher: { watch: upstreamWatch },
         searchClient: {},
       }),
@@ -182,6 +188,56 @@ describe('WorkspaceAgentClient protocol gates', () => {
     handles.at(-1)!.dispose();
     expect(stream.cancel).toHaveBeenCalledTimes(1);
     expect(client.streams.size).toBe(0);
+  });
+
+  it('waits for the protocol 1.2 watcher readiness frame before resolving a subscription', async () => {
+    expect.assertions(6);
+    const stream = Object.assign(new EventEmitter(), { cancel: jest.fn() });
+    const upstreamWatch = jest.fn().mockReturnValue(stream);
+    const onEvent = jest.fn();
+    const client = Object.create(WorkspaceAgentClient.prototype) as any;
+    Object.assign(client, {
+      getActiveRuntime: jest.fn().mockResolvedValue({
+        child: { pid: 123 },
+        token: 'test-token',
+        capabilities: {
+          protocolMajor: 1,
+          protocolMinor: 2,
+          services: ['workspace.watch.v1'],
+          buildRevision: 'test',
+        },
+        watcher: { watch: upstreamWatch },
+        searchClient: {},
+      }),
+      logger: { debug: jest.fn() },
+      streams: new Set(),
+      sharedWatches: new Map(),
+      sharedWatchSubscriberSequence: 1,
+    });
+
+    let resolved = false;
+    const handlePromise = client
+      .watch(
+        { workspaceId: 'session', rootPath: '/workspace', recursive: true, excludes: [] },
+        { onEvent, onError: jest.fn(), onEnd: jest.fn() },
+      )
+      .then((handle) => {
+        resolved = true;
+        return handle;
+      });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(upstreamWatch).toHaveBeenCalledTimes(1);
+    expect(resolved).toBe(false);
+    expect(client.sharedWatches.size).toBe(1);
+
+    stream.emit('data', {});
+    const handle = await handlePromise;
+    expect(resolved).toBe(true);
+    expect(onEvent).toHaveBeenCalledWith({});
+    handle.dispose();
+    expect(stream.cancel).toHaveBeenCalledTimes(1);
   });
 
   it('untracks an explicitly cancelled search even without a terminal stream event', async () => {

@@ -165,6 +165,8 @@ interface SharedWorkspaceAgentWatch {
   key: string;
   stream: ClientReadableStream<WorkspaceAgentWatchEvent>;
   untrack(): void;
+  ready: Promise<void>;
+  settleReady(error?: unknown): void;
   subscribers: Map<number, WorkspaceAgentWatchHandlers>;
   cleanupTimer?: NodeJS.Timeout;
   ended: boolean;
@@ -231,12 +233,14 @@ interface DetachedWorkspaceAgentRuntime {
 interface ActiveWorkspaceAgentRuntime {
   child: ChildProcess;
   token: string;
+  capabilities: WorkspaceAgentCapabilities;
   watcher: WorkspaceWatcherClient;
   searchClient: WorkspaceSearchClient;
   fileSearchClient: WorkspaceFileSearchClient;
 }
 
 const PROTOCOL_MAJOR = 1;
+const WATCH_READY_PROTOCOL_MINOR = 2;
 const STARTUP_TIMEOUT_MS = 5_000;
 const READY_ANNOUNCEMENT_LINE_LIMIT_BYTES = 64 * 1024;
 const SHUTDOWN_TIMEOUT_MS = 2_000;
@@ -629,6 +633,7 @@ export class WorkspaceAgentClient {
       const watcher = this.watcher;
       const searchClient = this.searchClient;
       const fileSearchClient = this.fileSearchClient;
+      const capabilities = this.capabilities;
       if (
         child &&
         child.exitCode === null &&
@@ -636,9 +641,10 @@ export class WorkspaceAgentClient {
         token &&
         watcher &&
         searchClient &&
-        fileSearchClient
+        fileSearchClient &&
+        capabilities
       ) {
-        return { child, token, watcher, searchClient, fileSearchClient };
+        return { child, token, capabilities, watcher, searchClient, fileSearchClient };
       }
     }
     throw new Error('Workspace Agent exited while a request was being prepared');
@@ -779,19 +785,49 @@ export class WorkspaceAgentClient {
     let shared = this.sharedWatches.get(key);
     if (!shared) {
       const stream = runtime.watcher.watch(request, this.createMetadata(runtime.token));
+      const waitsForReady = Number(runtime.capabilities.protocolMinor) >= WATCH_READY_PROTOCOL_MINOR;
+      let readySettled = !waitsForReady;
+      let resolveReady: () => void;
+      let rejectReady: (error: unknown) => void;
+      const ready = waitsForReady
+        ? new Promise<void>((resolve, reject) => {
+            resolveReady = resolve;
+            rejectReady = reject;
+          })
+        : Promise.resolve();
+      const settleReady = (error?: unknown) => {
+        if (readySettled) {
+          return;
+        }
+        readySettled = true;
+        if (error) {
+          rejectReady!(error);
+        } else {
+          resolveReady!();
+        }
+      };
       shared = {
         key,
         stream,
         untrack: this.trackStream(stream),
+        ready,
+        settleReady,
         subscribers: new Map(),
         ended: false,
       };
       this.sharedWatches.set(key, shared);
       stream.on('data', (event) => {
+        shared!.settleReady();
         shared!.subscribers.forEach((subscriber) => subscriber.onEvent(event));
       });
-      stream.once('error', (error) => this.finishSharedWatch(shared!, error as ServiceError));
-      stream.once('end', () => this.finishSharedWatch(shared!));
+      stream.once('error', (error) => {
+        shared!.settleReady(error);
+        this.finishSharedWatch(shared!, error as ServiceError);
+      });
+      stream.once('end', () => {
+        shared!.settleReady(new Error('Workspace Agent watcher ended before it was ready'));
+        this.finishSharedWatch(shared!);
+      });
       this.logger.debug(
         `Workspace Agent watcher created for ${request.rootPath} (${request.excludes.length} excludes)`,
       );
@@ -805,6 +841,7 @@ export class WorkspaceAgentClient {
 
     const subscriberId = this.sharedWatchSubscriberSequence++;
     shared.subscribers.set(subscriberId, handlers);
+    await shared.ready;
     return {
       dispose: (options) => this.releaseSharedWatch(shared!, subscriberId, options?.gracePeriodMs || 0),
     };

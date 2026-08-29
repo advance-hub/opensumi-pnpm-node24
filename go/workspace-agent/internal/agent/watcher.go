@@ -60,6 +60,12 @@ func (s *Server) runWatch(
 ) error {
 	s.activeWatches.Add(1)
 	defer s.activeWatches.Add(^uint64(0))
+	// Protocol 1.2 defines the first empty event as a readiness acknowledgement.
+	// The backend is fully registered before runWatch starts, so clients can wait
+	// for this frame before allowing callers to mutate the watched workspace.
+	if err := stream.Send(&workspacev1.WatchEvent{}); err != nil {
+		return err
+	}
 
 	ticker := time.NewTicker(watchBatchInterval)
 	defer ticker.Stop()

@@ -585,7 +585,7 @@ async function runSmoke(options: SmokeOptions): Promise<void> {
   if (
     agentPackage.schemaVersion !== 1 ||
     agentPackage.protocolMajor !== 1 ||
-    agentPackage.protocolMinor !== 1 ||
+    agentPackage.protocolMinor !== 2 ||
     !Array.isArray(agentPackage.services) ||
     !agentPackage.services.includes('workspace.watch.v1') ||
     !agentPackage.services.includes('workspace.search.v1') ||

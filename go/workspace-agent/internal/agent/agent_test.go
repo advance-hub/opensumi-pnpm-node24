@@ -17,7 +17,7 @@ func TestCapabilitiesAdvertiseFileSearchProtocol(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if capabilities.GetProtocolMinor() != 1 || !containsString(capabilities.GetServices(), "workspace.fileSearch.v1") {
+	if capabilities.GetProtocolMinor() != 2 || !containsString(capabilities.GetServices(), "workspace.fileSearch.v1") {
 		t.Fatalf("file search capability missing: %+v", capabilities)
 	}
 }

@@ -190,7 +190,7 @@ async function packageWorkspaceAgent(options: PackageOptions): Promise<void> {
     const manifest = {
       schemaVersion: 1,
       protocolMajor: 1,
-      protocolMinor: 1,
+      protocolMinor: 2,
       services: ['workspace.watch.v1', 'workspace.search.v1', 'workspace.fileSearch.v1'],
       goos: options.goos,
       goarch: options.goarch,

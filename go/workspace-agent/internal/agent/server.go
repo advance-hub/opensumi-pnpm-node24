@@ -21,7 +21,7 @@ import (
 
 const (
 	ProtocolMajor = 1
-	ProtocolMinor = 1
+	ProtocolMinor = 2
 )
 
 var services = []string{"workspace.watch.v1", "workspace.search.v1", "workspace.fileSearch.v1"}

@@ -101,7 +101,7 @@ func TestRunWatchReportsBackendOverflowAndReleasesActiveCount(t *testing.T) {
 	backend := newFakeWatchBackend()
 	backend.overflow.Store(7)
 	ctx, cancel := context.WithCancel(context.Background())
-	stream := &recordingWatchStream{ctx: ctx, events: make(chan *workspacev1.WatchEvent, 1)}
+	stream := &recordingWatchStream{ctx: ctx, events: make(chan *workspacev1.WatchEvent, 2)}
 	server := NewServer("test")
 	request := &workspacev1.WatchRequest{RootPath: root, Recursive: true}
 	runError := make(chan error, 1)
@@ -109,6 +109,14 @@ func TestRunWatchReportsBackendOverflowAndReleasesActiveCount(t *testing.T) {
 		runError <- server.runWatch(request, stream, root, newExcludeFilter(root, nil), backend)
 	}()
 
+	select {
+	case event := <-stream.events:
+		if len(event.GetChanges()) != 0 || event.GetOverflow() != nil || event.GetFailure() != nil {
+			t.Fatalf("unexpected watch readiness event: %+v", event)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for watch readiness acknowledgement")
+	}
 	select {
 	case event := <-stream.events:
 		overflow := event.GetOverflow()

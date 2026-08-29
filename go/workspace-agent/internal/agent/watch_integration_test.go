@@ -1,4 +1,4 @@
-//go:build linux || (darwin && cgo)
+//go:build linux || windows || (darwin && cgo)
 
 package agent
 
@@ -70,10 +70,14 @@ func TestWorkspaceWatcherLatencyAndCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	readyEvent, err := stream.Recv()
+	if err != nil {
+		t.Fatalf("watch stream ended before its readiness acknowledgement: %v", err)
+	}
+	if len(readyEvent.GetChanges()) != 0 || readyEvent.GetOverflow() != nil || readyEvent.GetFailure() != nil {
+		t.Fatalf("unexpected watch readiness event: %+v", readyEvent)
+	}
 	waitForActiveWatchCount(t, authorizedContext, controlClient, 1)
-	// Health changes after the backend is constructed. Give the native dispatch
-	// queue one short settling window before producing the first measured event.
-	time.Sleep(150 * time.Millisecond)
 
 	latencies := make([]time.Duration, 0, watchLatencySamples)
 	for index := 0; index < watchLatencySamples; index++ {
