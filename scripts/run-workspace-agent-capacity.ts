@@ -716,6 +716,10 @@ async function runProfile(variant: Variant, run: number, options: CapacityOption
       OPENSUMI_WORKSPACE_AGENT_WATCH_MODE: variant === 'agent' ? 'enabled' : 'off',
       OPENSUMI_WORKSPACE_AGENT_SEARCH_MODE: variant === 'agent' ? 'enabled' : 'off',
       OPENSUMI_WORKSPACE_AGENT_FILE_SEARCH_MODE: variant === 'agent' ? 'enabled' : 'off',
+      // The packaged artifact would otherwise roll the gateway out on both
+      // variants; the comparison requires node=direct and agent=gateway.
+      OPENSUMI_WS_GATEWAY_MODE: variant === 'agent' ? 'enabled' : 'off',
+      OPENSUMI_WS_GATEWAY_FILE_RPC_MODE: variant === 'agent' ? 'enabled' : 'off',
       MAX_EXTENSION_HOSTS: String(Math.max(3, options.sessions)),
       MAX_MANAGED_EXTENSION_PROCESSES: String(Math.max(3, options.sessions)),
       EXTENSION_HOST_IDLE_TIMEOUT: '1000',

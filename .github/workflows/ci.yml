@@ -60,8 +60,21 @@ jobs:
           pnpm run check:versions
 
       - name: CI
+        shell: bash
         run: |
-          pnpm run ci --selectProjects ${{ matrix.ci-project }}
+          set -o pipefail
+          pnpm run ci --selectProjects ${{ matrix.ci-project }} 2>&1 | tee jest-output.log
+
+      - name: Summarize test failure
+        if: failure()
+        shell: bash
+        run: |
+          if [ -f jest-output.log ]; then
+            echo '### jest tail' >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -n 120 jest-output.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - if: ${{ matrix.os == 'ubuntu-latest' }}
         name: Upload coverage to Codecov
@@ -107,7 +120,22 @@ jobs:
 
       - name: Test native watcher, cancellation and race safety
         working-directory: go/workspace-agent
-        run: go test -race -v ./...
+        shell: bash
+        run: |
+          set -o pipefail
+          go test -race -v ./... 2>&1 | tee go-test.log
+
+      - name: Summarize go test failure
+        if: failure()
+        working-directory: go/workspace-agent
+        shell: bash
+        run: |
+          if [ -f go-test.log ]; then
+            echo '### go test tail' >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            grep -E "^(--- FAIL|=== RUN|    .*_test\.go|FAIL|ok  |panic)" go-test.log | tail -n 120 >> "$GITHUB_STEP_SUMMARY" || tail -n 120 go-test.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Vet
         working-directory: go/workspace-agent
@@ -177,7 +205,21 @@ jobs:
       - name: Install dependencies
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-        run: pnpm install --frozen-lockfile
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm install --frozen-lockfile 2>&1 | tee install.log
+
+      - name: Summarize install failure
+        if: failure()
+        shell: bash
+        run: |
+          if [ -f install.log ]; then
+            echo '### install tail' >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -n 120 install.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Build production client, server and native Workspace Agent
         run: |
@@ -194,7 +236,22 @@ jobs:
         run: pnpm exec playwright install chromium
 
       - name: Exercise Search, Watch, transport and process cleanup
-        run: pnpm run smoke:workspace-agent:product
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm run smoke:workspace-agent:product 2>&1 | tee smoke-output.log
+
+      - name: Summarize product smoke failure
+        if: failure()
+        shell: bash
+        run: |
+          if [ -f smoke-output.log ]; then
+            echo '### product smoke tail' >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -n 160 smoke-output.log >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+          if [ -f output/workspace-agent/product-smoke-darwin.json ]; then echo 'warning: darwin evidence on CI' >> "$GITHUB_STEP_SUMMARY"; fi
 
       - name: Upload Workspace Agent product-smoke evidence
         if: ${{ always() }}

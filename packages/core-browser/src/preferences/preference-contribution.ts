@@ -212,7 +212,7 @@ export class PreferenceSchemaProvider extends PreferenceProvider {
     for (const sectionName of this.configurations.getSectionNames()) {
       delete schema.properties[sectionName];
     }
-    this._validateFunction = new Ajv().compile(schema);
+    this._validateFunction = new Ajv({ strict: false }).compile(schema);
   }
 
   protected readonly unsupportedPreferences = new Set<string>();

@@ -1,6 +1,6 @@
 import { KeymapsParser } from '../../src/browser/keymaps-parser';
 
-describe('KeymapsParser should be work', () => {
+describe('KeymapsParser must be work', () => {
   const parser = new KeymapsParser();
   it('well formatted raw text', () => {
     expectParsing(
@@ -35,7 +35,7 @@ describe('KeymapsParser should be work', () => {
       `{
   "keybindings": [],
   "errors": [
-    "should be array at "
+    "must be array at (root)"
   ]
 }`,
       `{
@@ -50,7 +50,7 @@ describe('KeymapsParser should be work', () => {
       `{
   "keybindings": [],
   "errors": [
-    "should NOT have additional properties at /0"
+    "must NOT have additional properties at /0"
   ]
 }`,
       `[
@@ -68,7 +68,7 @@ describe('KeymapsParser should be work', () => {
       `{
   "keybindings": [],
   "errors": [
-    "should be string at /0/keybinding"
+    "must be string at /0/keybinding"
   ]
 }`,
       `[
@@ -91,7 +91,7 @@ describe('KeymapsParser should be work', () => {
   "errors": [
     "PropertyNameExpected at 44 offset of 1 length",
     "ValueExpected at 44 offset of 1 length",
-    "should have required property 'command' at /0"
+    "must have required property 'command' at /0"
   ]
 }`,
       `[

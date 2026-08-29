@@ -264,8 +264,14 @@ async function fileSearchAndVerify(page: Page, options: BrowserProfileOptions): 
 }
 
 function isCleanupSettled(snapshot: ProcessTreeMemorySnapshot, variant: BrowserProfileOptions['variant']): boolean {
+  // Server-side residents (the server itself, the packaged WS Gateway and the
+  // Workspace Agent on the agent variant) survive a browser close by design;
+  // everything else must be reclaimed.
   return snapshot.processes.every(
-    (process) => process.role === 'server' || (variant === 'agent' && process.role === 'workspace-agent'),
+    (process) =>
+      process.role === 'server' ||
+      process.role === 'ws-gateway' ||
+      (variant === 'agent' && (process.role === 'workspace-agent' || process.role === 'workspace-agent-child')),
   );
 }
 
@@ -273,8 +279,14 @@ function assertRuntimeTopology(snapshot: ProcessTreeMemorySnapshot, variant: Bro
   const agentCount = snapshot.byRole['workspace-agent']?.count || 0;
   const gatewayCount = snapshot.byRole['ws-gateway']?.count || 0;
   const watcherCount = snapshot.byRole['watcher-host']?.count || 0;
-  if (gatewayCount !== 0) {
-    throw new Error(`Browser capacity profile unexpectedly started ${gatewayCount} WS Gateway process(es)`);
+  // The gateway is the packaged product default since 10.17: the node
+  // comparison baseline must stay on direct sockets, while the agent variant
+  // carries exactly one gateway alongside its Workspace Agent.
+  if (variant === 'node' && gatewayCount !== 0) {
+    throw new Error(`Node capacity profile unexpectedly started ${gatewayCount} WS Gateway process(es)`);
+  }
+  if (variant === 'agent' && gatewayCount > 1) {
+    throw new Error(`Agent capacity profile started ${gatewayCount} WS Gateway process(es)`);
   }
   if (variant === 'agent' && (agentCount !== 1 || watcherCount !== 0)) {
     throw new Error(

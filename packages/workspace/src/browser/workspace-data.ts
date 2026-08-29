@@ -38,7 +38,7 @@ export namespace WorkspaceData {
   export function is(data: any): data is WorkspaceData {
     if (!validateSchema) {
       // 延迟 schema 编译，避免工作区模块初始化时支付 Ajv compile 开销。
-      validateSchema = new Ajv().compile(workspaceSchema);
+      validateSchema = new Ajv({ strict: false }).compile(workspaceSchema);
     }
     return !!validateSchema(data);
   }

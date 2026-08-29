@@ -41,9 +41,9 @@ export class KeymapsParser {
 
   constructor() {
     // https://github.com/epoberezkin/ajv#validation-and-reporting-options
-    this.validate = new Ajv({
-      jsonPointers: true,
-    }).compile(keymapsSchema);
+    // ajv 8 addresses data with JSON pointers by default and removed the
+    // v6 jsonPointers option.
+    this.validate = new Ajv({ strict: false }).compile(keymapsSchema);
   }
 
   /**
@@ -65,7 +65,7 @@ export class KeymapsParser {
     }
     if (errors && this.validate.errors) {
       for (const error of this.validate.errors) {
-        errors.push(`${error.message} at ${error.dataPath}`);
+        errors.push(`${error.message} at ${error.instancePath || '(root)'}`);
       }
     }
     return [];

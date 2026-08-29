@@ -34,12 +34,26 @@ jobs:
           pnpm install --frozen-lockfile
 
       - name: Build
+        shell: bash
         run: |
-          pnpm run init
-          pnpm run build:client
-          pnpm run build:server
-          pnpm run bundle:lite
-          pnpm run bundle:preview
+          set -o pipefail
+          pnpm run init 2>&1 | tee build-init.log
+          pnpm run build:client 2>&1 | tee build-client.log
+          pnpm run build:server 2>&1 | tee build-server.log
+          pnpm run bundle:lite 2>&1 | tee bundle-lite.log
+          pnpm run bundle:preview 2>&1 | tee bundle-preview.log
+
+      - name: Summarize build failure
+        if: failure()
+        run: |
+          for file in build-init.log build-client.log build-server.log bundle-lite.log bundle-preview.log; do
+            if [ -f "$file" ]; then
+              echo "### $file (tail)" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              tail -n 80 "$file" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
 
       - name: Lint
         run: |
@@ -58,13 +72,28 @@ jobs:
           node-version: 24.x
           cache: pnpm
       - name: Build
+        shell: bash
         run: |
-          pnpm install --frozen-lockfile
-          pnpm run init
-          pnpm run build:client
-          pnpm run build:server
-          pnpm run bundle:lite
-          pnpm run bundle:preview
+          set -o pipefail
+          pnpm install --frozen-lockfile 2>&1 | tee install.log
+          pnpm run init 2>&1 | tee build-init.log
+          pnpm run build:client 2>&1 | tee build-client.log
+          pnpm run build:server 2>&1 | tee build-server.log
+          pnpm run bundle:lite 2>&1 | tee bundle-lite.log
+          pnpm run bundle:preview 2>&1 | tee bundle-preview.log
+
+      - name: Summarize build failure
+        if: failure()
+        shell: bash
+        run: |
+          for file in install.log build-init.log build-client.log build-server.log bundle-lite.log bundle-preview.log; do
+            if [ -f "$file" ]; then
+              echo "### $file (tail)" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+              tail -n 80 "$file" >> "$GITHUB_STEP_SUMMARY"
+              echo '```' >> "$GITHUB_STEP_SUMMARY"
+            fi
+          done
 
       - name: Lint
         run: |
