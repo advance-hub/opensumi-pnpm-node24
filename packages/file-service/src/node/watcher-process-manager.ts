@@ -41,6 +41,10 @@ export const WatcherProcessManagerToken = Symbol('WatcherProcessManager');
 
 const WORKSPACE_AGENT_RECONNECT_GRACE_MS = 5_000;
 
+export function normalizeWorkspaceAgentChangeUri(uri: string): string {
+  return new URI(uri).toString();
+}
+
 interface WorkspaceAgentWatchState {
   uri: UriComponents;
   options?: { excludes?: string[]; recursive?: boolean; pollingWatch?: boolean };
@@ -507,7 +511,12 @@ export class WatcherProcessManagerImpl implements IWatcherProcessManager {
             return;
           }
           if (event.changes?.length) {
-            this.$onDidFilesChanged({ changes: event.changes });
+            this.$onDidFilesChanged({
+              changes: event.changes.map((change) => ({
+                ...change,
+                uri: normalizeWorkspaceAgentChangeUri(change.uri),
+              })),
+            });
           }
           if (event.overflow) {
             this.$onWatcherOverflow({

@@ -1,6 +1,6 @@
 import path from 'path';
 
-import { WatcherProcessManagerImpl } from '../../src/node/watcher-process-manager';
+import { WatcherProcessManagerImpl, normalizeWorkspaceAgentChangeUri } from '../../src/node/watcher-process-manager';
 
 const createManager = (watcherHost?: string, watcherHostForkOptions?: Record<string, unknown>) => {
   const manager = Object.create(WatcherProcessManagerImpl.prototype) as WatcherProcessManagerImpl;
@@ -30,6 +30,13 @@ describe('WatcherProcessManagerImpl', () => {
     const manager = createManager(defaultBuiltWatcherHost);
 
     expect(manager.watcherHost).toContain('packages/file-service/src/node/hosted/watcher.process.ts');
+  });
+
+  it('canonicalizes Windows file URIs emitted by the Go watcher', () => {
+    expect.assertions(1);
+    expect(normalizeWorkspaceAgentChangeUri('file:///C:/Users/RUNNER~1/AppData/Local/Temp/watch-proof.txt')).toBe(
+      'file:///c%3A/Users/RUNNER~1/AppData/Local/Temp/watch-proof.txt',
+    );
   });
 
   it('keeps custom configured watcher host in js mode', () => {
