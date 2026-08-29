@@ -574,12 +574,16 @@ export class WatcherProcessManagerImpl implements IWatcherProcessManager {
       this._whenReadyDeferred = new Deferred();
       await this.startNodeWatcherProcess(this.workspaceAgentClientId, this.workspaceAgentBackend);
       await this._whenReadyDeferred.promise;
+      // Apply the global excludes before restoring subscriptions. Updating them
+      // afterwards forces the watcher host to tear down and rebuild the watches
+      // that were just opened, which can lose the first filesystem event on
+      // slower platforms such as Windows.
+      await this.getProxy().$setWatcherFileExcludes(this.workspaceAgentDefaultExcludes);
       await Promise.all(
         Array.from(this.workspaceAgentWatches.values()).map(async (state) => {
           state.nodeWatchId = await this.getProxy().$watch(state.uri, state.options);
         }),
       );
-      await this.getProxy().$setWatcherFileExcludes(this.workspaceAgentDefaultExcludes);
       this.$onWatcherFailed({
         message: 'Workspace Agent watcher failed and the connection was moved to the Node watcher',
         attempts: 1,

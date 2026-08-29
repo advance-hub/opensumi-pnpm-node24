@@ -115,4 +115,46 @@ describe('WatcherProcessManagerImpl', () => {
     expect(disposeAgent).not.toHaveBeenCalled();
     expect(manager.workspaceAgentWatches.size).toBe(0);
   });
+
+  it('applies watcher excludes before restoring subscriptions during Agent fallback', async () => {
+    expect.assertions(3);
+    const manager = createManager() as any;
+    const operations: string[] = [];
+    const disposeStream = jest.fn();
+    manager.logger = { error: jest.fn() };
+    manager.watcherRuntime = 'agent';
+    manager.workspaceAgentFallback = undefined;
+    manager.workspaceAgentClientId = 'fallback-client';
+    manager.workspaceAgentDefaultExcludes = ['**/node_modules/**'];
+    manager.workspaceAgentWatches = new Map([
+      [
+        1,
+        {
+          uri: { scheme: 'file', path: '/workspace' },
+          options: { recursive: true },
+          generation: 0,
+          handle: { dispose: disposeStream },
+        },
+      ],
+    ]);
+    manager.startNodeWatcherProcess = jest.fn(async () => {
+      manager._whenReadyDeferred.resolve();
+    });
+    manager.getProxy = () => ({
+      $setWatcherFileExcludes: async (excludes: string[]) => {
+        operations.push(`excludes:${excludes.join(',')}`);
+      },
+      $watch: async () => {
+        operations.push('watch');
+        return 17;
+      },
+    });
+    manager.$onWatcherFailed = jest.fn();
+
+    await manager.fallbackWorkspaceAgentWatcher('test failure');
+
+    expect(operations).toEqual(['excludes:**/node_modules/**', 'watch']);
+    expect(disposeStream).toHaveBeenCalledTimes(1);
+    expect(manager.workspaceAgentWatches.get(1).nodeWatchId).toBe(17);
+  });
 });
