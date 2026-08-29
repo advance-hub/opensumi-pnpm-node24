@@ -105,6 +105,7 @@ export function createPty(
   });
 
   ptyProcess.onExit(() => {
+    cache.delete(sessionId);
     try {
       channel.close();
     } catch (_e) {}
@@ -112,6 +113,43 @@ export function createPty(
 
   cache.set(sessionId, ptyProcess);
   return _makeResponse(json, { sessionId });
+}
+
+export async function disposePtys() {
+  await Promise.all(
+    Array.from(cache.entries()).map(
+      ([sessionId, ptyProcess]) =>
+        new Promise<void>((resolve) => {
+          let exitListener: { dispose(): void } | undefined;
+          const timeout = setTimeout(finish, 5000);
+          function finish() {
+            clearTimeout(timeout);
+            exitListener?.dispose();
+            cache.delete(sessionId);
+            resolve();
+          }
+          exitListener = ptyProcess.onExit(finish);
+          try {
+            ptyProcess.kill();
+          } catch {
+            finish();
+          }
+        }),
+    ),
+  );
+}
+
+export async function closeTestServers(server: WebSocket.Server, proxy: httpProxy) {
+  await disposePtys();
+  for (const socket of server.clients) {
+    socket.terminate();
+  }
+  await Promise.all([
+    new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    }),
+    new Promise<void>((resolve) => proxy.close(resolve)),
+  ]);
 }
 
 export function resizePty(json: RPCRequest<{ sessionId: string; cols: number; rows: number }>) {

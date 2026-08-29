@@ -1,6 +1,6 @@
 import { ReadStream } from 'fs';
 
-import fileType from 'file-type';
+import { fileTypeStream } from 'file-type';
 import * as fse from 'fs-extra';
 
 import {
@@ -31,7 +31,7 @@ export async function getFileType(uri: string): Promise<string | undefined> {
       let ext: string | undefined;
       if (stat.size) {
         readStream = fse.createReadStream(fsPath);
-        const streamWithType = await fileType.stream(readStream);
+        const streamWithType = await fileTypeStream(readStream);
 
         // 可以拿到 type.fileType 说明为二进制文件
         if (streamWithType.fileType) {
@@ -73,6 +73,7 @@ export async function getFileType(uri: string): Promise<string | undefined> {
         return undefined;
       }
     }
+    throw error;
   } finally {
     readStream?.close();
   }

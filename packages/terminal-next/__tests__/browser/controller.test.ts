@@ -5,7 +5,7 @@ import { Uri } from '@opensumi/ide-core-common';
 import { ITerminalController, TerminalOptions } from '../../src/common';
 
 import { injector } from './inject';
-import { createProxyServer, createWsServer, resetPort } from './proxy';
+import { closeTestServers, createProxyServer, createWsServer, resetPort } from './proxy';
 
 describe('Terminal Controller', () => {
   let controller: ITerminalController;
@@ -21,12 +21,9 @@ describe('Terminal Controller', () => {
     controller.initContextKey(document.createElement('div'));
   });
 
-  afterAll(() => {
+  afterAll(async () => {
     controller.dispose();
-    // 不知道为啥 ws.close 就会报错，看其他的 test 没有这个问题
-    // 先注释掉
-    // ws.close();
-    proxy.close();
+    await closeTestServers(ws, proxy);
   });
 
   it('Recovery', async () => {
@@ -34,25 +31,24 @@ describe('Terminal Controller', () => {
   });
 
   it('Controller Initialize', async () => {
-    controller.firstInitialize();
-    await new Promise((resolve) => {
-      setTimeout(resolve, 0);
-    });
+    await controller.firstInitialize();
   });
   it('create terminal by profile', async () => {
-    await controller.createTerminal({
+    const client = await controller.createTerminal({
       config: {
         profileName: 'bash',
         path: 'bash',
         isDefault: false,
       },
     });
+    await client.attached.promise;
   });
   it('create terminal by launchConfig', async () => {
     const id = 'test-id';
     const client = await controller.createTerminal({
       id,
     });
+    await client.attached.promise;
     expect(client.id).toEqual(id);
   });
   it('can transform terminal options', async () => {

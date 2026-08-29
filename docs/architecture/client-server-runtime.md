@@ -159,6 +159,8 @@ Node WebSocket 每次心跳按以下顺序检查：
 
 浏览器代理生命周期门禁第一次运行时虽已回收三个 Extension Host，却检测到 `clientServiceProxies=3`，从而暴露 Host 销毁与浏览器 close 交错时过早清除断连标记的竞态；该失败没有被当作通过结果。修复后用相同完整插件集重跑，Node Watcher 与 Workspace Agent 两种路径在活跃阶段都为 `active=3/clientServiceProxies=3/mainThreadConnections=3`，关闭后四项与 disconnected 全部归零，崩溃/拒绝/启动超时均为 0。该单轮的整树 P95 RSS 为 `369147904/252067840` bytes，下降 `31.72%`，Search P95 为 `198/181 ms`，File Search 为 `99/84 ms`；它只证明新连接回收门禁和本轮性能未回退，正式性能结论仍以前述三轮中位数为准。
 
+浏览器侧 Extension Host 重启现按单事务串行处理：并发 `Always` 请求复用同一个 Promise，`WhenExit` 检查期间到达的 `Always` 会升级当前事务，页面隐藏期间只保留最强策略并等待恢复可见，避免崩溃通知、可见性恢复和手动命令并发拉起多个宿主。使用生产构建与完整插件目录的一个真实 Chromium 会话连续执行 10 次“重启插件主进程”：`created` 从 1 增至 11、`disposed` 从 0 增至 10，每轮都保持 `active=1/clientServiceProxies=1/mainThreadConnections=1`，崩溃、拒绝、启动超时均为 0；整树 RSS 在 `219643904` 到 `318734336` bytes 之间、Extension Host RSS 在 `132841472` 到 `196640768` bytes 之间波动，没有随轮次单调上涨。关闭浏览器后 `created=disposed=11`，active、disconnected、代理和主线程连接全部归零。该证据只覆盖单会话反复重启与最终回收，不能替代多会话容量压测。
+
 Extension Host 的 V8 semi-space 也用同一完整插件集各做了 3 轮候选验证，但没有进入默认配置：8 MiB 候选虽然降低 RSS，Agent Search P95 相对 Node 回退 `10.95%`，超过 `10%` 门槛；16 MiB 候选保住 Search/File Search 延迟，整树内存门槛却失败。两档候选均已从生产启动参数撤回，不能把单独压低 V8 新生代当作无损优化。
 
 ### 4.4 依赖与原生模块治理

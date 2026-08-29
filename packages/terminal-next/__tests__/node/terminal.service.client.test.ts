@@ -1,6 +1,7 @@
 import os from 'os';
 
 import { Injector } from '@opensumi/di';
+import { AppConfig } from '@opensumi/ide-core-node';
 import { createNodeInjector } from '@opensumi/ide-dev-tool/src/mock-injector';
 
 import { ITerminalNodeService, ITerminalServiceClient } from '../../src/common';
@@ -22,8 +23,33 @@ describe('TerminalServiceClientImpl', () => {
 
   beforeEach(() => {
     injector = createNodeInjector([TerminalNodePtyModule]);
+    injector.overrideProviders({
+      token: AppConfig,
+      useValue: {},
+    });
     terminalServiceClient = injector.get(ITerminalServiceClient);
     terminalService = injector.get(ITerminalNodeService);
+  });
+
+  afterEach(async () => {
+    const terminals = Array.from((terminalService as any).terminalProcessMap.values()) as PtyService[];
+    await Promise.all(
+      terminals.map(async (terminal) => {
+        if (!terminal.pty) {
+          terminal.dispose();
+          return;
+        }
+        const exit = new Promise<void>((resolve) => {
+          const listener = terminal.onExit(() => {
+            listener.dispose();
+            resolve();
+          });
+        });
+        await terminal.kill();
+        await exit;
+      }),
+    );
+    await injector.disposeAll();
   });
 
   it('setConnectionClientId, should be set the id correctly.', () => {

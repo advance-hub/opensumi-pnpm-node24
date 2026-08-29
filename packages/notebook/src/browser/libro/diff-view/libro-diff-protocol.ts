@@ -71,8 +71,8 @@ export const DiffCellUnchangedItems = {
 
 export interface DiffArrayItem {
   count: number;
-  added?: undefined | string;
-  removed?: undefined | string;
+  added: boolean;
+  removed: boolean;
   value: ICell[];
 }
 

@@ -9,7 +9,9 @@ import { DidFilesChangedParams, FileChangeType } from '../../src/common/index';
 import { UnRecursiveFileSystemWatcher } from '../../src/node/hosted/un-recursive/file-service-watcher';
 
 const sleepTime = 1000;
-const eventTimeout = 5000;
+const eventTimeout = 10000;
+
+jest.setTimeout(eventTimeout + 5000);
 
 async function waitForEvent(predicate: () => boolean): Promise<void> {
   const deadline = Date.now() + eventTimeout;

@@ -6,6 +6,17 @@ import { createNodeInjector } from '@opensumi/ide-dev-tool/src/mock-injector';
 import { TerminalNodePtyModule } from '../../src/node';
 import { PtyService } from '../../src/node/pty';
 
+async function killAndWait(ptyService: PtyService) {
+  const exit = new Promise<void>((resolve) => {
+    const listener = ptyService.onExit(() => {
+      listener.dispose();
+      resolve();
+    });
+  });
+  await ptyService.kill();
+  await exit;
+}
+
 describe('PtyService function should be valid', () => {
   jest.setTimeout(10000);
 
@@ -51,7 +62,7 @@ describe('PtyService function should be valid', () => {
     expect(instance).toBeDefined();
     expect(instance?.pid).toBeDefined();
     expect(instance?.launchConfig).toBeDefined();
-    await ptyService.kill();
+    await killAndWait(ptyService);
   });
 
   it('cwd is user home dir if not set', async () => {

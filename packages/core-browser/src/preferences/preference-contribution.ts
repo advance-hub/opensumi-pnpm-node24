@@ -1,4 +1,4 @@
-import Ajv from 'ajv';
+import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
 
 import { Autowired, Injectable, Injector } from '@opensumi/di';
 import {
@@ -61,7 +61,7 @@ const getDefaultSchema = () => ({ type: 'object', properties: {}, patternPropert
 export class PreferenceSchemaProvider extends PreferenceProvider {
   @Autowired(PreferenceContribution)
   protected readonly preferenceContributions: ContributionProvider<PreferenceContribution>;
-  private _validateFunction: Ajv.ValidateFunction | undefined;
+  private _validateFunction: ValidateFunction | undefined;
 
   @Autowired(PreferenceConfigurations)
   protected readonly configurations: PreferenceConfigurations;
@@ -77,17 +77,17 @@ export class PreferenceSchemaProvider extends PreferenceProvider {
   protected readonly onDidPreferenceSchemaChangedEmitter = new Emitter<void>();
   public readonly onDidPreferenceSchemaChanged: Event<void> = this.onDidPreferenceSchemaChangedEmitter.event;
 
-  private validationFunctions = new Map<string, Ajv.ValidateFunction>();
+  private validationFunctions = new Map<string, ValidateFunction>();
 
   protected fireDidPreferenceSchemaChanged(): void {
     this.onDidPreferenceSchemaChangedEmitter.fire(undefined);
   }
 
-  protected get validateFunction(): Ajv.ValidateFunction {
+  protected get validateFunction(): ValidateFunction {
     if (!this._validateFunction) {
       this.doUpdateValidate();
     }
-    return this._validateFunction as Ajv.ValidateFunction;
+    return this._validateFunction as ValidateFunction;
   }
 
   constructor() {
@@ -372,6 +372,6 @@ export class DefaultPreferenceProvider extends PreferenceProvider {
   }
 }
 
-function normalizeAjvValidationError(error: Ajv.ErrorObject) {
+function normalizeAjvValidationError(error: ErrorObject) {
   return error.message;
 }

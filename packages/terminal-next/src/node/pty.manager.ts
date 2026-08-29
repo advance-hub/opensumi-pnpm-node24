@@ -64,10 +64,14 @@ export class PtyServiceManager implements IPtyServiceManager {
   }
 
   protected initLocal() {
-    const callback = async (callId: number, ...args) => {
+    const callback = (callId: number, ...args) => {
       const callback = this.callbackMap.get(callId);
       if (!callback) {
-        return Promise.reject(new Error(`no found callback: ${callId}`));
+        // Persistent terminals can outlive the client-owned PtyService that
+        // registered the callback. Their eventual exit may arrive after the
+        // callback has legitimately been disposed.
+        this.logger?.warn(`PtyServiceManager callback ${callId} was already disposed`);
+        return;
       }
       callback(...args);
     };

@@ -107,8 +107,7 @@ describe('WS Gateway private channel adoption', () => {
       assert.equal(reply, 'node-replies');
       gatewayDial.destroy();
     } finally {
-      await rm(runtime.channel.socketDirectory ?? '', { force: true, recursive: true });
-      await new Promise<void>((resolve) => runtime.channelServer.close(() => resolve()));
+      await runtime.stop();
     }
   });
 });

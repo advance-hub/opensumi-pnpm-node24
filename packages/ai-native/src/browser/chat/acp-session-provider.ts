@@ -171,7 +171,12 @@ export class ACPSessionProvider implements ISessionProvider {
     }
 
     try {
-      const config = await this.configProvider.resolveConfig();
+      const config = this.configProvider.resolvePrewarmConfig
+        ? await this.configProvider.resolvePrewarmConfig()
+        : await this.configProvider.resolveConfig();
+      if (!config) {
+        return [];
+      }
       const result = await this.aiBackService!.listSessions(config);
 
       if (!result?.sessions?.length) {

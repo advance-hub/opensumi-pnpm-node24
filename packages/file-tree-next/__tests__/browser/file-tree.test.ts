@@ -506,19 +506,16 @@ describe('FileTree should be work while on single workspace model', () => {
       await defered.promise;
     });
 
-    it('Collapse current file node should be work', (done) => {
+    it('Collapse current file node should be work', async () => {
       const treeModel = fileTreeModelService.treeModel;
+      await treeModel.ensureReady;
       const rootNode = treeModel.root;
       const directoryNode = rootNode.getTreeNodeAtIndex(0) as Directory;
-      const dispose = directoryNode.watcher.on(TreeNodeEvent.DidChangeExpansionState, async () => {
-        fileTreeModelService.activeFileFocusedDecoration(directoryNode);
-        mockTreeHandle.collapseNode.mockClear();
-        await fileTreeModelService.collapseCurrentFile();
-        expect(mockTreeHandle.collapseNode).toHaveBeenCalledTimes(1);
-        dispose.dispose();
-        done();
-      });
-      directoryNode.setExpanded();
+      await directoryNode.setExpanded();
+      fileTreeModelService.activeFileFocusedDecoration(directoryNode);
+      mockTreeHandle.collapseNode.mockClear();
+      await fileTreeModelService.collapseCurrentFile();
+      expect(mockTreeHandle.collapseNode).toHaveBeenCalledTimes(1);
     });
 
     it('New File with root uri should be work', async () => {

@@ -3,10 +3,12 @@ import { PreferenceService, QuickPickService } from '@opensumi/ide-core-browser'
 import {
   AINativeSettingSectionsId,
   AcpTargetConfigRequest,
+  AgentConfig,
   AgentProcessConfig,
   DEFAULT_ACP_THREAD_POOL_SIZE,
   IACPConfigProvider,
   MCPConfigServiceToken,
+  PreferenceScope,
   URI,
 } from '@opensumi/ide-core-common';
 import { IMessageService } from '@opensumi/ide-overlay';
@@ -15,7 +17,12 @@ import { IWorkspaceService } from '@opensumi/ide-workspace';
 import { buildAcpAgentProcessConfig } from '../acp/build-agent-process-config';
 import { MCPConfigService } from '../mcp/config/mcp-config.service';
 
-import { getAgentConfig, getAvailableAgentConfigs, getDefaultAgentType } from './get-default-agent-type';
+import {
+  DEFAULT_AGENT_CONFIGS,
+  getAgentConfig,
+  getAvailableAgentConfigs,
+  getDefaultAgentType,
+} from './get-default-agent-type';
 import { getCachedWorkspaceDir, pickWorkspaceDir } from './pick-workspace-dir';
 
 /**
@@ -62,10 +69,31 @@ export class DefaultACPConfigProvider implements IACPConfigProvider {
   async resolvePrewarmConfig(): Promise<AgentProcessConfig | undefined> {
     await this.workspaceService.whenReady;
 
+    const agentType = getDefaultAgentType(this.preferenceService);
+    const agentConfigs = this.preferenceService.resolve<Record<string, AgentConfig>>(
+      AINativeSettingSectionsId.AgentConfigs,
+      {},
+      undefined,
+    );
+    const configuredAgent = agentConfigs.value?.[agentType];
+    const builtInAgent = DEFAULT_AGENT_CONFIGS[agentType];
+    const configuredArgs = configuredAgent?.args || [];
+    const builtInArgs = builtInAgent?.args || [];
+    const isImplicitBuiltInAgent =
+      configuredAgent?.command === builtInAgent?.command &&
+      configuredArgs.length === builtInArgs.length &&
+      configuredArgs.every((argument, index) => argument === builtInArgs[index]);
+    // Built-in registrations describe supported adapters, not binaries that
+    // are guaranteed to exist on the deployment host. Only prewarm after the
+    // operator or user has explicitly configured the selected command.
+    if (agentConfigs.scope === PreferenceScope.Default || !configuredAgent?.command?.trim() || isImplicitBuiltInAgent) {
+      return undefined;
+    }
+
     const cachedWorkspaceDir = getCachedWorkspaceDir();
     if (cachedWorkspaceDir) {
       return this.buildConfig({
-        agentId: getDefaultAgentType(this.preferenceService),
+        agentId: agentType,
         cwd: cachedWorkspaceDir,
       });
     }
@@ -78,7 +106,7 @@ export class DefaultACPConfigProvider implements IACPConfigProvider {
     }
 
     return this.buildConfig({
-      agentId: getDefaultAgentType(this.preferenceService),
+      agentId: agentType,
       cwd: new URI(this.workspaceService.workspace.uri).codeUri.fsPath,
     });
   }

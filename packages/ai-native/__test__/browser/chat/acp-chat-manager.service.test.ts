@@ -158,8 +158,10 @@ describe('AcpChatManagerService', () => {
     };
 
     Object.defineProperty(provider, 'configProvider', {
+      configurable: true,
       value: {
         resolveConfig: jest.fn().mockResolvedValue({ agentId: 'claude-agent-acp', cwd: '/workspace' }),
+        resolvePrewarmConfig: jest.fn().mockResolvedValue({ agentId: 'claude-agent-acp', cwd: '/workspace' }),
       },
     });
     Object.defineProperty(provider, 'messageService', {
@@ -844,6 +846,26 @@ describe('AcpChatManagerService', () => {
     await expect(provider.loadSessions()).resolves.toEqual([]);
 
     expect(listSessions).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not start an implicit agent while loading history in the background', async () => {
+    const provider = createSessionProvider();
+    const listSessions = jest.fn();
+    Object.defineProperty(provider, 'configProvider', {
+      value: {
+        resolveConfig: jest.fn(),
+        resolvePrewarmConfig: jest.fn().mockResolvedValue(undefined),
+      },
+    });
+    Object.defineProperty(provider, 'aiBackService', {
+      value: {
+        listSessions,
+      },
+    });
+
+    await expect(provider.loadSessions()).resolves.toEqual([]);
+
+    expect(listSessions).not.toHaveBeenCalled();
   });
 
   it('reuses the in-flight ACP session list request', async () => {

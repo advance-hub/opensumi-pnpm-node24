@@ -1,4 +1,4 @@
-import Ajv from 'ajv';
+import Ajv, { type ValidateFunction } from 'ajv';
 
 import { Schemes, URI } from '@opensumi/ide-core-common';
 import { FileStat } from '@opensumi/ide-file-service';
@@ -33,12 +33,12 @@ const workspaceSchema = {
 };
 
 export namespace WorkspaceData {
-  let validateSchema: Ajv.ValidateFunction | undefined;
+  let validateSchema: ValidateFunction<WorkspaceData> | undefined;
 
   export function is(data: any): data is WorkspaceData {
     if (!validateSchema) {
       // 延迟 schema 编译，避免工作区模块初始化时支付 Ajv compile 开销。
-      validateSchema = new Ajv({ strict: false }).compile(workspaceSchema);
+      validateSchema = new Ajv({ strict: false }).compile<WorkspaceData>(workspaceSchema);
     }
     return !!validateSchema(data);
   }

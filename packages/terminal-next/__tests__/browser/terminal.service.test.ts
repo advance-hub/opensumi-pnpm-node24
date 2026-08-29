@@ -15,7 +15,7 @@ import { NodePtyTerminalService } from '../../src/browser/terminal.service';
 import { IShellLaunchConfig, ITerminalService, ITerminalServicePath, TERMINAL_ID_SEPARATOR } from '../../src/common';
 
 import { injector } from './inject';
-import { createProxyServer, createWsServer, resetPort } from './proxy';
+import { closeTestServers, createProxyServer, createWsServer, resetPort } from './proxy';
 
 describe('terminal service test cases', () => {
   let terminalService: ITerminalService;
@@ -86,9 +86,7 @@ describe('terminal service test cases', () => {
         },
         create2: (sessionId, cols, rows, _launchConfig) => {
           launchConfig = _launchConfig;
-          setTimeout(() => {
-            (terminalService as any)?.$processChange(sessionId, 'zsh');
-          });
+          (terminalService as any)?.$processChange(sessionId, 'zsh');
         },
         input() {
           // no-op for tests
@@ -104,8 +102,7 @@ describe('terminal service test cases', () => {
   });
 
   afterAll(async () => {
-    await server.close();
-    await proxy.close();
+    await closeTestServers(server, proxy);
     await injector.disposeAll();
   });
 
@@ -148,7 +145,8 @@ describe('terminal service test cases', () => {
     const launchConfig: IShellLaunchConfig = {
       executable: shellPath,
     };
-    terminalService.onProcessChange((e) => {
+    const disposable = terminalService.onProcessChange((e) => {
+      disposable.dispose();
       expect(e.sessionId).toBe(sessionId);
       expect(e.processName).toBe('zsh');
       done();

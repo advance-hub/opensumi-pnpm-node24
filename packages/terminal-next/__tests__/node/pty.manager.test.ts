@@ -3,6 +3,7 @@ import os from 'os';
 import { Injector } from '@opensumi/di';
 import { createNodeInjector } from '@opensumi/ide-dev-tool/src/mock-injector';
 
+import { IPtyProcessProxy } from '../../src/common/pty';
 import { TerminalNodePtyModule } from '../../src/node';
 import { IPtyServiceManager, PtyServiceManager, PtyServiceManagerToken } from '../../src/node/pty.manager';
 import { PtyServiceProxyRPCProvider } from '../../src/node/pty.proxy';
@@ -16,6 +17,16 @@ if (os.platform() === 'win32') {
 }
 
 const delay = (t: number) => new Promise((resolve) => setTimeout(resolve, t));
+
+async function killAndWait(ptyProcess: IPtyProcessProxy) {
+  await new Promise<void>((resolve) => {
+    const listener = ptyProcess.onExit(() => {
+      listener.dispose();
+      resolve();
+    });
+    ptyProcess.kill();
+  });
+}
 
 describe('Pty Manager Test Local', () => {
   let injector: Injector;
@@ -35,7 +46,7 @@ describe('Pty Manager Test Local', () => {
     expect(process).toEqual(shellPath);
     ptyService.write('pwd\n');
 
-    ptyService.kill();
+    await killAndWait(ptyService);
 
     const sessionAlive = await ptyServiceManager.checkSession('fake-session-1');
     expect(sessionAlive).toBeFalsy();
@@ -64,7 +75,19 @@ describe('Pty Manager Test Local', () => {
     await delay(150);
 
     await expect(ptyServiceManager.checkSession('resumed-session')).resolves.toBe(true);
-    resumed.kill();
+    await killAndWait(resumed);
+  });
+
+  it('tolerates a persistent pty exiting after its client callback is disposed', async () => {
+    ptyServiceManager = injector.get(PtyServiceManager);
+    const ptyService = await ptyServiceManager.spawn(shellPath, [], {}, 'client|disposed-callback-session');
+    const exitListener = ptyService.onExit(() => undefined);
+    exitListener.dispose();
+
+    ptyService.kill();
+    await delay(150);
+
+    await expect(ptyServiceManager.checkSession('disposed-callback-session')).resolves.toBe(false);
   });
 });
 
@@ -98,12 +121,12 @@ describe('Pty Manager Test Remote', () => {
     expect(process).toEqual(shellPath);
     ptyService.write('pwd\n');
 
-    ptyService.kill();
+    await killAndWait(ptyService);
 
     const sessionAlive = await ptyServiceManager.checkSession('fake-session-1');
     expect(sessionAlive).toBeFalsy();
 
     // close test server
-    proxyProvider['server']?.close();
+    await proxyProvider.dispose();
   });
 });

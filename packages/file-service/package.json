@@ -28,7 +28,7 @@
     "@opensumi/ide-logs": "workspace:*",
     "@opensumi/ide-utils": "workspace:*",
     "@parcel/watcher": "2.6.0",
-    "file-type": "16.5.4",
+    "file-type": "21.3.2",
     "nsfw": "2.3.1",
     "trash": "^5.2.0",
     "vscode-languageserver-types": "^3.16.0",

@@ -4,6 +4,20 @@ import { SumiConnection } from '@opensumi/ide-connection/lib/common/rpc/connecti
 import { SumiConnectionMultiplexer } from '@opensumi/ide-connection/lib/common/rpc/multiplexer';
 import { Emitter } from '@opensumi/ide-core-common';
 
+import { MainThreadAPIIdentifier } from '../src/common/vscode';
+
+const noOpMainThreadActor = new Proxy(
+  {},
+  {
+    get: () => async () => undefined,
+  },
+);
+
+function registerDefaultMainThreadActors(protocol: SumiConnectionMultiplexer) {
+  protocol.set(MainThreadAPIIdentifier.MainThreadEditorTabs, noOpMainThreadActor);
+  protocol.set(MainThreadAPIIdentifier.MainThreadOutput, noOpMainThreadActor);
+}
+
 export async function initMockRPCProtocol(client): Promise<SumiConnectionMultiplexer> {
   const extProtocol = new SumiConnectionMultiplexer(
     new SimpleConnection({
@@ -30,6 +44,11 @@ export function createMockPairRPCProtocol() {
 
   const rpcProtocolExt = new SumiConnectionMultiplexer(new SimpleConnection(mockClientA));
   const rpcProtocolMain = new SumiConnectionMultiplexer(new SimpleConnection(mockClientB));
+  // Extension-host constructors eagerly notify these actors. Register no-op
+  // defaults on both ends so tests that do not exercise those APIs cannot leak
+  // rejected RPC promises after their environment has already been torn down.
+  registerDefaultMainThreadActors(rpcProtocolExt);
+  registerDefaultMainThreadActors(rpcProtocolMain);
   return {
     rpcProtocolExt,
     rpcProtocolMain,

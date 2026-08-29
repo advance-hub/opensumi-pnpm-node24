@@ -107,7 +107,7 @@ describe('FileServiceClient should be work', () => {
   });
 
   afterAll(async () => {
-    toDispose.dispose();
+    await toDispose.dispose();
     await injector.disposeAll();
     track.cleanupSync();
   });

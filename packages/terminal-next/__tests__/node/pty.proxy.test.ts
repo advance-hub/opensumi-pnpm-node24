@@ -17,6 +17,7 @@ describe('PtyService function should be valid', () => {
   let injector: Injector;
   let shellPath = '';
   let proxyProvider: PtyServiceProxyRPCProvider;
+  let ptyServiceManager: PtyServiceManagerRemote;
   const ipcPath = normalizedIpcHandlerPath('NODE-TEST-PTY', true);
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -32,16 +33,18 @@ describe('PtyService function should be valid', () => {
     // 双容器模式下，需要以本文件作为entry单独打包出一个可执行文件，运行在DEV容器中
     proxyProvider = new PtyServiceProxyRPCProvider({ path: ipcPath });
     proxyProvider.initServer();
+    ptyServiceManager = injector.get(PtyServiceManagerRemote, [{ socketConnectOpts: { path: ipcPath } }]);
     injector.overrideProviders({
       token: PtyServiceManagerToken,
-      useValue: injector.get(PtyServiceManagerRemote, [{ socketConnectOpts: { path: ipcPath } }]),
+      useValue: ptyServiceManager,
     });
     await delay(2000);
   });
 
-  afterAll(() => {
-    // 强制关闭Socket Server 正常情况下会监听process的exit来关闭，但是在测试中，需要手动close
-    proxyProvider['server']?.close();
+  afterAll(async () => {
+    ptyServiceManager.dispose();
+    await proxyProvider.dispose();
+    await injector.disposeAll();
   });
 
   it('cannot create a invalid shell case1', async () => {
@@ -69,5 +72,13 @@ describe('PtyService function should be valid', () => {
     expect(instance).toBeDefined();
     expect(instance?.pid).toBeDefined();
     expect(instance?.launchConfig).toBeDefined();
+    const exit = new Promise<void>((resolve) => {
+      const listener = ptyService.onExit(() => {
+        listener.dispose();
+        resolve();
+      });
+    });
+    await ptyService.kill();
+    await exit;
   });
 });

@@ -1,3 +1,5 @@
+import { once } from 'node:events';
+
 import { Terminal } from '@xterm/xterm';
 import WebSocket from 'ws';
 
@@ -26,7 +28,6 @@ import {
 } from '../../src/common';
 
 import { MessageMethod, getPort, localhost } from './proxy';
-import { delay } from './utils';
 
 // Ref: https://jestjs.io/docs/manual-mocks#mocking-methods-which-are-not-implemented-in-jsdom
 Object.defineProperty(window, 'matchMedia', {
@@ -70,6 +71,7 @@ export class MockTerminalService implements ITerminalService {
     launchConfig: IShellLaunchConfig,
   ): Promise<ITerminalConnection | undefined> {
     const sock = new WebSocket(localhost(getPort()));
+    sock.on('error', () => {});
     const channel = createWSChannelForClient(new WSWebSocketConnection(sock), {
       id: sessionId,
     });
@@ -77,7 +79,7 @@ export class MockTerminalService implements ITerminalService {
     this.channels.set(sessionId, channel);
     this.socks.set(sessionId, sock);
 
-    await delay(2000);
+    await once(sock, 'open');
     this._handleMethod(sessionId);
 
     await this._doMethod(sessionId, MessageMethod.create, { sessionId, cols, rows });
@@ -214,15 +216,29 @@ export class MockTerminalService implements ITerminalService {
   disposeById(sessionId: string) {
     const socket = this.socks.get(sessionId);
 
-    this._doMethod(sessionId, MessageMethod.resize, { id: sessionId });
-
     if (socket) {
       try {
+        if (socket.readyState === WebSocket.OPEN) {
+          this._sendMessage(sessionId, {
+            id: MockTerminalService.resId++,
+            method: MessageMethod.close,
+            params: { sessionId },
+          });
+        }
         socket.close();
       } catch (_e) {
         /** nothing */
       }
     }
+    this.socks.delete(sessionId);
+    this.channels.delete(sessionId);
+  }
+
+  dispose() {
+    for (const sessionId of Array.from(this.socks.keys())) {
+      this.disposeById(sessionId);
+    }
+    this._onProcessChange.dispose();
   }
 
   async getProcessId() {
@@ -258,6 +274,8 @@ export class MockMainLayoutService {
     return {
       onActivate: MainLayoutTabbarOnActivate.event,
       onInActivate: MainLayoutTabbarOnInActivate.event,
+      activate: () => {},
+      deactivate: () => {},
       isActivated: () => true,
     };
   }

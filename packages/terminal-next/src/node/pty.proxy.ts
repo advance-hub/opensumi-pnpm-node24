@@ -109,12 +109,23 @@ export class PtyServiceProxy implements IPtyProxyRPCService {
   }
 
   private cleanupPty(pid: PID, options: { preserveHistory?: boolean } = {}): void {
+    const ptyInstance = this.ptyInstanceMap.get(pid) as (pty.IPty & { destroy?: () => void }) | undefined;
     this.ptyDisposableMap.get(pid)?.dispose();
     this.ptyDisposableMap.delete(pid);
+    ptyInstance?.destroy?.();
     this.ptyInstanceMap.delete(pid);
     if (!options.preserveHistory) {
       this.ptyDataCacheMap.delete(pid);
     }
+    for (const [sessionId, sessionPid] of this.ptySessionMap) {
+      if (sessionPid === pid) {
+        this.clearSessionCleanupTimer(sessionId);
+        this.ptySessionMap.delete(sessionId);
+      }
+    }
+  }
+
+  private detachPtySessions(pid: PID): void {
     for (const [sessionId, sessionPid] of this.ptySessionMap) {
       if (sessionPid === pid) {
         this.clearSessionCleanupTimer(sessionId);
@@ -137,8 +148,10 @@ export class PtyServiceProxy implements IPtyProxyRPCService {
       }
       try {
         this.ptyInstanceMap.get(pid)?.kill();
-      } finally {
+        this.detachPtySessions(pid);
+      } catch (error) {
         this.cleanupPty(pid);
+        throw error;
       }
     }, timeoutMs);
     timer.unref?.();
@@ -205,6 +218,11 @@ export class PtyServiceProxy implements IPtyProxyRPCService {
       // 如果已经存在DisposableCollection说明之前已经注册过，此时就需要取消注册，因为一会还要注册一遍
       this.ptyDisposableMap.get(pid)?.dispose();
     }
+    this.ptyDisposableMap.get(pid)?.push(
+      ptyInstance.onExit(() => {
+        queueMicrotask(() => this.cleanupPty(pid));
+      }),
+    );
 
     // 走RPC序列化的部分，function不走序列化，走单独的RPC调用
     const ptyInstanceSimple = {
@@ -274,8 +292,10 @@ export class PtyServiceProxy implements IPtyProxyRPCService {
     const ptyInstance = this.ptyInstanceMap.get(pid);
     try {
       ptyInstance?.kill(signal);
-    } finally {
+      this.detachPtySessions(pid);
+    } catch (error) {
       this.cleanupPty(pid);
+      throw error;
     }
   }
 
@@ -297,6 +317,33 @@ export class PtyServiceProxy implements IPtyProxyRPCService {
   $getCwd(pid: number): Promise<string | undefined> {
     return getPidCwd(pid);
   }
+
+  async dispose(): Promise<void> {
+    for (const timer of this.ptySessionCleanupTimerMap.values()) {
+      clearTimeout(timer);
+    }
+    this.ptySessionCleanupTimerMap.clear();
+
+    await Promise.all(
+      Array.from(this.ptyInstanceMap.entries()).map(
+        ([pid, ptyInstance]) =>
+          new Promise<void>((resolve) => {
+            let exitListener: pty.IDisposable | undefined;
+            const finish = () => {
+              exitListener?.dispose();
+              this.cleanupPty(pid);
+              resolve();
+            };
+            exitListener = ptyInstance.onExit(finish);
+            try {
+              ptyInstance.kill();
+            } catch {
+              finish();
+            }
+          }),
+      ),
+    );
+  }
 }
 
 // 需要单独运行PtyServer的时候集成此Class然后运行initServer
@@ -306,6 +353,7 @@ export class PtyServiceProxyRPCProvider {
   private readonly logger = getDebugLogger();
   private serverListenOptions: ListenOptions; // HOST + PORT or UNIX SOCK PATH
   private server: Server;
+  private sockets = new Set<net.Socket>();
 
   constructor(listenOptions: ListenOptions = { port: PTY_SERVICE_PROXY_SERVER_PORT }) {
     this.serverListenOptions = listenOptions;
@@ -322,7 +370,9 @@ export class PtyServiceProxyRPCProvider {
 
   public initServer() {
     this.createSocket();
-    this.bindProcessHandler();
+    if (!process.env.IS_JEST_TEST) {
+      this.bindProcessHandler();
+    }
   }
 
   private createSocket() {
@@ -357,13 +407,28 @@ export class PtyServiceProxyRPCProvider {
   }
 
   private setProxyConnection(socket: net.Socket) {
+    this.sockets.add(socket);
     const connection = SumiConnection.forNetSocket(socket, {
       logger: this.logger,
     });
     const remove = this.ptyServiceCenter.setSumiConnection(connection);
     socket.on('close', () => {
+      this.sockets.delete(socket);
       remove.dispose();
     });
+  }
+
+  async dispose(): Promise<void> {
+    await this.ptyServiceProxy.dispose();
+    for (const socket of this.sockets) {
+      socket.destroy();
+    }
+    this.sockets.clear();
+    if (this.server?.listening) {
+      await new Promise<void>((resolve, reject) => {
+        this.server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
   }
 
   public get $ptyServiceProxy(): PtyServiceProxy {

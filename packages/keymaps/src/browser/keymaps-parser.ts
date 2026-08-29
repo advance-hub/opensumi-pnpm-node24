@@ -1,4 +1,4 @@
-import Ajv from 'ajv';
+import Ajv, { type ValidateFunction } from 'ajv';
 import * as parser from 'jsonc-parser';
 
 import { Injectable } from '@opensumi/di';
@@ -37,13 +37,13 @@ export const keymapsSchema = {
 
 @Injectable()
 export class KeymapsParser {
-  protected readonly validate: Ajv.ValidateFunction;
+  protected readonly validate: ValidateFunction<KeymapItem[]>;
 
   constructor() {
     // https://github.com/epoberezkin/ajv#validation-and-reporting-options
     // ajv 8 addresses data with JSON pointers by default and removed the
     // v6 jsonPointers option.
-    this.validate = new Ajv({ strict: false }).compile(keymapsSchema);
+    this.validate = new Ajv({ strict: false }).compile<KeymapItem[]>(keymapsSchema);
   }
 
   /**

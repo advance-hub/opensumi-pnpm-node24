@@ -39,6 +39,7 @@ export class TerminalServiceImpl implements ITerminalNodeService {
   private reconnectListenerBound = false;
   private reconnecting = false;
   private hasEmittedDisconnect = false;
+  private disposed = false;
 
   @Autowired(INJECTOR_TOKEN)
   private injector: Injector;
@@ -84,6 +85,10 @@ export class TerminalServiceImpl implements ITerminalNodeService {
   }
 
   public closeClient(clientId: string) {
+    if (this.disposed) {
+      this.disposeClient(clientId);
+      return;
+    }
     // 延时触发，因为WS本身有重连逻辑，因此通过延时触发来避免断开后不就重连但是回调方法都被dispose的问题
     const existingTimer = this.closeTimeOutMap.get(clientId);
     if (existingTimer) {
@@ -93,9 +98,9 @@ export class TerminalServiceImpl implements ITerminalNodeService {
       () => {
         this.closeTimeOutMap.delete(clientId);
         this.disposeClient(clientId);
-        this.logger.debug(`Remove pty process from ${clientId} client`);
+        this.logger?.debug(`Remove pty process from ${clientId} client`);
       },
-      isDevelopment() ? 0 : this.appConfig.terminalPtyCloseThreshold || TerminalServiceImpl.TerminalPtyCloseThreshold,
+      isDevelopment() ? 0 : this.appConfig?.terminalPtyCloseThreshold || TerminalServiceImpl.TerminalPtyCloseThreshold,
     );
     closeTimer.unref?.();
     this.closeTimeOutMap.set(clientId, closeTimer);
@@ -305,6 +310,16 @@ export class TerminalServiceImpl implements ITerminalNodeService {
   }
 
   dispose() {
+    this.disposed = true;
+    for (const timer of this.closeTimeOutMap.values()) {
+      clearTimeout(timer);
+    }
+    this.closeTimeOutMap.clear();
+    for (const timer of this.batchedPtyDataTimer.values()) {
+      clearTimeout(timer);
+    }
+    this.batchedPtyDataTimer.clear();
+    this.batchedPtyDataMap.clear();
     this.reconnectDisposables.forEach((d) => d.dispose());
     this.reconnectDisposables = [];
     // TODO 后续需要一个合理的 Dispose 逻辑，暂时不要 Dispose，避免重连时终端不可用

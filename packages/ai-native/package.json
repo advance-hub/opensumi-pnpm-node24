@@ -52,7 +52,7 @@
     "ajv": "^8.17.1",
     "ansi-regex": "^2.0.0",
     "ansi_up": "^5.1.0",
-    "diff": "^7.0.0",
+    "diff": "^8.0.3",
     "dom-align": "^1.7.0",
     "eventsource": "^3.0.5",
     "node-pty": "1.1.0",

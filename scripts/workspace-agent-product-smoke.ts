@@ -29,6 +29,7 @@ const expectedExhaustedSearchResult = '3 results found in 3 files';
 const recoveryWatchProofFileName = 'workspace-agent-recovery-watch-proof.txt';
 const expectedFallbackConsoleMessage =
   'Workspace Agent watcher failed and the connection was moved to the Node watcher';
+const fatalServerLogMarkers = ['Uncaught Exception:', 'UnhandledPromiseRejection', 'unhandledRejection'];
 
 interface SmokeOptions {
   port?: number;
@@ -260,6 +261,41 @@ async function waitUntil(
     await delay(100);
   } while (Date.now() < deadline);
   throw new Error(message);
+}
+
+async function ensureClassicLayout(page: Page, timeoutMs = 30_000): Promise<void> {
+  const searchActivity = page.locator('#opensumi-left-tabbar #search');
+  const openClassicLayout = page.getByText('Open IDE layout', { exact: true });
+
+  await page.waitForFunction(
+    () =>
+      Boolean(document.querySelector('#opensumi-left-tabbar #search')) ||
+      Array.from(document.querySelectorAll<HTMLElement>('button, [role="button"]')).some(
+        (element) => element.innerText.trim() === 'Open IDE layout',
+      ),
+    undefined,
+    { timeout: timeoutMs },
+  );
+
+  if (!(await searchActivity.isVisible().catch(() => false))) {
+    await openClassicLayout.click({ timeout: timeoutMs });
+    await searchActivity.waitFor({ state: 'visible', timeout: timeoutMs });
+  }
+
+  const aiChatSlot = page.locator('.AI-Chat-slot').first();
+  if (await aiChatSlot.isVisible().catch(() => false)) {
+    const closeButtons = page.locator(
+      '#ai-chat-header-close [role="button"], #ai_right_panel_header_close [role="button"]',
+    );
+    for (let index = 0; index < (await closeButtons.count()); index += 1) {
+      const closeButton = closeButtons.nth(index);
+      if (await closeButton.isVisible().catch(() => false)) {
+        await closeButton.click();
+        await aiChatSlot.waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => undefined);
+        break;
+      }
+    }
+  }
 }
 
 async function revealActivityView(page: Page, viewId: string, target: Locator, timeoutMs = 30_000): Promise<void> {
@@ -667,6 +703,7 @@ async function runSmoke(options: SmokeOptions): Promise<void> {
     );
     const browserReadyMs = Date.now() - browserStartedAt;
 
+    await ensureClassicLayout(artifacts.page);
     const searchBox = artifacts.page.getByRole('textbox', { name: 'Enter search content' });
     const searchEvidence = await runWorkspaceSearch(artifacts.page, searchBox, searchQuery, expectedSearchResult);
     const fileSearchEvidence = await runWorkspaceFileSearch(artifacts.page);
@@ -945,6 +982,10 @@ async function runSmoke(options: SmokeOptions): Promise<void> {
       5_000,
       `OpenSumi server port ${port} remained open after shutdown`,
     );
+    const fatalServerLogMarker = fatalServerLogMarkers.find((marker) => artifacts.serverLogTail.includes(marker));
+    if (fatalServerLogMarker) {
+      throw new Error(`Server emitted fatal runtime error marker ${JSON.stringify(fatalServerLogMarker)}`);
+    }
 
     const result = {
       schemaVersion: 6,

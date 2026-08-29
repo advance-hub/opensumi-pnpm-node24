@@ -101,6 +101,16 @@ export class PtyServiceManagerRemote extends PtyServiceManager {
     }
 
     let reconnectTimer: NodeJS.Timeout | null = null;
+    this.disposer.addDispose(
+      Disposable.create(() => {
+        if (reconnectTimer) {
+          clearTimeout(reconnectTimer);
+          reconnectTimer = null;
+        }
+        socket.removeAllListeners();
+        socket.destroy();
+      }),
+    );
     const reconnect = () => {
       if (reconnectTimer) {
         return;
@@ -167,5 +177,12 @@ export class PtyServiceManagerRemote extends PtyServiceManager {
 
   override initLocal() {
     // override 空置父类的方法，因为不需要LocalInit，使用RemoteInit替代
+  }
+
+  dispose() {
+    this.disposer?.dispose();
+    this.callbackMap.clear();
+    this.onDidReconnectEmitter.dispose();
+    this.onDidDisconnectEmitter.dispose();
   }
 }

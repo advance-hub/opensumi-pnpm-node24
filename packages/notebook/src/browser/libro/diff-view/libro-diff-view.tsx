@@ -276,9 +276,9 @@ export class LibroDiffView extends BaseView implements DiffView {
     let diffCellUnchangedItems: (DiffCellItem & { originFilePath: string; targetFilePath: string })[] = [];
     let lastDiffItemTypeIsUnchanged: boolean = false;
 
-    const diffArray = diffArrays(getOrigin(origin), getOrigin(target), {
+    const diffArray: DiffArrayItem[] = diffArrays(getOrigin(origin), getOrigin(target), {
       comparator,
-    }) as DiffArrayItem[];
+    });
     diffArray.map((item, index) => {
       if (item.added) {
         if (this.isDiffSame) {

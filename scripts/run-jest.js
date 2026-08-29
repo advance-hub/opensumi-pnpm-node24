@@ -5,14 +5,14 @@ const repoRoot = path.resolve(__dirname, '..');
 const jestBin = path.join(repoRoot, 'node_modules/jest/bin/jest.js');
 const jestConfig = path.join(repoRoot, 'configs/jest/jest.config.ts');
 const cliArgs = process.argv.slice(2);
-const baseArgs = ['--expose-gc', jestBin, '--config', jestConfig, '--runInBand', '--forceExit'];
+const baseArgs = ['--unhandled-rejections=strict', '--expose-gc', jestBin, '--config', jestConfig, '--runInBand'];
 
 function runJest(args, memoryLimit = 1024) {
   const result = spawnSync(process.execPath, [...baseArgs, ...args], {
     cwd: repoRoot,
     env: {
       ...process.env,
-      NODE_OPTIONS: `--max-old-space-size=${memoryLimit}`,
+      NODE_OPTIONS: [process.env.NODE_OPTIONS, `--max-old-space-size=${memoryLimit}`].filter(Boolean).join(' '),
     },
     stdio: 'inherit',
   });

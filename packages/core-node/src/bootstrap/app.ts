@@ -78,7 +78,11 @@ export class ServerApp implements IServerApp {
       extHost: process.env.EXTENSION_HOST_ENTRY || opts.extHost,
       rpcMessageTimeout: opts.rpcMessageTimeout || -1,
     };
-    this.bindProcessHandler();
+    // Unit tests create many ServerApp instances in one process. Process-global
+    // signal and stream handlers are runtime concerns and would leak between suites.
+    if (!process.env.IS_JEST_TEST) {
+      this.bindProcessHandler();
+    }
     this.initBaseProvider();
     this.createNodeModules(opts.modules, opts.modulesInstances);
     this.logger = this.injector.get(ILogServiceManager).getLogger(SupportLogNamespace.App);

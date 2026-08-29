@@ -18,8 +18,8 @@ import {
 } from '../../src/common';
 
 import { injector } from './inject';
-import { createProxyServer, createWsServer } from './proxy';
-import { createBufferLineArray, delay } from './utils';
+import { closeTestServers, createProxyServer, createWsServer } from './proxy';
+import { createBufferLineArray } from './utils';
 
 import type { ITerminalAddon } from '@xterm/xterm';
 
@@ -128,6 +128,23 @@ describe('Terminal Client', () => {
   let workspaceService: IWorkspaceService;
   let root: URI | null;
 
+  function waitForTerminalOutput(timeoutMs = 3000): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        disposable.dispose();
+        reject(new Error(`Terminal did not produce output within ${timeoutMs}ms`));
+      }, timeoutMs);
+      const disposable = client.onOutput(({ data }) => {
+        const hasData = typeof data === 'string' ? data.length > 0 : data.byteLength > 0;
+        if (hasData) {
+          clearTimeout(timeout);
+          disposable.dispose();
+          resolve();
+        }
+      });
+    });
+  }
+
   beforeAll(async () => {
     root = FileUri.create(path.join(os.tmpdir(), 'terminal-client-test'));
 
@@ -169,8 +186,7 @@ describe('Terminal Client', () => {
 
   afterAll(async () => {
     await client.dispose();
-    await server.close();
-    await proxy.close();
+    await closeTestServers(server, proxy);
     await injector.disposeAll();
   });
 
@@ -195,8 +211,9 @@ describe('Terminal Client', () => {
 
   it('Terminal getSelection', async () => {
     await client.attached.promise;
+    const output = waitForTerminalOutput();
     await client.sendText('pwd\n');
-    await delay(500);
+    await output;
     client.selectAll();
     const selection = client.getSelection();
     expect(selection.includes('pwd')).toBeTruthy();
@@ -205,8 +222,9 @@ describe('Terminal Client', () => {
   it('Terminal Send Text', async () => {
     await client.attached.promise;
     client.clear();
+    const output = waitForTerminalOutput();
     await client.sendText('pwd\n');
-    await delay(500);
+    await output;
 
     const line = client.term.buffer.active.getLine(0);
     const lineText = (line && line.translateToString()) || '';
@@ -246,17 +264,25 @@ describe('Terminal Client', () => {
     injector.mock(
       ITerminalInternalService,
       'attachByLaunchConfig',
-      (sessionId: string, cols: number, rows: number, launchConfig: IShellLaunchConfig) => {
+      async (sessionId: string, cols: number, rows: number, launchConfig: IShellLaunchConfig) => {
         launchConfig1 = launchConfig;
+        return {
+          name: 'extension-terminal-test',
+          readonly: false,
+          onData: () => Disposable.NULL,
+          sendData: () => {},
+        };
       },
     );
     const factory2 = injector.get(ITerminalClientFactory2) as ITerminalClientFactory2;
-    await factory2(widget, {
+    const extensionClient = await factory2(widget, {
       config: {
         isExtensionOwnedTerminal: true,
       },
     });
+    await extensionClient.attached.promise;
     expect(launchConfig1).toBeDefined();
     expect(launchConfig1?.customPtyImplementation).toBeDefined();
+    await extensionClient.dispose();
   });
 });

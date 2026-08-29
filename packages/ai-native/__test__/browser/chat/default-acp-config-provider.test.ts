@@ -1,5 +1,5 @@
 import { HideReason } from '@opensumi/ide-core-browser';
-import { AINativeSettingSectionsId, URI } from '@opensumi/ide-core-common';
+import { AINativeSettingSectionsId, PreferenceScope, URI } from '@opensumi/ide-core-common';
 
 describe('DefaultACPConfigProvider', () => {
   interface ProviderFixtureOptions {
@@ -17,6 +17,7 @@ describe('DefaultACPConfigProvider', () => {
     let provider!: import('../../../src/browser/chat/default-acp-config-provider').DefaultACPConfigProvider & {
       preferenceService: {
         get: jest.Mock;
+        resolve: jest.Mock;
       };
       workspaceService: {
         whenReady: Promise<void>;
@@ -67,6 +68,10 @@ describe('DefaultACPConfigProvider', () => {
               }
               return fallback;
             }),
+            resolve: jest.fn(() => ({
+              value: options.agentConfigs || {},
+              scope: options.agentConfigs ? PreferenceScope.User : PreferenceScope.Default,
+            })),
           },
         },
         workspaceService: {
@@ -159,10 +164,34 @@ describe('DefaultACPConfigProvider', () => {
   });
 
   it('resolves a background warmup config for a single-root workspace without prompting', async () => {
-    const provider = await createProvider();
+    const provider = await createProvider({
+      agentConfigs: {
+        'claude-agent-acp': {
+          command: '/opt/agents/claude-agent-acp',
+          args: [],
+        },
+      },
+    });
 
-    await expect(provider.resolvePrewarmConfig()).resolves.toMatchObject({ cwd: rootA });
+    await expect(provider.resolvePrewarmConfig()).resolves.toMatchObject({
+      command: '/opt/agents/claude-agent-acp',
+      cwd: rootA,
+    });
     expect((provider as any).quickPick.show).not.toHaveBeenCalled();
+  });
+
+  it('does not prewarm an implicit built-in agent command', async () => {
+    const provider = await createProvider({
+      agentConfigs: {
+        'claude-agent-acp': {
+          command: 'claude-agent-acp',
+          args: [],
+        },
+      },
+    });
+
+    await expect(provider.resolvePrewarmConfig()).resolves.toBeUndefined();
+    expect((provider as any).mcpConfigService.getACPServers).not.toHaveBeenCalled();
   });
 
   it('skips background warmup config resolution for an unselected multi-root workspace', async () => {

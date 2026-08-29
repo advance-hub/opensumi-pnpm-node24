@@ -19,7 +19,10 @@ describe('ExtensionStorage service should be work', () => {
       {
         token: IExtensionStorageServer,
         useValue: {
+          getAll: jest.fn(() => Promise.resolve({})),
           get: jest.fn(() => undefined),
+          init: jest.fn(() => Promise.resolve({ workspace: '', global: '' })),
+          set: jest.fn(() => Promise.resolve()),
         },
       },
       {

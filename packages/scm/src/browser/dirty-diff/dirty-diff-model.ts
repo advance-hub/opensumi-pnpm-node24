@@ -145,16 +145,18 @@ export class DirtyDiffModel extends Disposable implements IDirtyDiffModel {
     return this.diffDelayer
       .trigger(() => this.diff())
       .then((changes) => {
+        const modifiedTextModel = this._editorModel?.getMonacoModel();
+        const originalTextModel = this._originalModel?.getMonacoModel();
         if (
-          !this._editorModel ||
-          this._editorModel.getMonacoModel().isDisposed() ||
-          !this._originalModel ||
-          this._originalModel.getMonacoModel().isDisposed()
+          !modifiedTextModel ||
+          modifiedTextModel.isDisposed() ||
+          !originalTextModel ||
+          originalTextModel.isDisposed()
         ) {
           return; // disposed
         }
 
-        if (!changes || this._originalModel.getMonacoModel().getValueLength() === 0) {
+        if (!changes || originalTextModel.getValueLength() === 0) {
           changes = [];
         }
 
@@ -179,14 +181,15 @@ export class DirtyDiffModel extends Disposable implements IDirtyDiffModel {
   // 计算 diff
   private async diff(): Promise<ILineChange[] | null> {
     const originalURI = await this.getOriginalURIPromise();
-    if (!this._editorModel || this._editorModel.getMonacoModel().isDisposed() || !originalURI) {
+    const modifiedTextModel = this._editorModel?.getMonacoModel();
+    if (!modifiedTextModel || modifiedTextModel.isDisposed() || !originalURI) {
       return []; // disposed
     }
 
     // 复用 monaco 内部的 canSyncModelForDiff
     if (
       !this.canSyncModelForDiff(this._originalModel?.getMonacoModel()) ||
-      !this.canSyncModelForDiff(this._editorModel.getMonacoModel())
+      !this.canSyncModelForDiff(modifiedTextModel)
     ) {
       return []; // Files too large
     }
@@ -195,7 +198,7 @@ export class DirtyDiffModel extends Disposable implements IDirtyDiffModel {
     // 主要是 shouldComputeCharChanges#false, shouldPostProcessCharChanges#false
     const ret = await this.editorWorkerService.computeDiff(
       originalURI as monaco.Uri,
-      this._editorModel.getMonacoModel().uri,
+      modifiedTextModel.uri,
       {
         ignoreTrimWhitespace: false,
         maxComputationTimeMs: 1000,
@@ -274,11 +277,12 @@ export class DirtyDiffModel extends Disposable implements IDirtyDiffModel {
   }
 
   private getOriginalResource(): Promise<Uri | null> {
-    if (!this._editorModel) {
+    const modifiedTextModel = this._editorModel?.getMonacoModel();
+    if (!modifiedTextModel || modifiedTextModel.isDisposed()) {
       return Promise.resolve(null);
     }
 
-    const uri = this._editorModel.getMonacoModel().uri;
+    const uri = modifiedTextModel.uri;
     // find the first matched scm repository
     return first(this.scmService.repositories.map((r) => () => r.provider.getOriginalResource(uri as Uri)));
   }

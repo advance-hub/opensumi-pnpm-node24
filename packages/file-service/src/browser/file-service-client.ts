@@ -149,8 +149,10 @@ export class FileServiceClient implements IFileServiceClient, IDisposable {
     this.toDisposable.push(
       this.onDidChangeFileSystemProviderRegistrations((e) => {
         // 只支持 file
-        if (e.added && e.scheme === Schemes.file) {
-          this.doGetCurrentUserHome();
+        if (e.added && e.scheme === Schemes.file && e.provider) {
+          this.doGetCurrentUserHome(e.provider as IDiskFileProvider).catch((error) => {
+            this.logger.error('Failed to resolve the current user home from the file provider:', error);
+          });
         }
       }),
     );
@@ -163,8 +165,7 @@ export class FileServiceClient implements IFileServiceClient, IDisposable {
     }
   }
 
-  private async doGetCurrentUserHome() {
-    const provider = await this.getProvider(Schemes.file);
+  private async doGetCurrentUserHome(provider: IDiskFileProvider) {
     const userHome = provider.getCurrentUserHome();
     this.userHomeDeferred.resolve(userHome);
   }

@@ -91,10 +91,11 @@ func TestSearchStreamsUnicodeMatchesAndHonorsLimit(t *testing.T) {
 	server := NewServer("test")
 	server.searchCommand = helperSearchCommand
 	stream := newRecordingSearchStream(context.Background())
+	rootPath := t.TempDir()
 
 	err := server.Search(&workspacev1.SearchRequest{
 		Query:      "猫",
-		RootPaths:  []string{"/workspace"},
+		RootPaths:  []string{rootPath},
 		MaxResults: 2,
 	}, stream)
 	if err != nil {
@@ -128,11 +129,12 @@ func TestSearchCancellationStopsChildAndReleasesActiveCount(t *testing.T) {
 	server.searchCommand = helperSearchCommand
 	ctx, cancel := context.WithCancel(context.Background())
 	stream := newRecordingSearchStream(ctx)
+	rootPath := t.TempDir()
 	done := make(chan error, 1)
 	go func() {
 		done <- server.Search(&workspacev1.SearchRequest{
 			Query:     "first",
-			RootPaths: []string{"/workspace"},
+			RootPaths: []string{rootPath},
 		}, stream)
 	}()
 

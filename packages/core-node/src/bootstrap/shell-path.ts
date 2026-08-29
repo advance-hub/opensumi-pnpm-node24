@@ -66,8 +66,6 @@ async function createUpdateShellPathPromise(): Promise<void> {
         // reject(chunk.toString());
       });
       proc.on('close', () => {
-        clearTimeout(timer);
-
         if (buf.length) {
           resolve(parseEnv(Buffer.concat(buf).toString()).PATH);
         } else {
@@ -80,6 +78,8 @@ async function createUpdateShellPathPromise(): Promise<void> {
     hasSuccess = true;
   } catch (err) {
     // console.error('shell path error:', err);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -99,18 +99,25 @@ export async function getShellPath(): Promise<string | undefined> {
     return process.env['PATH'];
   }
   // 触发一次更新
-  await Promise.race([
-    updateShellPath(),
-    new Promise<void>((resolve) => {
-      // 第一次等待时间长一些，尽量拿到正确的 PATH
-      setTimeout(
-        () => {
-          resolve(undefined);
-        },
-        hasSuccess ? MAX_WAIT_AFTER_SUCCESS : SHELL_TIMEOUT,
-      );
-    }),
-  ]);
+  let waitTimer: NodeJS.Timeout | undefined;
+  try {
+    await Promise.race([
+      updateShellPath(),
+      new Promise<void>((resolve) => {
+        // 第一次等待时间长一些，尽量拿到正确的 PATH
+        waitTimer = setTimeout(
+          () => {
+            resolve(undefined);
+          },
+          hasSuccess ? MAX_WAIT_AFTER_SUCCESS : SHELL_TIMEOUT,
+        );
+      }),
+    ]);
+  } finally {
+    if (waitTimer) {
+      clearTimeout(waitTimer);
+    }
+  }
   // 不管有没有更新成功，都返回当前的最新结果
   return shellPath;
 }
