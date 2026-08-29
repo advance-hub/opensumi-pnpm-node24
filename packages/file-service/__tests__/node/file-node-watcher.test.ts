@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import * as fse from 'fs-extra';
 import temp from 'temp';
 
@@ -97,6 +99,35 @@ describe('unRecursively watch for folder additions, deletions, rename,and update
 
     expect(Array.from(addUris)).toEqual(expectedAddUris);
     expect(Array.from(deleteUris)).toEqual(expectedDeleteUris);
+  });
+
+  it('reports the requested path when the watched directory resolves through an alias', async () => {
+    expect.assertions(1);
+    const injector = createNodeInjector([]);
+    const parent = await temp.mkdir('unRecursive-alias-test');
+    const realPath = path.join(parent, 'real');
+    const requestedPath = path.join(parent, 'alias');
+    await fse.mkdir(realPath);
+    await fse.symlink(realPath, requestedPath, 'dir');
+    const watcherServer = new UnRecursiveFileSystemWatcher(injector.get(ILogServiceManager).getLogger());
+    watcherServerList.push(watcherServer);
+    const addedUris = new Set<string>();
+    watcherServer.setClient({
+      onDidFilesChanged(event: DidFilesChangedParams) {
+        event.changes.forEach((change) => {
+          if (change.type === FileChangeType.ADDED) {
+            addedUris.add(change.uri);
+          }
+        });
+      },
+    });
+
+    await watcherServer.watchFileChanges(FileUri.create(requestedPath).toString());
+    await fse.writeFile(path.join(realPath, 'aliased.txt'), 'alias proof');
+    const expectedUri = FileUri.create(path.join(requestedPath, 'aliased.txt')).toString();
+    await waitForEvent(() => addedUris.has(expectedUri));
+
+    expect(addedUris).toContain(expectedUri);
   });
   it('Update the files under the folder', async () => {
     const updatedUris = new Set<string>();

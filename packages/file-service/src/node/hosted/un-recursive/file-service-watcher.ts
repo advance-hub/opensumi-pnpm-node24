@@ -41,7 +41,7 @@ export class UnRecursiveFileSystemWatcher implements IWatcher {
    * @param basePath 要监听的路径
    * @returns 创建的 watcher，如果失败则返回 undefined
    */
-  private async doWatch(basePath: string): Promise<fs.FSWatcher | undefined> {
+  private async doWatch(basePath: string, requestedPath = basePath): Promise<fs.FSWatcher | undefined> {
     try {
       const watcher = watch(basePath);
       this.logger.log('[Un-Recursive] start watching', basePath);
@@ -98,7 +98,7 @@ export class UnRecursiveFileSystemWatcher implements IWatcher {
           return;
         }
 
-        const changePath = join(basePath, changeFileName);
+        const changePath = join(requestedPath, changeFileName);
         if (isDirectory) {
           setTimeout(async () => {
             // 检查是否已销毁，避免在销毁后执行
@@ -132,9 +132,9 @@ export class UnRecursiveFileSystemWatcher implements IWatcher {
             }
             if (changeFileName === signalDoc) {
               if (await fs.pathExists(basePath)) {
-                this.pushUpdated(basePath);
+                this.pushUpdated(requestedPath);
               } else {
-                this.pushDeleted(basePath);
+                this.pushDeleted(requestedPath);
                 signalDoc = '';
               }
             }
@@ -190,7 +190,7 @@ export class UnRecursiveFileSystemWatcher implements IWatcher {
       return disposables;
     }
 
-    const watcher = await this.doWatch(realPath);
+    const watcher = await this.doWatch(realPath, basePath);
 
     if (watcher) {
       disposables.push(
