@@ -27,14 +27,14 @@ describe('PtyService function should be valid', () => {
   });
 
   it('cannot create a invalid shell case1', async () => {
-    const ptyService = injector.get(PtyService, ['0', { executable: '' }, 200, 200]);
+    const ptyService = injector.get(PtyService, ['case1', { executable: '' }, 200, 200]);
     const error = await ptyService.start();
     expect(error?.message).toEqual('IShellLaunchConfig.executable not set');
   });
 
   it('cannot create a invalid shell case2', async () => {
     const ptyService = injector.get(PtyService, [
-      '0',
+      'case2',
       { executable: shellPath, cwd: '/this/path/not/exists' },
       200,
       200,
@@ -44,17 +44,18 @@ describe('PtyService function should be valid', () => {
   });
 
   it('can create a valid pty instance', async () => {
-    const ptyService = injector.get(PtyService, ['0', { executable: shellPath }, 200, 200]);
+    const ptyService = injector.get(PtyService, ['case3', { executable: shellPath }, 200, 200]);
     const error = await ptyService.start();
     const instance = ptyService.pty;
     expect(error).toBeUndefined();
     expect(instance).toBeDefined();
     expect(instance?.pid).toBeDefined();
     expect(instance?.launchConfig).toBeDefined();
+    await ptyService.kill();
   });
 
   it('cwd is user home dir if not set', async () => {
-    const ptyService = injector.get(PtyService, ['0', { executable: shellPath, args: ['-c', 'pwd'] }, 200, 200]);
+    const ptyService = injector.get(PtyService, ['case4', { executable: shellPath, args: ['-c', 'pwd'] }, 200, 200]);
     const error = await ptyService.start();
     const instance = ptyService.pty;
 
@@ -63,11 +64,13 @@ describe('PtyService function should be valid', () => {
     let result = '';
 
     if (os.platform() !== 'win32') {
+      // `sh -c pwd` prints the resolved cwd and exits; collecting until exit
+      // keeps the assertion deterministic instead of racing the first chunk.
       await new Promise<void>((resolve) => {
         instance?.onData((data) => {
           result += data;
-          resolve(undefined);
         });
+        instance?.onExit(() => resolve(undefined));
       });
       expect(result).toContain(os.homedir());
     }
