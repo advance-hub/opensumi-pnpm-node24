@@ -40,7 +40,7 @@ jobs:
         ci-project: [node, jsdom]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
@@ -106,7 +106,7 @@ jobs:
             artifact-suffix: windows
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Use Go from workspace-agent/go.mod
         uses: actions/setup-go@v5
         with:
@@ -185,7 +185,7 @@ jobs:
             output-platform: win32
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
       - name: Use Node.js 24
         uses: actions/setup-node@v4

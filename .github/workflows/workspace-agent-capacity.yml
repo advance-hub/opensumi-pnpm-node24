@@ -43,7 +43,7 @@ jobs:
       CAPACITY_EXPECTED_FILE_SEARCH_RESULT: ${{ inputs.expected_file_search_result }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v4
       - name: Use Node.js 24
         uses: actions/setup-node@v4
