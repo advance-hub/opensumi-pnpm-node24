@@ -714,6 +714,14 @@ async function runSmoke(options: SmokeOptions): Promise<void> {
     await artifacts.page.waitForFunction(() => document.body.innerText.split('\n').includes('EXPLORER'), undefined, {
       timeout: 30_000,
     });
+    await waitUntil(
+      async () => {
+        const readiness = await readReadiness(port);
+        return Boolean(readiness.workspaceAgent?.activeStreams && readiness.workspaceAgent.sharedWatches);
+      },
+      15_000,
+      'The Explorer did not establish its native Workspace Agent watcher within 15 seconds',
+    );
     const watchProofPath = path.join(artifacts.workspacePath, watchProofFileName);
     const watchAddStartedAt = Date.now();
     await writeFile(watchProofPath, 'Workspace Agent watch add proof\n');

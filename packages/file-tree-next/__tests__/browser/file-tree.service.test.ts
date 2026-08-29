@@ -225,6 +225,29 @@ describe('FileTree Service should be work alone', () => {
     await fileTreeService.flushEventQueue();
   });
 
+  it('reconciles the tree after queued watchers become active', async () => {
+    expect.assertions(3);
+    const workspaceService = injector.get(IWorkspaceService);
+    const testUri = new URI(workspaceService.workspace.uri);
+    let resolveWatcher: (watcher: typeof fileChangeWatcher) => void;
+    mockFileServiceClient.watchFileChanges.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveWatcher = resolve;
+      }),
+    );
+    const refresh = jest.spyOn(fileTreeService, 'refresh').mockResolvedValue(undefined);
+
+    await fileTreeService.watchFilesChange(testUri);
+    const start = fileTreeService.startWatchFileEvent();
+    expect(refresh).not.toHaveBeenCalled();
+
+    resolveWatcher!(fileChangeWatcher);
+    await start;
+
+    expect(mockFileServiceClient.watchFileChanges).toHaveBeenCalledWith(testUri);
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
   it('Commands should be work', () => {
     const testUri = new URI('file://userhome/test.js');
     // openAndFixedFile
