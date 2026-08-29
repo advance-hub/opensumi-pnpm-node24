@@ -12,7 +12,7 @@
   "scripts": {
     "prepublishOnly": "pnpm run build",
     "build": "tsc --build ../../configs/ts/references/tsconfig.monaco.json && pnpm run build:worker",
-    "build:worker": "../../node_modules/.bin/webpack --config webpack.config.js"
+    "build:worker": "webpack --config webpack.config.js"
   },
   "dependencies": {
     "@opensumi/ide-components": "workspace:*",

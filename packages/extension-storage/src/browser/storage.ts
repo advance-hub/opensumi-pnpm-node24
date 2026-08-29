@@ -215,6 +215,10 @@ export class ExtensionStorageServer implements IExtensionStorageServer {
       return { data: {} };
     }
 
+    if (rawContent.trim().length === 0) {
+      return { data: {}, rawContent };
+    }
+
     try {
       return { data: JSON.parse(rawContent), rawContent };
     } catch (error) {

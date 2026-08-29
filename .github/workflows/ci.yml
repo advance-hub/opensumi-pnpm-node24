@@ -222,7 +222,9 @@ jobs:
           fi
 
       - name: Build production client, server and native Workspace Agent
+        shell: bash
         run: |
+          set -o pipefail
           pnpm run init
           pnpm run build:client
           node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON server/scripts/package-workspace-agent.ts --revision ci-${{ github.sha }}

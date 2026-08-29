@@ -5,7 +5,14 @@ import temp from 'temp';
 
 import { WSChannelHandler } from '@opensumi/ide-connection/lib/browser';
 import { AppConfig } from '@opensumi/ide-core-browser';
-import { FileUri, IFileServiceClient, ILoggerManagerClient, StoragePaths, URI } from '@opensumi/ide-core-common';
+import {
+  FileUri,
+  IFileServiceClient,
+  ILogger,
+  ILoggerManagerClient,
+  StoragePaths,
+  URI,
+} from '@opensumi/ide-core-common';
 import { IHashCalculateService } from '@opensumi/ide-core-common/lib/hash-calculate/hash-calculate';
 import { createBrowserInjector } from '@opensumi/ide-dev-tool/src/injector-helper';
 import { MockInjector } from '@opensumi/ide-dev-tool/src/mock-injector';
@@ -171,6 +178,7 @@ describe('Extension Storage Server -- Data operation should be worked', () => {
   });
 
   it('Global -- set value can be work', async () => {
+    const loggerError = jest.spyOn(injector.get(ILogger), 'error');
     const isGlobal = true;
     const key = 'test';
     const value = {
@@ -181,6 +189,7 @@ describe('Extension Storage Server -- Data operation should be worked', () => {
     await extensionStorage.set(key, value, isGlobal);
     expect(await extensionStorage.get(key, isGlobal)).toEqual(value);
     expect(await extensionStorage.getAll(isGlobal)).toEqual(data);
+    expect(loggerError).not.toHaveBeenCalled();
   });
 
   it('Workspace -- set value can be work', async () => {
