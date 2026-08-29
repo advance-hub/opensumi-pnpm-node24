@@ -4,6 +4,7 @@ import ParcelWatcher from '@parcel/watcher';
 import { copy } from 'fs-extra';
 import { globSync } from 'glob';
 
+import { toPackageLibResourcePath } from './fn/package-resource-path';
 import { run } from './fn/shell';
 
 let handler: ParcelWatcher.AsyncSubscription;
@@ -43,6 +44,6 @@ let handler: ParcelWatcher.AsyncSubscription;
 
 async function copyOneFile(file, cwd) {
   const from = path.join(cwd, file);
-  const to = path.join(cwd, file.replace(/\/src\//, '/lib/'));
+  const to = path.join(cwd, toPackageLibResourcePath(file));
   await copy(from, to);
 }

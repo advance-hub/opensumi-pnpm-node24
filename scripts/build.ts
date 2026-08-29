@@ -5,6 +5,7 @@ import * as fs from 'fs-extra';
 import { globSync } from 'glob';
 
 import { assertMemoryHeadroom } from './fn/memory.ts';
+import { toPackageLibResourcePath } from './fn/package-resource-path.ts';
 
 (async () => {
   const repoRoot = path.join(__dirname, '..');
@@ -57,7 +58,7 @@ import { assertMemoryHeadroom } from './fn/memory.ts';
   const files = globSync(filePatten, { cwd, nodir: true });
   for (const file of files) {
     const from = path.join(cwd, file);
-    const to = path.join(cwd, file.replace(/\/src\//, '/lib/'));
+    const to = path.join(cwd, toPackageLibResourcePath(file));
     await fs.mkdirp(path.dirname(to));
     await fs.copyFile(from, to);
   }
