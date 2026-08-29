@@ -94,4 +94,23 @@ describe('RecursiveFileSystemWatcher dispose', () => {
     const unrelatedPath = path.join(root, 'unrelated', 'file.txt');
     expect((watcher as any).mapEventPathToRequestedPath(unrelatedPath)).toBe(unrelatedPath);
   });
+
+  it('maps events through the existing parent selected for a missing watch target', () => {
+    expect.assertions(1);
+    const watcher = new RecursiveFileSystemWatcher([], createLogger());
+    const watchPathMap = (watcher as any).watchPathMap as Map<string, string>;
+    const requestedWatchPathMap = (watcher as any).requestedWatchPathMap as Map<string, string>;
+    const root = path.parse(process.cwd()).root;
+    const requestedRoot = path.join(root, 'requested', 'workspace');
+    const missingTarget = path.join(requestedRoot, '.sumi');
+    const resolvedRoot = path.join(root, 'resolved', 'workspace');
+    watchPathMap.set(missingTarget, resolvedRoot);
+    requestedWatchPathMap.set(missingTarget, requestedRoot);
+    watchPathMap.set(requestedRoot, resolvedRoot);
+    requestedWatchPathMap.set(requestedRoot, requestedRoot);
+
+    expect((watcher as any).mapEventPathToRequestedPath(path.join(resolvedRoot, 'proof.txt'))).toBe(
+      path.join(requestedRoot, 'proof.txt'),
+    );
+  });
 });
