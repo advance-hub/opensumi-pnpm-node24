@@ -253,7 +253,24 @@ jobs:
             tail -n 160 smoke-output.log >> "$GITHUB_STEP_SUMMARY"
             echo '```' >> "$GITHUB_STEP_SUMMARY"
           fi
+          watcher_log=$(find "$HOME/.sumi/logs" -type f -name watcherHost.log 2>/dev/null | sort | tail -n 1)
+          if [ -n "$watcher_log" ] && [ -f "$watcher_log" ]; then
+            echo '### watcher host tail' >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -n 160 "$watcher_log" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
           if [ -f output/workspace-agent/product-smoke-darwin.json ]; then echo 'warning: darwin evidence on CI' >> "$GITHUB_STEP_SUMMARY"; fi
+
+      - name: Collect Watcher Host diagnostics
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          watcher_log=$(find "$HOME/.sumi/logs" -type f -name watcherHost.log 2>/dev/null | sort | tail -n 1)
+          if [ -n "$watcher_log" ] && [ -f "$watcher_log" ]; then
+            mkdir -p output/workspace-agent
+            cp "$watcher_log" "output/workspace-agent/watcher-host-${{ matrix.output-platform }}.log"
+          fi
 
       - name: Upload Workspace Agent product-smoke evidence
         if: ${{ always() }}
@@ -264,4 +281,5 @@ jobs:
           retention-days: 7
           path: |
             output/workspace-agent/product-smoke-${{ matrix.output-platform }}.json
+            output/workspace-agent/watcher-host-${{ matrix.output-platform }}.log
             output/playwright/workspace-agent-product-smoke-${{ matrix.output-platform }}.png
