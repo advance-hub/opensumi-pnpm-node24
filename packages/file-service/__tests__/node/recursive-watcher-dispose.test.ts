@@ -33,6 +33,15 @@ class TestRecursiveFileSystemWatcher extends RecursiveFileSystemWatcher {
   }
 }
 
+class CountingRecursiveFileSystemWatcher extends RecursiveFileSystemWatcher {
+  public starts = 0;
+
+  protected async start(): Promise<DisposableCollection> {
+    this.starts += 1;
+    return new DisposableCollection();
+  }
+}
+
 describe('RecursiveFileSystemWatcher dispose', () => {
   const track = temp.track();
 
@@ -112,5 +121,24 @@ describe('RecursiveFileSystemWatcher dispose', () => {
     expect((watcher as any).mapEventPathToRequestedPath(path.join(resolvedRoot, 'proof.txt'))).toBe(
       path.join(requestedRoot, 'proof.txt'),
     );
+  });
+
+  it('shares one physical subscription when a missing target resolves to an existing watch root', async () => {
+    expect.assertions(4);
+    const rootPath = fse.realpathSync(await temp.mkdir('recursive-shared-root-test'));
+    const missingTargetPath = path.join(rootPath, '.sumi');
+    const watcher = new CountingRecursiveFileSystemWatcher([], createLogger());
+
+    await watcher.watchFileChanges(FileUri.create(rootPath).toString());
+    await watcher.watchFileChanges(FileUri.create(missingTargetPath).toString());
+
+    const handlers = (watcher as any).WATCHER_HANDLERS as Map<string, unknown>;
+    expect(watcher.starts).toBe(1);
+    expect(handlers.size).toBe(1);
+
+    watcher.unwatchFileChanges(FileUri.create(missingTargetPath).toString());
+    expect(handlers.size).toBe(1);
+    watcher.unwatchFileChanges(FileUri.create(rootPath).toString());
+    expect(handlers.size).toBe(0);
   });
 });

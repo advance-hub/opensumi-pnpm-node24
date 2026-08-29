@@ -55,7 +55,7 @@ export class RecursiveFileSystemWatcher extends Disposable implements IWatcher {
 
   private WATCHER_HANDLERS = new Map<
     string,
-    { path: string; handlers: ParcelWatcher.SubscribeCallback[]; disposable: IDisposable }
+    { path: string; handlers: ParcelWatcher.SubscribeCallback[]; disposable: IDisposable; ready: Promise<void> }
   >();
 
   private readonly watchPathMap = new Map<string, string>();
@@ -179,21 +179,28 @@ export class RecursiveFileSystemWatcher extends Disposable implements IWatcher {
 
     if (prevWatchPath && prevWatchPath !== realWatchPath) {
       this.logger.warn(`[Recursive] Watch path changed from ${prevWatchPath} to ${realWatchPath}`);
-      this.disposeWatcher(prevWatchPath);
-    }
-
-    // 先检查并清理已存在的 handler（使用 watchPath 确保目录级别的去重）
-    if (this.WATCHER_HANDLERS.has(realWatchPath)) {
-      this.logger.debug(`[Recursive] Cleaning up existing watcher for directory: ${realWatchPath}`);
-      const handler = this.WATCHER_HANDLERS.get(realWatchPath);
-      handler?.disposable.dispose();
-      this.WATCHER_HANDLERS.delete(realWatchPath);
-      this.cleanupWatchPathMap(realWatchPath);
+      this.releaseWatchRequest(basePath, prevWatchPath);
     }
 
     // 记录原始请求与真实监听目录的映射，方便后续释放
     this.watchPathMap.set(basePath, realWatchPath);
     this.requestedWatchPathMap.set(basePath, watchPath);
+
+    const existingWatcher = this.WATCHER_HANDLERS.get(realWatchPath);
+    if (existingWatcher) {
+      this.logger.debug(`[Recursive] Reuse existing watcher for directory: ${realWatchPath}`);
+      try {
+        await existingWatcher.ready;
+      } catch (error) {
+        this.watchPathMap.delete(basePath);
+        this.requestedWatchPathMap.delete(basePath);
+        throw error;
+      }
+      if (this.isDisposed) {
+        throw new Error(`Recursive watcher disposed while reusing subscription: ${uri}`);
+      }
+      return;
+    }
 
     const handler = (err, events: ParcelWatcher.Event[]) => {
       if (err) {
@@ -216,16 +223,33 @@ export class RecursiveFileSystemWatcher extends Disposable implements IWatcher {
       }
     };
 
-    this.WATCHER_HANDLERS.set(realWatchPath, {
+    const ready = this.start(realWatchPath, options).then((disposable) => {
+      toDisposeWatcher.push(disposable);
+    });
+    const watcherEntry = {
       path: realWatchPath,
       disposable: toDisposeWatcher,
       handlers: [handler],
-    });
+      ready,
+    };
+    this.WATCHER_HANDLERS.set(realWatchPath, watcherEntry);
 
-    toDisposeWatcher.push(await this.start(realWatchPath, options));
+    try {
+      await ready;
+    } catch (error) {
+      if (this.WATCHER_HANDLERS.get(realWatchPath) === watcherEntry) {
+        this.WATCHER_HANDLERS.delete(realWatchPath);
+      }
+      this.watchPathMap.delete(basePath);
+      this.requestedWatchPathMap.delete(basePath);
+      await toDisposeWatcher.dispose();
+      throw error;
+    }
     if (this.isDisposed) {
       this.logger.warn('[Recursive] Watcher disposed while starting, cleanup:', uri);
-      this.WATCHER_HANDLERS.delete(realWatchPath);
+      if (this.WATCHER_HANDLERS.get(realWatchPath) === watcherEntry) {
+        this.WATCHER_HANDLERS.delete(realWatchPath);
+      }
       this.watchPathMap.delete(basePath);
       this.requestedWatchPathMap.delete(basePath);
       await toDisposeWatcher.dispose();
@@ -510,13 +534,20 @@ export class RecursiveFileSystemWatcher extends Disposable implements IWatcher {
     }
   }
 
+  private releaseWatchRequest(basePath: string, watchPath: string) {
+    this.watchPathMap.delete(basePath);
+    this.requestedWatchPathMap.delete(basePath);
+    if (Array.from(this.watchPathMap.values()).some((mappedPath) => mappedPath === watchPath)) {
+      return;
+    }
+    this.disposeWatcher(watchPath);
+  }
+
   unwatchFileChanges(uri: string): void {
     this.logger.log('[Recursive] Un watch: ', uri);
     const basePath = FileUri.fsPath(uri);
     const watchPath = this.watchPathMap.get(basePath) ?? basePath;
-    this.watchPathMap.delete(basePath);
-    this.requestedWatchPathMap.delete(basePath);
-    this.disposeWatcher(watchPath);
+    this.releaseWatchRequest(basePath, watchPath);
   }
 
   private cleanupWatchPathMap(watchPath: string) {
