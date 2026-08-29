@@ -51,6 +51,16 @@ interface PrivateChannelListener {
   address: string;
   transport: 'unix' | 'tcp-loopback';
   socketDirectory?: string;
+  /**
+   * The gateway dials this listener the moment it starts, which is always
+   * before ServerApp.start attaches the multiplex handler. Node's net.Server
+   * silently drops connections accepted before any 'connection' listener
+   * exists, so the very first (and only) gateway transport would be
+   * blackholed. Connections are therefore held here, paused, and replayed
+   * once the real handler is wired.
+   */
+  holdConnection(socket: net.Socket): void;
+  heldConnections: net.Socket[];
 }
 
 export interface WsGatewayLaunchOptions {
@@ -180,6 +190,22 @@ function listen(server: net.Server, options: net.ListenOptions | string): Promis
 
 async function createPrivateChannelListener(): Promise<PrivateChannelListener> {
   const server = net.createServer();
+  const heldConnections: net.Socket[] = [];
+  const holdConnection = (socket: net.Socket) => {
+    heldConnections.push(socket);
+    // Paused sockets keep the preface bytes buffered until the multiplex
+    // handler adopts them.
+    socket.pause();
+  };
+  server.on('connection', holdConnection);
+  const listener: PrivateChannelListener = {
+    server,
+    network: 'tcp',
+    address: '',
+    transport: 'tcp-loopback',
+    holdConnection,
+    heldConnections,
+  };
   if (process.platform === 'win32') {
     await listen(server, { host: '127.0.0.1', port: 0 });
     const address = server.address();
@@ -187,12 +213,8 @@ async function createPrivateChannelListener(): Promise<PrivateChannelListener> {
       server.close();
       throw new Error(`WS Gateway channel listener announced an invalid loopback address: ${String(address)}`);
     }
-    return {
-      server,
-      network: 'tcp',
-      address: `127.0.0.1:${address.port}`,
-      transport: 'tcp-loopback',
-    };
+    listener.address = `127.0.0.1:${address.port}`;
+    return listener;
   }
 
   const socketDirectory = await mkdtemp(path.join(tmpdir(), 'opensumi-ws-gateway-'));
@@ -200,8 +222,13 @@ async function createPrivateChannelListener(): Promise<PrivateChannelListener> {
   try {
     await listen(server, address);
     await chmod(address, 0o600);
-    return { server, network: 'unix', address, transport: 'unix', socketDirectory };
+    listener.network = 'unix';
+    listener.address = address;
+    listener.transport = 'unix';
+    listener.socketDirectory = socketDirectory;
+    return listener;
   } catch (error) {
+    server.off('connection', holdConnection);
     server.close();
     await rm(socketDirectory, { force: true, recursive: true });
     throw error;
@@ -325,6 +352,22 @@ export class WsGatewayRuntime {
 
   static async create(): Promise<WsGatewayRuntime> {
     return new WsGatewayRuntime(await createPrivateChannelListener());
+  }
+
+  /**
+   * Hands the connections the gateway dialed before ServerApp.start wired the
+   * multiplex handler to that handler. Must run exactly once, right after
+   * ServerApp.start(channelServer) registered the real 'connection' listener:
+   * replaying through emit() delivers the paused sockets synchronously to the
+   * now-registered handler.
+   */
+  adoptHeldChannelConnections(): void {
+    const { server, holdConnection, heldConnections } = this.channel;
+    server.off('connection', holdConnection);
+    for (const socket of heldConnections.splice(0)) {
+      socket.resume();
+      server.emit('connection', socket);
+    }
   }
 
   getStatus(): WsGatewayHealthStatus {

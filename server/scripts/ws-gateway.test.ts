@@ -1,11 +1,13 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import net from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, it } from 'node:test';
+import { setTimeout as delay } from 'node:timers/promises';
 
-import { parseWsGatewayReadyLine, validateWsGatewayPackage } from '../src/ws-gateway';
+import { WsGatewayRuntime, parseWsGatewayReadyLine, validateWsGatewayPackage } from '../src/ws-gateway';
 
 function currentTarget(): { goos: string; goarch: string } {
   return {
@@ -71,6 +73,42 @@ describe('WS Gateway launcher', () => {
       assert.throws(() => validateWsGatewayPackage(binaryPath, true), /checksum/);
     } finally {
       await rm(directory, { force: true, recursive: true });
+    }
+  });
+});
+
+describe('WS Gateway private channel adoption', () => {
+  it('replays gateway connections dialed before the handler listener exists', async () => {
+    const runtime = await WsGatewayRuntime.create();
+    try {
+      // The gateway dials immediately at startup; this client connects before
+      // any "handler" listener is attached, exactly like the real gateway.
+      const gatewayDial = net.connect(runtime.channelServer.address() as string);
+      await new Promise<void>((resolve, reject) => {
+        gatewayDial.once('connect', resolve);
+        gatewayDial.once('error', reject);
+      });
+      gatewayDial.write('gateway-preface');
+      await delay(100);
+
+      const adopted: net.Socket[] = [];
+      // ServerApp.start would register the real handler here; simulate it.
+      runtime.channelServer.on('connection', (socket: net.Socket) => {
+        adopted.push(socket);
+        socket.on('data', () => socket.write('node-replies'));
+      });
+      runtime.adoptHeldChannelConnections();
+
+      await delay(200);
+      assert.equal(adopted.length, 1, 'held connection must be replayed to the handler');
+      const reply = await new Promise<string>((resolve) => {
+        gatewayDial.once('data', (chunk) => resolve(String(chunk)));
+      });
+      assert.equal(reply, 'node-replies');
+      gatewayDial.destroy();
+    } finally {
+      await rm(runtime.channel.socketDirectory ?? '', { force: true, recursive: true });
+      await new Promise<void>((resolve) => runtime.channelServer.close(() => resolve()));
     }
   });
 });

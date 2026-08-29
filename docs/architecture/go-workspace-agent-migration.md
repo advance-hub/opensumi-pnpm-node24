@@ -496,4 +496,31 @@ Go 定向测试使用真实 JavaScript Fury hex fixture 覆盖 typed `readFile` 
 
 机制：新增 `server/src/ws-gateway-defaults.ts`。`resolveWsGatewayMode(environment, gatewayAvailable)` 保留历史语义——环境变量显式为 `1|enabled` 时返回 `{gateway, explicit}`（硬性要求，即使包不可用）；显式为任何其他非空值（含 `0|off|disabled` 与未知值）时返回 `{direct, explicit}`；未设置时返回 `{gatewayAvailable ? gateway : direct, default}`。`hasRunnableWsGatewayPackage` 复用 `validateWsGatewayPackage`：`OPENSUMI_WS_GATEWAY_PATH` 是唯一候选；否则生产（`NODE_ENV=production`）只看 `server/dist/workspace-agent/ws-gateway`（要求有效 manifest），开发环境先看 `go/workspace-agent/bin` 再看 dist（允许缺 manifest）。`start-server.ts` 在构造 `ServerApp` 之前探针式启动 Gateway（`ServerApp.start` 不可重入，`netChannelMode` 必须一次性定死）：显式模式启动失败直接抛错；默认模式启动失败则打印 `console.error` 并回退 Node 直连 socket，`/healthz` 的 `wsGateway.error` 记录 `fallback: <message>`，服务照常可用。
 
-回滚开关：`OPENSUMI_WS_GATEWAY_MODE=0|off|disabled`（或任何非 `1|enabled` 值）立即回到 Node 直连，来源为 `explicit`，不受制品影响；无制品的部署同样天然直连。负载形态边界随 10.16 一并生效：默认启用针对的是多会话 + 小/中文件 RPC 密集负载；大文件读取密集（4 MiB readFile P95 `+14.97%`）或空闲连接为主（500 连接整树 `+29.28%`）的部署应保留该开关为 `off`。产品冒烟 `scripts/workspace-agent-product-smoke.ts` 改为按与被测 server 完全相同的解析逻辑判定期望：解析为 `direct` 却观测到 `running` 视为失败；默认模式下观测到回退会记录 `fallbackError` 但不判失败；`wsGateway`（resolution/observed/diagnostics）写入通过与失败两份证据 JSON。单测见 `server/scripts/ws-gateway-defaults.test.ts`（已注册 `test:diagnostics`），覆盖显式开/关、未知值、默认分支、开发与生产制品校验、跨构建与篡改二进制拒绝及 `OPENSUMI_WS_GATEWAY_PATH` 行为。
+回滚开关：`OPENSUMI_WS_GATEWAY_MODE=0|off|disabled`（或任何非 `1|enabled` 值）立即回到 Node 直连，来源为 `explicit`，不受制品影响；无制品的部署同样天然直连。负载形态边界随 10.16 一并生效，但大文件限制已被 10.18 的零拷贝池化解除（4 MiB readFile P95 `‑34.45%`）；空闲连接为主（500 连接整树 `+29.28%`，§10.9）的部署仍应保留该开关为 `off`。产品冒烟 `scripts/workspace-agent-product-smoke.ts` 改为按与被测 server 完全相同的解析逻辑判定期望：解析为 `direct` 却观测到 `running` 视为失败；默认模式下观测到回退会记录 `fallbackError` 但不判失败；`wsGateway`（resolution/observed/diagnostics）写入通过与失败两份证据 JSON。单测见 `server/scripts/ws-gateway-defaults.test.ts`（已注册 `test:diagnostics`），覆盖显式开/关、未知值、默认分支、开发与生产制品校验、跨构建与篡改二进制拒绝及 `OPENSUMI_WS_GATEWAY_PATH` 行为。
+
+### 10.18 readFile 零拷贝池化：大文件门禁翻转
+
+10.16 把 4 MiB readFile 的 P95 回退（`+14.97%`）定位为 Go 侧整包缓冲，本节将其重构为单次精确分配 + 池化，并把大文件负载的适用边界一并翻转。原实现在一次请求内串行持有三份载荷：`io.ReadAll` 读出的 `content`、Fury 内层响应 `bytes.Buffer`、外层 channel 消息 `bytes.Buffer`；`respondDirectFileRead` 现在按 header 尺寸模型预先计算整帧长度，从 `sync.Pool` 取一块恰好容量的缓冲，把响应头写进缓冲头部后用 `io.CopyN` 将文件内容**直接读入最终位置**，channel 字符串尾标随后补写，全程只有一份载荷拷贝。长度模型（`lenDirectFileReadResponse`/`binaryChannelMessageLen`）与编码器若不一致，请求会退回 Node 而不是发出坏帧；短读（并发截断）同样回退。`release` 闭包按幂等契约在写回浏览器连接之后把缓冲归还池，`maxPooledReadResponseBytes`（16 MiB）之上的载荷照旧走 Node。桥接层对 `handled` 但超出 `MaxPayloadBytes` 的响应显式 `release` 后仍按原语义把原始请求转发给 Node。
+
+等价性没有只靠类型检查：`direct_file_rpc_test.go` 既有测试继续以旧编码器输出为黄金基准逐字节对比，新增 `TestRespondDirectFileReadMatchesReferenceEncoderAndPoolRelease` 覆盖池化路径三轮往返的字节等价与 `release` 幂等；`go test -race ./...` 全绿。
+
+同一 macOS arm64 主机、同一 schema（`--clients 10 --file-bytes 4194304 --stress-reads 200`、fresh process、multiplex-v1、Node/Gateway 各三轮交替）复测，三轮中位对比：
+
+| 指标（三轮中位 P95） | 10.16 缓冲版 | 10.18 池化版 |
+| --- | --: | --: |
+| readFile：Node / Gateway | `25.28 / 29.07 ms`（`+14.97%` ✗） | `19.17 / 12.57 ms`（`-34.45%` ✓） |
+| access / statFile / readDirectory / statDirectory | 改善 `22–50%` | `‑37.9% / ‑33.3% / ‑34.8% / ‑45.4%` |
+| 压测后整树 RSS | `‑33.1%` | `‑48.2%`（`399,982,592 → 207,110,144 B`） |
+| 压测后 Node server RSS | `‑81.0%` | `‑76.0%`（`399,982,592 → 95,993,856 B`） |
+| `ws-gateway` 角色压测后 RSS | `161.7–195.0 MiB` | `106.0–109.6 MiB` |
+| Go 直接应答 RPC | `63,000/63,000` | `63,000/63,000` |
+
+门禁判定随之更新：4 MiB readFile 从未过 10% 延迟门禁变为 `-34.45%`，两项门禁均以大幅余量通过；`ws-gateway` 常驻水位降至接近 10×4 MiB 单拷贝的理论下限。原始证据为 `output/runtime-profiles/go-file-rpc-c10-4m-pooled-20260829.json`。本实验为合成 ws 客户端，与 10.16 相同不包含 Extension Host 与真实浏览器；10.17 的「大文件读取密集应保持 `off`」边界自本节起**解除**，改为：大文件读取密集负载与其它负载一样默认启用，其依据在真实产品门禁（10.19 修复后的 Chromium 链路）复跑通过后成立。空闲连接为主的部署边界（§10.9）不受影响。
+
+### 10.19 multiplex 启动竞态修复：首连接黑洞
+
+10.18 之前复跑 4 MiB 与产品冒烟时发现整条 multiplex-v1 链路无响应：浏览器 WS 升级成功、`browserFramesForwarded` 递增，但 `nodeFramesForwarded` 恒为 0，任何 channel open 都无 ServerReady。证据 `output/workspace-agent/product-smoke-default-gateway-migration.json`（8 月 28 日 23:37）与 8 月 29 日 10:46 的冒烟均以同一 page 超时失败；13:05 的 `product-smoke-ws-multiplex-final`（重构前 dist）是通过的。时间线指向 8 月 28 日 14:29 的 `ws-gateway.ts` 重构。
+
+根因是连接时序：`createPrivateChannelListener` 先创建并 `listen` 私有 unix socket，随后 gateway 进程启动，`gateway.New` 内 `newMultiplexBackend` **立即拨号**；而 `MultiplexElectronChannelHandler.listen()`（注册 `server.on('connection')`）要等 `ServerApp.start(channelServer)` 才执行。Node 的 net.Server 会接收 backlog 中的连接，但对「任何监听器注册之前已接受的连接」**不补发事件**（本仓库用 20 行最小复现验证：后挂监听永远收不到首个连接，写入黑洞且无错误）。于是 gateway 的唯一物理传输被永久黑洞，healthz 仍报 `running`。direct 通道模式按浏览器连接惰性拨号，不触此竞态——这解释了更早的 direct 证据全部通过。
+
+修复采用持有-移交（hold-and-adopt）：`createPrivateChannelListener` 在创建时即挂 `holdConnection` 监听，把早期连接 `pause()` 后暂存；`WsGatewayRuntime.adoptHeldChannelConnections()` 在 `serverApp.start(channelServer)` 之后移除持有监听、`resume()` 并通过 `server.emit('connection', socket)` 同步移交给已注册的 multiplex handler。不改变 gateway↔Node 协议、浏览器协议与探针启动/失败回退语义。`server/scripts/ws-gateway.test.ts` 新增真实 unix socket 单测：先拨号、后挂监听、再移交，断言持有连接被重放且双向数据可达；`test:diagnostics` 26/26 通过。修复后真实链路复验：channel open 获得 `server-ready`、`nodeFramesForwarded` 开始递增，最小 go-file-rpc 门禁通过（见 10.18 证据）；完整 Chromium 产品门禁随后在 10.18 边界复跑中记录。

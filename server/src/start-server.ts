@@ -411,6 +411,9 @@ export async function startServer({ modules, injector, mountStaticPath }: StartS
   const serverApp = new ServerApp(buildServerAppOptions(serverAppChannelMode));
   if (wsGatewayRuntime) {
     await serverApp.start(wsGatewayRuntime.channelServer);
+    // The gateway dialed the private channel before the multiplex handler
+    // existed; replay the held connections now that its listener is wired.
+    wsGatewayRuntime.adoptHeldChannelConnections();
     // eslint-disable-next-line no-console
     console.log(
       `server listen through Go WS Gateway on http://localhost:${port} (Node HTTP ${wsGatewayRuntime.getStatus().nodeHTTPURL})`,

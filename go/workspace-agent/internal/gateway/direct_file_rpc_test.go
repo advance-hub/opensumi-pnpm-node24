@@ -159,7 +159,7 @@ func TestTryDirectFileRPCHandlesBoundedFileStatsWithFallbacks(t *testing.T) {
 	}
 	fileURI := fileURIComponents{scheme: "file", path: filepath.ToSlash(filePath)}
 	request := encodeAnyFileRPCTestRequest("rpc", 21, directFileStatMethod, fileURI, nil)
-	response, method, _, handled := tryDirectFileRPC(request, 1024, 16*1024)
+	response, _, method, _, handled := tryDirectFileRPC(request, 1024, 16*1024)
 	if !handled || method != directFileRPCStat || len(response) == 0 {
 		t.Fatalf("file stat was not handled in Go: handled=%v method=%d response=%x", handled, method, response)
 	}
@@ -177,7 +177,7 @@ func TestTryDirectFileRPCHandlesBoundedFileStatsWithFallbacks(t *testing.T) {
 
 	rootURI := fileURIComponents{scheme: "file", path: filepath.ToSlash(root)}
 	rootRequest := encodeAnyFileRPCTestRequest("rpc", 22, directFileStatMethod, rootURI, nil)
-	if _, method, _, handled := tryDirectFileRPC(rootRequest, 1024, 16*1024); !handled || method != directFileRPCStat {
+	if _, _, method, _, handled := tryDirectFileRPC(rootRequest, 1024, 16*1024); !handled || method != directFileRPCStat {
 		t.Fatal("directory stat was not handled in Go")
 	}
 	rootJSON, ok := buildDirectFileStatJSON(rootURI, root, 16*1024)
@@ -223,11 +223,11 @@ func TestTryDirectFileRPCHandlesBoundedFileStatsWithFallbacks(t *testing.T) {
 		}
 	}
 
-	if _, _, _, handled := tryDirectFileRPC(rootRequest, 1024, 300); handled {
+	if _, _, _, _, handled := tryDirectFileRPC(rootRequest, 1024, 300); handled {
 		t.Fatal("oversized stat response bypassed Node fallback")
 	}
 	missingURI := fileURIComponents{scheme: "file", path: filepath.ToSlash(filepath.Join(root, "missing"))}
-	if _, _, _, handled := tryDirectFileRPC(encodeAnyFileRPCTestRequest("rpc", 23, directFileStatMethod, missingURI, nil), 1024, 16*1024); handled {
+	if _, _, _, _, handled := tryDirectFileRPC(encodeAnyFileRPCTestRequest("rpc", 23, directFileStatMethod, missingURI, nil), 1024, 16*1024); handled {
 		t.Fatal("missing stat bypassed Node fallback")
 	}
 }
@@ -243,7 +243,7 @@ func TestTryDirectFileRPCHandlesAccessAndDirectoryWithFallbacks(t *testing.T) {
 	uri := fileURIComponents{scheme: "file", path: filepath.ToSlash(root)}
 
 	accessRequest := encodeAnyFileRPCTestRequest("rpc", 11, directFileAccessMethod, uri, nil)
-	accessResponse, method, _, handled := tryDirectFileRPC(accessRequest, 1024, 1024)
+	accessResponse, _, method, _, handled := tryDirectFileRPC(accessRequest, 1024, 1024)
 	expectedAccess := encodeBinaryChannelMessage("rpc", encodeAnyResponse(11, directFileAccessMethod, func(writer *bytes.Buffer) {
 		writer.WriteByte(anyTypeBoolean)
 		writer.WriteByte(1)
@@ -253,24 +253,24 @@ func TestTryDirectFileRPCHandlesAccessAndDirectoryWithFallbacks(t *testing.T) {
 	}
 
 	mode := float64(4)
-	if _, _, _, handled := tryDirectFileRPC(encodeAnyFileRPCTestRequest("rpc", 12, directFileAccessMethod, uri, &mode), 1024, 1024); handled {
+	if _, _, _, _, handled := tryDirectFileRPC(encodeAnyFileRPCTestRequest("rpc", 12, directFileAccessMethod, uri, &mode), 1024, 1024); handled {
 		t.Fatal("non-F_OK access mode bypassed Node fallback")
 	}
 
 	directoryRequest := encodeAnyFileRPCTestRequest("rpc", 13, directFileDirectoryMethod, uri, nil)
-	directoryResponse, method, _, handled := tryDirectFileRPC(directoryRequest, 1024, 1024)
+	directoryResponse, _, method, _, handled := tryDirectFileRPC(directoryRequest, 1024, 1024)
 	expectedDirectory := encodeBinaryChannelMessage("rpc", encodeAnyResponse(13, directFileDirectoryMethod, func(writer *bytes.Buffer) {
 		writeDirectoryEntries(writer, []directDirectoryEntry{{name: "a.txt", fileType: 1}, {name: "dir", fileType: 2}})
 	}))
 	if !handled || method != directFileRPCReadDirectory || !bytes.Equal(directoryResponse, expectedDirectory) {
 		t.Fatalf("directory read was not handled in Go: handled=%v method=%d response=%x", handled, method, directoryResponse)
 	}
-	if _, _, _, handled := tryDirectFileRPC(directoryRequest, 1024, 260); handled {
+	if _, _, _, _, handled := tryDirectFileRPC(directoryRequest, 1024, 260); handled {
 		t.Fatal("oversized directory response bypassed Node fallback")
 	}
 
 	unsupportedURI := fileURIComponents{scheme: "http", path: "/tmp"}
-	if _, _, _, handled := tryDirectFileRPC(encodeAnyFileRPCTestRequest("rpc", 14, directFileDirectoryMethod, unsupportedURI, nil), 1024, 1024); handled {
+	if _, _, _, _, handled := tryDirectFileRPC(encodeAnyFileRPCTestRequest("rpc", 14, directFileDirectoryMethod, unsupportedURI, nil), 1024, 1024); handled {
 		t.Fatal("unsupported URI bypassed Node fallback")
 	}
 }
@@ -296,6 +296,38 @@ func TestTryDirectFileReadUsesGoForBoundedRegularFiles(t *testing.T) {
 	}
 	if _, _, handled := tryDirectFileRead(request, 1024); handled {
 		t.Fatal("missing file bypassed Node fallback")
+	}
+}
+
+func TestRespondDirectFileReadMatchesReferenceEncoderAndPoolRelease(t *testing.T) {
+	content := []byte("pooled-read-payload")
+	filePath := filepath.Join(t.TempDir(), "pooled-read.bin")
+	if err := os.WriteFile(filePath, content, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	request := encodeDirectFileReadTestRequest("pooled-channel", 7, fileURIComponents{
+		scheme: "file",
+		path:   filepath.ToSlash(filePath),
+	})
+	parsed, ok := parseDirectFileReadRequest(request)
+	if !ok {
+		t.Fatal("request did not parse")
+	}
+	filePathResolved, ok := parsed.uri.localPath()
+	if !ok {
+		t.Fatal("uri did not resolve")
+	}
+	for round := 0; round < 3; round++ {
+		response, release, contentBytes, handled := respondDirectFileRead(parsed, filePathResolved, 1024)
+		if !handled || contentBytes != int64(len(content)) {
+			t.Fatalf("round %d: pooled read failed handled=%v bytes=%d", round, handled, contentBytes)
+		}
+		expected := encodeBinaryChannelMessage("pooled-channel", encodeDirectFileReadResponse(7, content))
+		if !bytes.Equal(response, expected) {
+			t.Fatalf("round %d: pooled response diverges from reference encoder", round)
+		}
+		release()
+		release() // must be idempotent
 	}
 }
 

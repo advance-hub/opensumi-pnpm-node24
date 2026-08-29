@@ -527,29 +527,46 @@ func (b *bridge) copyBrowserToNode() error {
 		if b.config.DirectFileRPC {
 			select {
 			case b.directFileRPCSlots <- struct{}{}:
-				response, method, contentBytes, handled := tryDirectFileRPC(
+				response, release, method, contentBytes, handled := tryDirectFileRPC(
 					payload,
 					b.config.DirectFileReadMaxBytes,
 					b.config.DirectFileMetadataMaxBytes,
 				)
 				<-b.directFileRPCSlots
-				if handled && int64(len(response)) <= b.config.MaxPayloadBytes {
-					if err := b.writeBrowserPayload(response); err != nil {
-						return fmt.Errorf("write direct file RPC response: %w", err)
+				if handled {
+					released := false
+					releaseOnce := func() {
+						if !released {
+							released = true
+							if release != nil {
+								release()
+							}
+						}
 					}
-					b.stats.directFileRPCs.Add(1)
-					switch method {
-					case directFileRPCRead:
-						b.stats.directFileReads.Add(1)
-						b.stats.directFileReadBytes.Add(uint64(contentBytes))
-					case directFileRPCAccess:
-						b.stats.directFileAccesses.Add(1)
-					case directFileRPCReadDirectory:
-						b.stats.directDirectoryReads.Add(1)
-					case directFileRPCStat:
-						b.stats.directFileStats.Add(1)
+					if int64(len(response)) <= b.config.MaxPayloadBytes {
+						if err := b.writeBrowserPayload(response); err != nil {
+							releaseOnce()
+							return fmt.Errorf("write direct file RPC response: %w", err)
+						}
+						releaseOnce()
+						b.stats.directFileRPCs.Add(1)
+						switch method {
+						case directFileRPCRead:
+							b.stats.directFileReads.Add(1)
+							b.stats.directFileReadBytes.Add(uint64(contentBytes))
+						case directFileRPCAccess:
+							b.stats.directFileAccesses.Add(1)
+						case directFileRPCReadDirectory:
+							b.stats.directDirectoryReads.Add(1)
+						case directFileRPCStat:
+							b.stats.directFileStats.Add(1)
+						}
+						continue
 					}
-					continue
+					releaseOnce()
+					// The response exceeds the WebSocket payload limit, so the
+					// browser request stays unanswered by the Go path and Node
+					// remains the compatibility fallback below.
 				}
 			default:
 				// Preserve availability under burst load: Node remains the compatibility fallback.

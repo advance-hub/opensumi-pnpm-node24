@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"sync"
 )
 
 const (
@@ -151,52 +152,48 @@ func parseRPCRequestEnvelope(payload []byte) (string, uint32, string, *furyReade
 	return channelID, requestID, method, rpc, true
 }
 
-func tryDirectFileRPC(payload []byte, maxReadBytes, maxMetadataBytes int64) ([]byte, directFileRPCMethod, int64, bool) {
+func tryDirectFileRPC(payload []byte, maxReadBytes, maxMetadataBytes int64) ([]byte, func(), directFileRPCMethod, int64, bool) {
 	request, ok := parseDirectFileReadRequest(payload)
 	if ok {
 		filePath, pathOK := request.uri.localPath()
 		if !pathOK {
-			return nil, 0, 0, false
+			return nil, nil, 0, 0, false
 		}
-		content, readOK := readBoundedRegularFile(filePath, maxReadBytes)
+		response, release, contentBytes, readOK := respondDirectFileRead(request, filePath, maxReadBytes)
 		if !readOK {
-			return nil, 0, 0, false
+			return nil, nil, 0, 0, false
 		}
-		response := encodeBinaryChannelMessage(
-			request.channelID,
-			encodeDirectFileReadResponse(request.requestID, content),
-		)
-		return response, directFileRPCRead, int64(len(content)), true
+		return response, release, directFileRPCRead, contentBytes, true
 	}
 	channelID, requestID, method, rpc, ok := parseRPCRequestEnvelope(payload)
 	if !ok || !rpc.anyArrayHeader() {
-		return nil, 0, 0, false
+		return nil, nil, 0, 0, false
 	}
 	argumentCount, ok := rpc.varUint32()
 	if !ok || argumentCount == 0 {
-		return nil, 0, 0, false
+		return nil, nil, 0, 0, false
 	}
 	uri, ok := rpc.anyFileURI()
 	if !ok {
-		return nil, 0, 0, false
+		return nil, nil, 0, 0, false
 	}
 	filePath, ok := uri.localPath()
 	if !ok {
-		return nil, 0, 0, false
+		return nil, nil, 0, 0, false
 	}
 	switch method {
 	case directFileAccessMethod:
 		if argumentCount > 2 {
-			return nil, 0, 0, false
+			return nil, nil, 0, 0, false
 		}
 		if argumentCount == 2 {
 			mode, numberOK := rpc.anyNumber()
 			if !numberOK || mode != 0 {
-				return nil, 0, 0, false
+				return nil, nil, 0, 0, false
 			}
 		}
 		if !rpc.done() {
-			return nil, 0, 0, false
+			return nil, nil, 0, 0, false
 		}
 		_, statErr := os.Stat(filePath)
 		response := encodeBinaryChannelMessage(channelID, encodeAnyResponse(requestID, method, func(writer *bytes.Buffer) {
@@ -207,46 +204,46 @@ func tryDirectFileRPC(payload []byte, maxReadBytes, maxMetadataBytes int64) ([]b
 				writer.WriteByte(0)
 			}
 		}))
-		return response, directFileRPCAccess, 0, true
+		return response, nil, directFileRPCAccess, 0, true
 	case directFileDirectoryMethod:
 		if argumentCount != 1 || !rpc.done() {
-			return nil, 0, 0, false
+			return nil, nil, 0, 0, false
 		}
 		entries, withinLimit := readDirectoryEntries(filePath, maxMetadataBytes)
 		if !withinLimit {
-			return nil, 0, 0, false
+			return nil, nil, 0, 0, false
 		}
 		response := encodeBinaryChannelMessage(channelID, encodeAnyResponse(requestID, method, func(writer *bytes.Buffer) {
 			writeDirectoryEntries(writer, entries)
 		}))
-		return response, directFileRPCReadDirectory, 0, true
+		return response, nil, directFileRPCReadDirectory, 0, true
 	case directFileStatMethod:
 		if argumentCount > 2 {
-			return nil, 0, 0, false
+			return nil, nil, 0, 0, false
 		}
 		if argumentCount == 2 && !rpc.anyStatOptions() {
-			return nil, 0, 0, false
+			return nil, nil, 0, 0, false
 		}
 		if !rpc.done() {
-			return nil, 0, 0, false
+			return nil, nil, 0, 0, false
 		}
 		serialized, statOK := buildDirectFileStatJSON(uri, filePath, maxMetadataBytes)
 		if !statOK {
-			return nil, 0, 0, false
+			return nil, nil, 0, 0, false
 		}
 		response := encodeBinaryChannelMessage(channelID, encodeAnyResponse(requestID, method, func(writer *bytes.Buffer) {
 			writer.WriteByte(anyTypeJSONObject)
 			writeRawString(writer, string(serialized))
 		}))
-		return response, directFileRPCStat, 0, true
+		return response, nil, directFileRPCStat, 0, true
 	default:
-		return nil, 0, 0, false
+		return nil, nil, 0, 0, false
 	}
 }
 
 func tryDirectFileRead(payload []byte, maxBytes int64) ([]byte, int64, bool) {
-	response, method, contentBytes, handled := tryDirectFileRPC(payload, maxBytes, maxBytes)
-	return response, contentBytes, handled && method == directFileRPCRead
+	response, _, _, contentBytes, handled := tryDirectFileRPC(payload, maxBytes, maxBytes)
+	return response, contentBytes, handled
 }
 
 type directDirectoryEntry struct {
@@ -343,6 +340,132 @@ func readBoundedRegularFile(filePath string, maxBytes int64) ([]byte, bool) {
 	return content, true
 }
 
+// readResponsePool recycles the response buffers backing readFile payloads.
+// The direct read path previously allocated the file content, the inner Fury
+// response and the outer channel message separately, so every request held a
+// 3x payload copy in flight; reading straight into one pooled buffer keeps a
+// single copy per request and removes the steady-state allocation churn.
+const maxPooledReadResponseBytes = 16 << 20
+
+var readResponsePool = sync.Pool{
+	New: func() any {
+		buffer := new(bytes.Buffer)
+		buffer.Grow(64 << 10)
+		return buffer
+	},
+}
+
+func getPooledReadResponseBuffer() *bytes.Buffer {
+	return readResponsePool.Get().(*bytes.Buffer)
+}
+
+func putPooledReadResponseBuffer(buffer *bytes.Buffer) {
+	if buffer.Cap() > maxPooledReadResponseBytes {
+		return
+	}
+	buffer.Reset()
+	readResponsePool.Put(buffer)
+}
+
+// encodeDirectFileReadResponseInto writes the complete outer binary channel
+// message for a readFile response, reserving room for exactly contentLen
+// content bytes that the caller then reads into the buffer tail.
+func encodeDirectFileReadResponseInto(buffer *bytes.Buffer, channelID string, requestID uint32, contentLen int64) {
+	innerLen := lenDirectFileReadResponse(requestID, contentLen)
+	encodeBinaryChannelMessagePrefix(buffer, innerLen)
+	encodeDirectFileReadResponseHeader(buffer, requestID, contentLen)
+}
+
+func lenDirectFileReadResponse(requestID uint32, contentLen int64) int {
+	return 2 /* writeUint16 */ + 4 /* writeUint32 */ +
+		lenRawString(directFileReadMethod) +
+		1 + 2 + len(responseHeadersTagHeader) + 4 /* writeObjectHeader */ +
+		1 /* 0xfd */ +
+		3 /* writeTypedHeader */ + 1 /* binary arity */ +
+		4 /* writeUint32 content length */ +
+		int(contentLen)
+}
+
+func lenRawString(value string) int {
+	return 1 + lenVarUint32(uint32(len(value))) + len(value)
+}
+
+func lenVarUint32(value uint32) int {
+	length := 1
+	for value >= 0x80 {
+		length++
+		value >>= 7
+	}
+	return length
+}
+
+func encodeDirectFileReadResponseHeader(buffer *bytes.Buffer, requestID uint32, contentLen int64) {
+	writeUint16(buffer, 0x0201)
+	writeUint32(buffer, requestID)
+	writeRawString(buffer, directFileReadMethod)
+	writeObjectHeader(buffer, responseHeadersTagHeader, requestHeadersHash)
+	buffer.WriteByte(0xfd)
+	writeTypedHeader(buffer, furyTypeBinary)
+	buffer.WriteByte(1)
+	writeUint32(buffer, uint32(contentLen))
+}
+
+// respondDirectFileRead streams the file directly into one pooled response
+// buffer. It reports handled=false for any input the Node implementation must
+// answer instead, mirroring readBoundedRegularFile's eligibility rules. The
+// release callback returns the buffer to the pool and must run only after the
+// payload has been written to the browser connection.
+func respondDirectFileRead(request directFileReadRequest, filePath string, maxBytes int64) ([]byte, func(), int64, bool) {
+	if maxBytes <= 0 {
+		maxBytes = defaultDirectFileReadMaxLen
+	}
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, nil, 0, false
+	}
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil || !info.Mode().IsRegular() || info.Size() > maxBytes {
+		return nil, nil, 0, false
+	}
+	contentLen := info.Size()
+	totalLen := binaryChannelMessageLen(request.channelID, lenDirectFileReadResponse(request.requestID, contentLen))
+	if totalLen > maxPooledReadResponseBytes {
+		return nil, nil, 0, false
+	}
+	buffer := getPooledReadResponseBuffer()
+	if buffer.Cap() < int(totalLen) {
+		buffer.Grow(int(totalLen))
+	}
+	encodeDirectFileReadResponseInto(buffer, request.channelID, request.requestID, contentLen)
+	// The channel string trailer is written after the content, so it is part
+	// of the expected total but not of the current length yet.
+	if int64(buffer.Len())+contentLen+int64(lenRawString(request.channelID)) != int64(totalLen) {
+		// The size model drifted from the encoders; fall back to Node rather
+		// than emitting a framing the browser cannot parse.
+		putPooledReadResponseBuffer(buffer)
+		return nil, nil, 0, false
+	}
+	if _, err := io.CopyN(buffer, file, contentLen); err != nil {
+		// A short or failed read (concurrent truncation) must not emit a
+		// malformed response: let Node answer instead.
+		putPooledReadResponseBuffer(buffer)
+		return nil, nil, 0, false
+	}
+	writeBinaryChannelMessageTrailer(buffer, request.channelID)
+	response := buffer.Bytes()
+	returned := false
+	release := func() {
+		// Idempotent by contract: the bridge may release on both the written
+		// and the error path, and a double put would corrupt the pool.
+		if !returned {
+			returned = true
+			putPooledReadResponseBuffer(buffer)
+		}
+	}
+	return response, release, contentLen, true
+}
+
 func (uri fileURIComponents) localPath() (string, bool) {
 	if uri.scheme != "file" || uri.query != "" || uri.fragment != "" || uri.path == "" {
 		return "", false
@@ -378,6 +501,30 @@ func encodeDirectFileReadResponse(requestID uint32, content []byte) []byte {
 	writeUint32(&response, uint32(len(content)))
 	response.Write(content)
 	return response.Bytes()
+}
+
+// encodeBinaryChannelMessagePrefix writes everything encodeBinaryChannelMessage
+// emits before the inner payload. The channel string is written after the
+// payload by writeBinaryChannelMessageTrailer, mirroring the reference encoder.
+func encodeBinaryChannelMessagePrefix(buffer *bytes.Buffer, innerLen int) {
+	buffer.WriteByte(channelMessageBinary)
+	writeObjectHeader(buffer, binaryTagHeader, binaryMessageHash)
+	writeTypedHeader(buffer, furyTypeBinary)
+	buffer.WriteByte(1)
+	writeUint32(buffer, uint32(innerLen))
+}
+
+func writeBinaryChannelMessageTrailer(buffer *bytes.Buffer, channelID string) {
+	writeFuryString(buffer, channelID)
+}
+
+func binaryChannelMessageLen(channelID string, innerLen int) int {
+	return 1 /* message type */ +
+		1 + 2 + len(binaryTagHeader) + 4 /* writeObjectHeader */ +
+		3 /* writeTypedHeader */ + 1 /* arity */ +
+		4 /* inner length */ +
+		lenRawString(channelID) +
+		innerLen
 }
 
 func encodeBinaryChannelMessage(channelID string, inner []byte) []byte {
