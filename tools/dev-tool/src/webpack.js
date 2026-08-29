@@ -135,8 +135,13 @@ exports.createWebpackConfig = function (dir, entry, extraConfig) {
                 options: {
                   importLoaders: 1,
                   sourceMap: true,
+                  // Framework sources are compiled to CommonJS. Keep CSS
+                  // module exports compatible with TypeScript's default-import
+                  // interop, matching the production Rspack configuration.
+                  esModule: false,
                   modules: {
                     localIdentName: '[local]___[hash:base64:5]',
+                    exportLocalsConvention: 'as-is',
                   },
                 },
               },
