@@ -14,7 +14,7 @@
     "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
-    "@ant-design/icons": "^5.6.1",
+    "@ant-design/icons": "^6.3.2",
     "@difizen/libro-code-editor": "0.2.45",
     "@difizen/libro-common": "0.2.45",
     "@difizen/libro-core": "0.2.45",
