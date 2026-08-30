@@ -26,11 +26,19 @@ export class OpenSumiContextMenu extends OpenSumiMenu {
       // Pinned tabs can move between scroll regions while their context menu
       // is requested. Dispatch to the resolved tab after a short real-click
       // attempt so a transient overlay cannot consume the entire test timeout.
-      await elementHandle.dispatchEvent('contextmenu', {
-        bubbles: true,
-        button: 2,
-        buttons: 2,
-        cancelable: true,
+      await elementHandle.evaluate((target) => {
+        const bounds = target.getBoundingClientRect();
+        target.dispatchEvent(
+          new MouseEvent('contextmenu', {
+            bubbles: true,
+            button: 2,
+            buttons: 2,
+            cancelable: true,
+            clientX: bounds.left + bounds.width / 2,
+            clientY: bounds.top + bounds.height / 2,
+            view: window,
+          }),
+        );
       });
     }
     return OpenSumiContextMenu.returnWhenVisible(app);
