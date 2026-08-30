@@ -134,8 +134,26 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
 
   private readonly onDidSetInspectPort = new Emitter<void>();
 
-  public setConnectionServiceClient(clientId: string, serviceClient: IExtensionNodeClientService) {
+  public setConnectionServiceClient(clientId: string, serviceClient: IExtensionNodeClientService): void {
     this.clientServiceMap.set(clientId, serviceClient);
+    this.reportExtensionHostStatus();
+  }
+
+  public registerConnectionServiceClient(clientId: string, serviceClient: IExtensionNodeClientService): () => void {
+    // Dispatch through the legacy method so existing subclasses keep their
+    // registration behavior while the built-in lifecycle gains a disposer.
+    this.setConnectionServiceClient(clientId, serviceClient);
+    return () => {
+      if (this.clientServiceMap.get(clientId) !== serviceClient) {
+        return;
+      }
+      this.clientServiceMap.delete(clientId);
+      if (this.clientExtProcessMap.has(clientId) || this.pendingExtHostClients.has(clientId)) {
+        this.maybeZombieClients.add(clientId);
+        this.closeExtProcessWhenConnectionClose(clientId);
+      }
+      this.reportExtensionHostStatus();
+    };
   }
 
   private extServerListenOptions: Map<string, net.ListenOptions> = new Map();
@@ -470,14 +488,28 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
       await this.disposeClientExtProcess(clientId, false, false);
     }
 
-    await this.ensureExtensionHostCapacity(clientId);
+    this.pendingExtHostClients.add(clientId);
     try {
+      await this.ensureExtensionHostCapacity(clientId);
       await this._createExtServer(clientId, options);
+      this.assertExtensionHostClientConnected(clientId);
       await this._createExtHostProcess(clientId, options);
+      this.assertExtensionHostClientConnected(clientId);
     } catch (error) {
       await this.disposeClientExtProcess(clientId, false);
       throw error;
+    } finally {
+      this.pendingExtHostClients.delete(clientId);
     }
+  }
+
+  private assertExtensionHostClientConnected(clientId: string): void {
+    if (!this.maybeZombieClients.has(clientId)) {
+      return;
+    }
+    const error = new Error(`Extension host client ${clientId} disconnected during startup`);
+    error.name = 'ExtensionHostClientDisconnectedError';
+    throw error;
   }
 
   private async ensureExtensionHostCapacity(clientId: string): Promise<void> {
@@ -551,7 +583,6 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
   }
 
   private async _createExtHostProcess(clientId: string, options?: ICreateProcessOptions) {
-    this.pendingExtHostClients.add(clientId);
     let preloadPath: string;
     let forkOptions: cp.ForkOptions = {
       // 防止 childProcess.stdout 为 null
@@ -652,18 +683,11 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
 
     const forkTimer = this.reporterService.time(`${clientId} fork ext process`);
     const configuredForkOptions = this.appConfig.extHostForkOptions;
-    let extProcessId: number;
-    try {
-      extProcessId = await this.extensionHostManager.fork(extProcessPath, forkArgs, {
-        ...forkOptions,
-        ...configuredForkOptions,
-        execArgv: [...forkOptions.execArgv, ...(configuredForkOptions?.execArgv || [])],
-      });
-    } finally {
-      // From here the process maps own the lifecycle; a failed fork must not
-      // leave the client marked as pending.
-      this.pendingExtHostClients.delete(clientId);
-    }
+    const extProcessId = await this.extensionHostManager.fork(extProcessPath, forkArgs, {
+      ...forkOptions,
+      ...configuredForkOptions,
+      execArgv: [...forkOptions.execArgv, ...(configuredForkOptions?.execArgv || [])],
+    });
     this.clientExtProcessMap.set(clientId, extProcessId);
     this.extensionHostCounters.created += 1;
     const extProcessInitDeferred = new Deferred<void>();
@@ -862,6 +886,13 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
   }
 
   private closeExtProcessWhenConnectionClose(connectionClientId: string) {
+    // The creator owns cleanup until the host has been registered in the
+    // process maps. Scheduling the ordinary disconnect timer here can fire
+    // before fork() resolves and leave a newly-created, ownerless host behind.
+    if (this.pendingExtHostClients.has(connectionClientId)) {
+      return;
+    }
+
     if (isElectronNode()) {
       // Release all client-scoped references immediately even when the
       // extension host already exited before the browser connection closed.
@@ -1005,10 +1036,9 @@ export class ExtensionNodeServiceImpl implements IExtensionNodeService {
     if (info && !clientDisconnected && !isUndefined(extProcessId)) {
       await this.infoProcessNotExist(clientId);
     } else if (clientDisconnected) {
-      // Host restarts and browser disconnects are separate lifecycles. Keep
-      // the proxy across a host-only restart, but release it once the browser
-      // connection itself has gone away.
-      this.clientServiceMap.delete(clientId);
+      // Host restarts and browser connections are separate lifecycles. The
+      // connection child injector owns its facade and removes it by object
+      // identity, so an old host cleanup cannot delete a reconnected facade.
       this.maybeZombieClients.delete(clientId);
       this.reportExtensionHostStatus();
     }

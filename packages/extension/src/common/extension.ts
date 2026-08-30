@@ -101,6 +101,7 @@ export interface IExtensionNodeService {
     extraMetaData?: IExtraMetaData,
   ): Promise<IExtensionMetaData | undefined>;
   setConnectionServiceClient(clientId: string, serviceClient: IExtensionNodeClientService);
+  registerConnectionServiceClient?(clientId: string, serviceClient: IExtensionNodeClientService): () => void;
   disposeClientExtProcess(clientId: string, info: boolean): Promise<void>;
   disposeAllClientExtProcess(): Promise<void>;
   tryEnableInspectPort(clientId: string, delay?: number): Promise<boolean>;

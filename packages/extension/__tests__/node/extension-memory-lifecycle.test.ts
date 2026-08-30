@@ -18,6 +18,7 @@ function createService() {
   service.clientServiceMap = new Map();
   service.clientMainThreadChannelMap = new Map();
   service.maybeZombieClients = new Set();
+  service.pendingExtHostClients = new Set();
   service.createProcessPromises = new Map();
   service.extensionHostCreationQueue = Promise.resolve();
   service.clientExtensionActivationDiagnostics = new Map();
@@ -40,6 +41,36 @@ describe('ExtensionNodeServiceImpl memory lifecycle', () => {
 
   afterEach(() => {
     jest.useRealTimers();
+  });
+
+  it('releases only the facade instance that owns the connection registration', () => {
+    expect.hasAssertions();
+    const service = createService();
+    service.setConnectionServiceClient = ExtensionNodeServiceImpl.prototype['setConnectionServiceClient'].bind(service);
+    const staleFacade = { connection: 'stale' };
+    const currentFacade = { connection: 'current' };
+
+    const releaseStaleFacade = service.registerConnectionServiceClient('client', staleFacade);
+    const releaseCurrentFacade = service.registerConnectionServiceClient('client', currentFacade);
+    releaseStaleFacade();
+
+    expect(service.clientServiceMap.get('client')).toBe(currentFacade);
+    releaseCurrentFacade();
+    expect(service.clientServiceMap.has('client')).toBe(false);
+  });
+
+  it('does not treat facade attachment as a transport reconnect', () => {
+    expect.hasAssertions();
+    const service = createService();
+    service.setConnectionServiceClient = ExtensionNodeServiceImpl.prototype['setConnectionServiceClient'].bind(service);
+    const disconnectTimer = setTimeout(() => undefined, 1_000);
+    service.maybeZombieClients.add('client');
+    service.clientExtProcessThresholdExitTimerMap.set('client', disconnectTimer);
+
+    service.setConnectionServiceClient('client', { connection: 'replacement' });
+
+    expect(service.maybeZombieClients.has('client')).toBe(true);
+    expect(service.clientExtProcessThresholdExitTimerMap.get('client')).toBe(disconnectTimer);
   });
 
   it('reclaims the latest extension host after its client stays disconnected', async () => {
@@ -286,7 +317,7 @@ describe('ExtensionNodeServiceImpl memory lifecycle', () => {
     expect(onDidChangeExtensionHostStatus).not.toHaveBeenCalled();
   });
 
-  it('drops all client-scoped references when a disconnected host is disposed', async () => {
+  it('drops process-scoped references without owning the connection facade lifecycle', async () => {
     expect.hasAssertions();
     const service = createService();
     service.disposeClientExtProcess = ExtensionNodeServiceImpl.prototype['disposeClientExtProcess'].bind(service);
@@ -321,7 +352,8 @@ describe('ExtensionNodeServiceImpl memory lifecycle', () => {
     expect(service.clientExtProcessInitDeferredMap.size).toBe(0);
     expect(service.extServerListenOptions.size).toBe(0);
     expect(service.electronMainThreadListenPaths.size).toBe(0);
-    expect(service.clientServiceMap.size).toBe(0);
+    expect(service.clientServiceMap.size).toBe(1);
+    expect(service.maybeZombieClients.size).toBe(0);
     expect(service.clientExtensionActivationDiagnostics.size).toBe(0);
     expect(extensionHostManager.disposeProcess).toHaveBeenCalledWith(123);
   });
@@ -333,6 +365,10 @@ describe('ExtensionNodeServiceImpl memory lifecycle', () => {
       ['first', 123],
       ['second', 456],
     ]);
+    service.clientServiceMap = new Map([
+      ['first', { connected: true }],
+      ['second', { connected: true }],
+    ]);
     const extensionHostManager = { dispose: jest.fn().mockResolvedValue(undefined) };
     Object.defineProperty(service, 'extensionHostManager', { value: extensionHostManager });
 
@@ -340,6 +376,7 @@ describe('ExtensionNodeServiceImpl memory lifecycle', () => {
 
     expect(service.disposeClientExtProcess).toHaveBeenCalledWith('first', false);
     expect(service.disposeClientExtProcess).toHaveBeenCalledWith('second', false);
+    expect(service.clientServiceMap.size).toBe(0);
     expect(extensionHostManager.dispose).toHaveBeenCalledTimes(1);
   });
 
@@ -415,7 +452,7 @@ describe('ExtensionNodeServiceImpl memory lifecycle', () => {
     finishShutdown();
     await disposal;
 
-    expect(service.clientServiceMap.has('client')).toBe(false);
+    expect(service.clientServiceMap.has('client')).toBe(true);
     expect(service.maybeZombieClients.size).toBe(0);
     expect(extensionHostManager.disposeProcess).toHaveBeenCalledWith(123);
   });

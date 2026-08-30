@@ -1,7 +1,7 @@
 import os from 'os';
 import path from 'path';
 
-import { Autowired, Injectable } from '@opensumi/di';
+import { Autowired, INJECTOR_TOKEN, Injectable, Injector } from '@opensumi/di';
 import { RPCService } from '@opensumi/ide-connection';
 import { IHashCalculateService } from '@opensumi/ide-core-common/lib/hash-calculate/hash-calculate';
 import { AppConfig, INodeLogger, Uri, pMemoize, retry, uuid } from '@opensumi/ide-core-node';
@@ -20,6 +20,29 @@ import * as lp from './languagePack';
 
 export const DEFAULT_NLS_CONFIG_DIR = path.join(os.homedir(), '.sumi');
 
+const EXTENSION_SESSION_IDENTITY_ERROR = 'Extension service session identity is invalid';
+const EXTENSION_SESSION_LIFECYCLE_ERROR = 'Extension service session lifecycle is unavailable';
+
+function bindConnectionClientId(currentClientId: string | undefined, requestedClientId: string) {
+  if (typeof requestedClientId !== 'string' || requestedClientId.trim().length === 0) {
+    throw new Error(EXTENSION_SESSION_IDENTITY_ERROR);
+  }
+  if (currentClientId && currentClientId !== requestedClientId) {
+    throw new Error(EXTENSION_SESSION_IDENTITY_ERROR);
+  }
+  return {
+    clientId: requestedClientId,
+    newlyBound: !currentClientId,
+  };
+}
+
+function requireBoundClientId(boundClientId: string | undefined, requestedClientId?: string): string {
+  if (!boundClientId || (requestedClientId !== undefined && requestedClientId !== boundClientId)) {
+    throw new Error(EXTENSION_SESSION_IDENTITY_ERROR);
+  }
+  return boundClientId;
+}
+
 interface IRPCExtensionService {
   $processNotExist(id: string): Promise<string>;
   $processCrashRestart(id: string): void;
@@ -31,6 +54,9 @@ export class ExtensionServiceClientImpl
   extends RPCService<IRPCExtensionService>
   implements IExtensionNodeClientService
 {
+  @Autowired(INJECTOR_TOKEN)
+  private readonly injector: Injector;
+
   @Autowired(IExtensionNodeService)
   private extensionService: IExtensionNodeService;
 
@@ -46,12 +72,27 @@ export class ExtensionServiceClientImpl
   @Autowired(INodeLogger)
   private readonly logger: INodeLogger;
 
-  private clientId: string;
+  private clientId: string | undefined;
   private languagePackCache: IExtensionLanguagePackMetadata | null = null;
 
   public setConnectionClientId(clientId: string) {
-    this.clientId = clientId;
-    this.extensionService.setConnectionServiceClient(this.clientId, this);
+    const binding = bindConnectionClientId(this.clientId, clientId);
+    if (!binding.newlyBound) {
+      return;
+    }
+    this.clientId = binding.clientId;
+    const registration = this.extensionService.registerConnectionServiceClient
+      ? this.extensionService.registerConnectionServiceClient(binding.clientId, this)
+      : this.extensionService.setConnectionServiceClient(binding.clientId, this);
+    const releaseClient = typeof registration === 'function' ? registration : () => undefined;
+    const removeDisposeListener = this.injector.onceInstanceDisposed(this, releaseClient);
+    if (!removeDisposeListener) {
+      // An untracked facade has no connection-scope disposal event. Roll the
+      // registration back immediately instead of retaining a permanent proxy.
+      releaseClient();
+      this.clientId = undefined;
+      throw new Error(EXTENSION_SESSION_LIFECYCLE_ERROR);
+    }
   }
 
   async getOpenVSXRegistry(): Promise<string> {
@@ -59,7 +100,7 @@ export class ExtensionServiceClientImpl
   }
 
   async pid(): Promise<number | null> {
-    return this.extensionService.getExtProcessId(this.clientId);
+    return this.extensionService.getExtProcessId(requireBoundClientId(this.clientId));
   }
 
   @pMemoize()
@@ -70,16 +111,17 @@ export class ExtensionServiceClientImpl
           if (!this.client) {
             throw new Error('Client not exist');
           }
+          const clientId = requireBoundClientId(this.clientId);
           const pid = await this.pid();
           if (pid) {
-            this.logger.log('Process exist, clientId:', this.clientId, 'pid:', pid);
+            this.logger.log('Process exist, clientId:', clientId, 'pid:', pid);
             return true;
           }
 
-          this.logger.log('Process not exist, try to restart, clientId:', this.clientId);
-          const result = await this.client.$processNotExist(this.clientId);
+          this.logger.log('Process not exist, try to restart, clientId:', clientId);
+          const result = await this.client.$processNotExist(clientId);
           if (result === 'ok') {
-            this.logger.log('Process restart success, clientId:', this.clientId);
+            this.logger.log('Process restart success, clientId:', clientId);
             return true;
           } else {
             throw new Error('Process not exist');
@@ -104,12 +146,12 @@ export class ExtensionServiceClientImpl
 
   public infoProcessCrash() {
     if (this.client) {
-      this.client.$processCrashRestart(this.clientId);
+      this.client.$processCrashRestart(requireBoundClientId(this.clientId));
     }
   }
 
   public async getElectronMainThreadListenPath(clientId: string) {
-    return await this.extensionService.getElectronMainThreadListenPath(clientId);
+    return await this.extensionService.getElectronMainThreadListenPath(requireBoundClientId(this.clientId, clientId));
   }
   /**
    * 创建插件进程
@@ -118,8 +160,9 @@ export class ExtensionServiceClientImpl
    * @param options 创建插件参数
    */
   public async createProcess(clientId: string, options: ICreateProcessOptions): Promise<void> {
-    await this.extensionService.createProcess(clientId, options);
-    await this.extensionService.ensureProcessReady(clientId);
+    const boundClientId = requireBoundClientId(this.clientId, clientId);
+    await this.extensionService.createProcess(boundClientId, options);
+    await this.extensionService.ensureProcessReady(boundClientId);
   }
 
   /**
@@ -153,7 +196,7 @@ export class ExtensionServiceClientImpl
   }
 
   public async disposeClientExtProcess(clientId: string, info = true): Promise<void> {
-    return await this.extensionService.disposeClientExtProcess(clientId, info);
+    return await this.extensionService.disposeClientExtProcess(requireBoundClientId(this.clientId, clientId), info);
   }
 
   /**
