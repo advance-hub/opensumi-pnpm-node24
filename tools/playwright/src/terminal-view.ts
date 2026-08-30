@@ -48,23 +48,11 @@ export class OpenSumiTerminalView extends OpenSumiPanel {
   }
 
   async createTerminalByType(type: TerminalType) {
-    const buttonWrapper = await this.view?.$('[class*="item_wrapper__"]');
-    const buttons = await buttonWrapper?.$$('.kaitian-icon');
-    if (!buttons) {
-      return;
-    }
-    let button;
-    for (const item of buttons) {
-      const title = await item.getAttribute('title');
-      if (title === 'Create terminal by type') {
-        button = item;
-        break;
-      }
-    }
-    if (!button) {
-      return;
-    }
-    await button.click();
+    const button = this.page.locator(`${this.viewSelector} [title="Create terminal by type"]:visible`).last();
+    await button.waitFor();
+    // The terminal title and toolbar can briefly overlap on Linux. Trigger the
+    // same element action directly so a transient overlay cannot swallow it.
+    await button.evaluate((element) => (element as HTMLElement).click());
     const menu = new OpenSumiContextMenu(this.app);
     await menu.waitForVisible();
     await menu.clickMenuItem(type);

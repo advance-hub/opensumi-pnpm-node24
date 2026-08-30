@@ -362,6 +362,27 @@ console.log(a);`,
       return explorer.getFileStatTreeNodeByPath(path);
     };
 
+    const ensureTreeNodeExpanded = async (path: string) => {
+      await expect
+        .poll(
+          async () => {
+            const currentNode = await explorer.getFileStatTreeNodeByPath(path);
+            if (!currentNode) {
+              return false;
+            }
+            try {
+              await currentNode.expand();
+            } catch {
+              return false;
+            }
+            const refreshedNode = await explorer.getFileStatTreeNodeByPath(path);
+            return refreshedNode ? await refreshedNode.isExpanded() : false;
+          },
+          { timeout: 30000 },
+        )
+        .toBeTruthy();
+    };
+
     const createFromExplorerToolbar = async (
       actionName: 'New File' | 'New Folder',
       name: string,
@@ -382,8 +403,8 @@ console.log(a);`,
     };
 
     await createFromExplorerToolbar('New Folder', 'ui_keep_folder4');
+    await ensureTreeNodeExpanded('ui_keep_folder4');
     let node = await waitForFileStatTreeNode('ui_keep_folder4');
-    await node?.expand();
     expect(await node?.isExpanded()).toBeTruthy();
 
     await createFromExplorerToolbar('New File', 'ui_keep_file');

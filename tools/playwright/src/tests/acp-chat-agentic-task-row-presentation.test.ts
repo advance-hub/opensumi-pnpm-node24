@@ -6,9 +6,24 @@ import { launchTaskInCurrentProject } from './utils/acp-task-list';
 
 const TASK_TITLE = 'A deliberately long Agent Task title for compact row presentation';
 const THEMES = [
-  { bodyClass: 'design-dark', label: 'OpenSumi Design Dark+ (default dark)', rootClass: 'vs-dark' },
-  { bodyClass: 'design-light', label: 'OpenSumi Design Light+ (default light)', rootClass: 'vs' },
-  { bodyClass: undefined, label: 'High Contrast', rootClass: 'hc-black' },
+  {
+    bodyClass: 'design-dark',
+    labels: ['OpenSumi Design Dark+ (default dark)'],
+    rootClass: 'vs-dark',
+    search: 'OpenSumi Design Dark+ (default dark)',
+  },
+  {
+    bodyClass: 'design-light',
+    labels: ['OpenSumi Design Light+ (default light)'],
+    rootClass: 'vs',
+    search: 'OpenSumi Design Light+ (default light)',
+  },
+  {
+    bodyClass: undefined,
+    labels: ['High Contrast', 'Dark High Contrast'],
+    rootClass: 'hc-black',
+    search: 'High Contrast',
+  },
 ] as const;
 
 function chatSlot() {
@@ -118,9 +133,15 @@ test.describe('ACP Chat Agentic Task Row presentation', () => {
         });
         const input = page.locator('#opensumi-quickpick-input');
         await expect(input).toBeVisible();
-        await input.fill(theme.label);
-        const option = page.locator(`#opensumi-quickpick-item[aria-label=${JSON.stringify(theme.label)}]`);
+        await input.fill(theme.search);
+        const optionSelector = theme.labels
+          .map((label) => `#opensumi-quickpick-item[aria-label=${JSON.stringify(label)}]:visible`)
+          .join(', ');
+        const option = page.locator(optionSelector).first();
         await expect(option).toBeVisible();
+        const resolvedLabel = await option.getAttribute('aria-label');
+        expect(resolvedLabel).toBeTruthy();
+        await input.fill(resolvedLabel!);
         await input.press('Enter');
         await expect(input).toBeHidden();
         await expect
