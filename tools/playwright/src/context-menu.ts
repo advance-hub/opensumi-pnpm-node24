@@ -17,7 +17,22 @@ export class OpenSumiContextMenu extends OpenSumiMenu {
     element: () => Promise<ElementHandle<SVGElement | HTMLElement>>,
   ): Promise<OpenSumiContextMenu> {
     const elementHandle = await element();
-    await elementHandle.click({ button: 'right' });
+    try {
+      await elementHandle.click({ button: 'right', timeout: 2000 });
+    } catch (error) {
+      if (!(await elementHandle.isVisible())) {
+        throw error;
+      }
+      // Pinned tabs can move between scroll regions while their context menu
+      // is requested. Dispatch to the resolved tab after a short real-click
+      // attempt so a transient overlay cannot consume the entire test timeout.
+      await elementHandle.dispatchEvent('contextmenu', {
+        bubbles: true,
+        button: 2,
+        buttons: 2,
+        cancelable: true,
+      });
+    }
     return OpenSumiContextMenu.returnWhenVisible(app);
   }
 
