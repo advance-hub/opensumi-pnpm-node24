@@ -113,6 +113,8 @@ async function showChatAfterReload() {
   await page.evaluate(async () => (navigator as any).modelContext.executeTool('acp_chat_show_chat_view', {}));
   await waitForAcpChatReady(page);
   await ensureAgenticLayout(page);
+  await expect.poll(async () => (await visualState()).headerVisible).toBe(true);
+  await expect.poll(async () => (await visualState()).inputVisible).toBe(true);
 }
 
 test.describe('ACP Chat Agentic 主题与布局持久化', () => {

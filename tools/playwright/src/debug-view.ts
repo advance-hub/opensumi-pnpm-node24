@@ -12,62 +12,50 @@ export class OpenSumiDebugView extends OpenSumiPanel {
     super(app, 'DEBUG');
   }
 
-  async getDebugToolbar() {
-    return this.page.$('[class*="debug_toolbar_wrapper__"]');
+  getDebugToolbar() {
+    return this.page.locator('[class*="debug_toolbar_wrapper__"]:visible').last();
   }
 
   async start(): Promise<void> {
-    const toolbarLocator = this.app.page.locator(this.selector.toolbarClass);
-    if (!toolbarLocator) {
-      return;
-    }
-
-    const element = await toolbarLocator.elementHandle();
-    const startIcon = await element?.$(this.selector.actionStartID);
-    await startIcon?.click();
+    const startIcon = this.app.page
+      .locator(`${this.selector.toolbarClass}:visible ${this.selector.actionStartID}`)
+      .last();
+    await startIcon.click();
   }
 
   async getToobarAction(action: DebugToolbarActionType) {
-    const toolbar = await this.getDebugToolbar();
-    const buttons = await toolbar?.$$('[class*="debug_action__"]');
-    if (!buttons) {
-      return;
-    }
-    for (const button of buttons) {
-      const title = await button.getAttribute('title');
-      if (title === action) {
-        return button;
-      }
-    }
+    const actionLocator = this.getDebugToolbar().locator(`[class*="debug_action__"][title="${action}"]`).last();
+    await actionLocator.waitFor({ state: 'visible' });
+    return actionLocator;
   }
 
   async stop() {
     const action = await this.getToobarAction('Stop');
-    await action?.click();
+    await action.click();
   }
 
   async continue() {
     const action = await this.getToobarAction('Continue');
-    await action?.click();
+    await action.click();
   }
 
   async restart() {
     const action = await this.getToobarAction('Restart');
-    await action?.click();
+    await action.click();
   }
 
   async stepInto() {
     const action = await this.getToobarAction('Step Into');
-    await action?.click();
+    await action.click();
   }
 
   async stepOver() {
     const action = await this.getToobarAction('Step Over');
-    await action?.click();
+    await action.click();
   }
 
   async stepOut() {
     const action = await this.getToobarAction('Step Out');
-    await action?.click();
+    await action.click();
   }
 }
