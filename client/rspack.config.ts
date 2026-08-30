@@ -8,11 +8,12 @@ import type { Configuration, RuleSetRule } from '@rspack/core';
 
 const clientDirectory = import.meta.dirname;
 const repoRoot = path.resolve(clientDirectory, '..');
+const e2eMode = process.env.OPENSUMI_E2E_MODE === '1';
 const sourceMode = process.env.OPENSUMI_SOURCE_MODE === '1';
 const tsconfigPath = sourceMode
   ? path.join(repoRoot, 'configs/ts/tsconfig.resolve.json')
   : path.join(clientDirectory, 'tsconfig.rspack.json');
-const outputPath = path.join(clientDirectory, 'dist');
+const outputPath = e2eMode ? path.join(repoRoot, 'packages/startup/dist') : path.join(clientDirectory, 'dist');
 const templatePath = path.join(repoRoot, 'tools/dev-tool/src/index.html');
 const defaultWorkspace = path.join(repoRoot, 'tools/workspace');
 const clientSourcePath = path.join(clientDirectory, 'src');
@@ -115,7 +116,9 @@ function createTypeScriptRule(include?: string, compilerOptions: Record<string, 
 
 const config: Configuration = {
   context: repoRoot,
-  entry: path.join(clientDirectory, 'src/main.tsx'),
+  entry: e2eMode
+    ? path.join(repoRoot, 'packages/startup/entry/web/e2e/app.tsx')
+    : path.join(clientDirectory, 'src/main.tsx'),
   target: ['web', 'es2018'],
   mode: isProduction ? 'production' : 'development',
   bail: process.env.RSPACK_STATS !== 'verbose',
