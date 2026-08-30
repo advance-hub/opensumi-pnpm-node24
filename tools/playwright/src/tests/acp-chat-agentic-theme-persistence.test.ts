@@ -18,52 +18,16 @@ const LIGHT_THEME = 'OpenSumi Design Light+ (default light)';
 let runtime: AcpBddFixtureRuntime;
 
 async function chooseTheme(label: string) {
-  const isMac = await page.evaluate(() => /Mac/.test(navigator.platform));
-  await page.keyboard.press(`${isMac ? 'Meta' : 'Control'}+Shift+P`);
+  await page.waitForFunction(() => !!(window as any).__OPENSUMI_E2E__?.executeCommand);
+  await page.evaluate(() => {
+    void (window as any).__OPENSUMI_E2E__.executeCommand('theme.toggle');
+  });
   const input = page.locator('#opensumi-quickpick-input');
   await expect(input).toBeVisible();
-  await input.fill('Color Theme');
-  await expect
-    .poll(() =>
-      page.evaluate(() => {
-        const command = document.querySelector<HTMLElement>('#opensumi-quickpick-item[aria-label="Color Theme"]');
-        return !!command && command.getBoundingClientRect().height > 0;
-      }),
-    )
-    .toBe(true);
-  await page.evaluate(() => {
-    document
-      .querySelector<HTMLElement>('#opensumi-quickpick-item[aria-label="Color Theme"] [class*="item_label_container"]')
-      ?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
-  });
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        Array.from(document.querySelectorAll<HTMLElement>('#opensumi-quickpick-item')).some(
-          (element) =>
-            /High Contrast|default light|default dark/.test(element.textContent || '') &&
-            element.getBoundingClientRect().height > 0,
-        ),
-      ),
-    )
-    .toBe(true);
   await input.fill(label);
-  await expect
-    .poll(() =>
-      page.evaluate((themeLabel) => {
-        const option = Array.from(document.querySelectorAll<HTMLElement>('#opensumi-quickpick-item')).find(
-          (element) => element.textContent?.includes(themeLabel) && element.getBoundingClientRect().height > 0,
-        );
-        return !!option;
-      }, label),
-    )
-    .toBe(true);
-  await page.evaluate((themeLabel) => {
-    Array.from(document.querySelectorAll<HTMLElement>('#opensumi-quickpick-item'))
-      .find((element) => element.textContent?.includes(themeLabel) && element.getBoundingClientRect().height > 0)
-      ?.querySelector<HTMLElement>('[class*="item_label_container"]')
-      ?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
-  }, label);
+  const option = page.locator(`#opensumi-quickpick-item[aria-label=${JSON.stringify(label)}]`);
+  await expect(option).toBeVisible();
+  await input.press('Enter');
   await expect(input).toBeHidden();
 }
 
@@ -80,7 +44,7 @@ async function switchLayoutByMenu(target: 'Agent' | 'Classic') {
 
 async function visualState() {
   return page.evaluate(() => {
-    const visible = (element: Element | null) => {
+    const visible = (element: Element | null | undefined) => {
       if (!element) {
         return false;
       }
@@ -88,10 +52,13 @@ async function visualState() {
       const style = window.getComputedStyle(element);
       return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
     };
-    const chat = document.querySelector('.AI-Chat-slot');
-    const workbench = document.querySelector('#workbench-editor');
-    const input = document.querySelector('.AI-Chat-slot [role="textbox"]');
-    const header = document.querySelector('.AI-Chat-slot [data-testid="agentic-chat-panel-header"]');
+    const firstVisible = (selector: string, root: ParentNode = document) =>
+      Array.from(root.querySelectorAll(selector)).find((element) => visible(element));
+    const agenticRoot = firstVisible('#main-horizontal-ai-agentic');
+    const chat = firstVisible('.AI-Chat-slot', agenticRoot);
+    const workbench = firstVisible('#workbench-editor', agenticRoot);
+    const input = firstVisible('.AI-Chat-slot [role="textbox"]', agenticRoot);
+    const header = firstVisible('[data-testid="agentic-chat-panel-header"]', agenticRoot);
     const chatRect = chat?.getBoundingClientRect();
     const workbenchRect = workbench?.getBoundingClientRect();
     const bodyStyle = window.getComputedStyle(document.body);
@@ -208,6 +175,8 @@ test.describe('ACP Chat Agentic 主题与布局持久化', () => {
     await switchLayoutByMenu('Agent');
     await page.waitForSelector('#main-horizontal-ai-agentic');
     await ensureAgenticLayout(page);
+    await expect.poll(async () => (await visualState()).headerVisible).toBe(true);
+    await expect.poll(async () => (await visualState()).inputVisible).toBe(true);
     const roundTrip = await visualState();
     expect(roundTrip.bodyClass).toContain('design-light');
     expect(roundTrip.chat?.x).toBeLessThan(roundTrip.workbench?.x ?? Number.POSITIVE_INFINITY);

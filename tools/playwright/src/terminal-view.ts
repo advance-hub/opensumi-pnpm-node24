@@ -32,10 +32,17 @@ export class OpenSumiTerminalView extends OpenSumiPanel {
     }
     await this.waitForTerminalReady();
     await this.focus();
-    const box = await this.view?.boundingBox();
-    if (box) {
-      await this.app.page.mouse.click(box.x + box?.width / 2, box.y + box?.height / 2);
-    }
+    // xterm keeps its input textarea at zero size, so Playwright's `:visible`
+    // pseudo-class must be applied to the live terminal root instead.
+    const textarea = this.page
+      .locator(`${this.viewSelector} .xterm:visible`)
+      .last()
+      .locator('textarea.xterm-helper-textarea');
+    await textarea.evaluate((element) => element.focus());
+    await this.page.waitForFunction(
+      (selector) => document.activeElement?.matches(selector),
+      `${this.viewSelector} textarea.xterm-helper-textarea:focus`,
+    );
     await this.page.keyboard.type(text);
     await this.app.page.keyboard.press('Enter');
   }

@@ -74,8 +74,13 @@ async function openEditorJs() {
   await waitForExplorerViewVisible(page);
   const explorer = await runtime.app.open(OpenSumiExplorerView);
   explorer.initFileTreeView(runtime.workspace.workspace.displayName);
-  const editorNode = await explorer.getFileStatTreeNodeByPath('editor.js');
-  expect(editorNode).toBeDefined();
+  let editorNode = await explorer.getFileStatTreeNodeByPath('editor.js');
+  await expect
+    .poll(async () => {
+      editorNode = await explorer.getFileStatTreeNodeByPath('editor.js');
+      return Boolean(editorNode);
+    })
+    .toBe(true);
   await editorNode!.open();
   await expect(page.getByText('editor.js', { exact: true }).last()).toBeVisible();
 }
@@ -133,6 +138,7 @@ test.describe('ACP 布局切换', () => {
 
     await switchLayoutByMenu('Classic');
     await page.waitForSelector('#main-horizontal-ai');
+    await expect.poll(async () => (await readGeometry()).explorerVisible).toBe(true);
     const classicInitial = await readGeometry();
     expect(classicInitial.workbench?.x).toBeLessThan(classicInitial.chat?.x ?? Number.POSITIVE_INFINITY);
     expect(classicInitial.explorerVisible).toBe(true);

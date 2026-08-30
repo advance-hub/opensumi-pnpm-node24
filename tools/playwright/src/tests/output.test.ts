@@ -48,6 +48,11 @@ test.describe('OpenSumi Output View', () => {
   });
 
   test('can search text from output', async () => {
+    const node = await explorer.getFileStatTreeNodeByPath('reference.ts');
+    await node?.open();
+    await output.setChannel('TypeScript');
+    await expect.poll(async () => (await output.getCurrentContent()) || '', { timeout: 15_000 }).toContain('tsserver');
+
     // Focus Output content
     await output.focus();
     const box = await output.view?.boundingBox();
@@ -59,16 +64,11 @@ test.describe('OpenSumi Output View', () => {
     await textArea?.focus();
     await textArea?.type('tsserver', { delay: 200 });
 
-    let selected = await output.view?.$('.selected-text');
-    expect(selected).toBeDefined();
+    const selected = page.locator(`${output.viewSelector} .selected-text`);
+    await expect.poll(() => selected.count()).toBeGreaterThan(0);
 
-    await textArea?.focus();
-    await app.page.keyboard.press('Escape');
-    if (box) {
-      await output.app.page.mouse.click(box.x + box?.width / 2, box.y + box?.height / 2);
-    }
-    selected = await output.view?.$('.selected-text');
-    expect(selected).toBeNull();
+    await textArea?.press('Escape');
+    await expect(page.locator(`${output.viewSelector} .find-widget`)).not.toHaveClass(/visible/);
   });
 
   test('clean output content', async () => {
@@ -77,11 +77,10 @@ test.describe('OpenSumi Output View', () => {
     await page.waitForTimeout(1000);
 
     await output.setChannel('TypeScript');
-    let content = await output.getCurrentContent();
+    const content = await output.getCurrentContent();
     expect(content?.includes('tsserver')).toBeTruthy();
 
     await output.clean();
-    content = await output.getCurrentContent();
-    expect(content?.includes('tsserver')).toBeFalsy();
+    await expect.poll(async () => (await output.getCurrentContent()).includes('tsserver')).toBeFalsy();
   });
 });

@@ -43,17 +43,8 @@ export class OpenSumiOutputView extends OpenSumiPanel {
     if (!visible) {
       await this.open();
     }
-    const content = await this.view?.$('[class*="output___"]');
-    const lines = await content?.$$('.view-line');
-    if (!lines) {
-      return;
-    }
-    let text = '';
-    for (const line of lines) {
-      const lineText = await line.textContent();
-      text += lineText + '\n';
-    }
-    return text;
+    const lines = this.page.locator(`${this.viewSelector} [class*="output___"] .view-line:visible`);
+    return (await lines.allTextContents()).join('\n');
   }
 
   async clean() {

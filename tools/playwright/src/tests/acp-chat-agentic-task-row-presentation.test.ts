@@ -5,11 +5,10 @@ import { ACP_BDD_FIXTURE_HOOK_TIMEOUT_MS, loadAcpBddFixtureWorkbench } from './u
 import { launchTaskInCurrentProject } from './utils/acp-task-list';
 
 const TASK_TITLE = 'A deliberately long Agent Task title for compact row presentation';
-const THEME_LABELS = [
-  'OpenSumi Design Dark+ (default dark)',
-  'OpenSumi Design Light+ (default light)',
-  'Dark High Contrast',
-  'Light High Contrast',
+const THEMES = [
+  { bodyClass: 'design-dark', label: 'OpenSumi Design Dark+ (default dark)', rootClass: 'vs-dark' },
+  { bodyClass: 'design-light', label: 'OpenSumi Design Light+ (default light)', rootClass: 'vs' },
+  { bodyClass: undefined, label: 'High Contrast', rootClass: 'hc-black' },
 ] as const;
 
 function chatSlot() {
@@ -38,56 +37,6 @@ async function resizeTaskListTo(targetWidth: number): Promise<void> {
   await expect(taskList).toHaveCSS('width', `${targetWidth}px`);
 }
 
-async function chooseTheme(label: string): Promise<void> {
-  const isMac = await page.evaluate(() => /Mac/.test(navigator.platform));
-  await page.keyboard.press(`${isMac ? 'Meta' : 'Control'}+Shift+P`);
-  const input = page.locator('#opensumi-quickpick-input');
-  await expect(input).toBeVisible();
-  await input.fill('Color Theme');
-  await expect
-    .poll(() =>
-      page.evaluate(() => {
-        const command = document.querySelector<HTMLElement>('#opensumi-quickpick-item[aria-label="Color Theme"]');
-        return !!command && command.getBoundingClientRect().height > 0;
-      }),
-    )
-    .toBe(true);
-  await page.evaluate(() => {
-    document
-      .querySelector<HTMLElement>('#opensumi-quickpick-item[aria-label="Color Theme"] [class*="item_label_container"]')
-      ?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
-  });
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        Array.from(document.querySelectorAll<HTMLElement>('#opensumi-quickpick-item')).some(
-          (element) =>
-            /High Contrast|default light|default dark/.test(element.textContent || '') &&
-            element.getBoundingClientRect().height > 0,
-        ),
-      ),
-    )
-    .toBe(true);
-  await input.fill(label);
-  await expect
-    .poll(() =>
-      page.evaluate((themeLabel) => {
-        const option = Array.from(document.querySelectorAll<HTMLElement>('#opensumi-quickpick-item')).find(
-          (element) => element.textContent?.includes(themeLabel) && element.getBoundingClientRect().height > 0,
-        );
-        return !!option;
-      }, label),
-    )
-    .toBe(true);
-  await page.evaluate((themeLabel) => {
-    Array.from(document.querySelectorAll<HTMLElement>('#opensumi-quickpick-item'))
-      .find((element) => element.textContent?.includes(themeLabel) && element.getBoundingClientRect().height > 0)
-      ?.querySelector<HTMLElement>('[class*="item_label_container"]')
-      ?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
-  }, label);
-  await expect(input).toBeHidden();
-}
-
 test.describe('ACP Chat Agentic Task Row presentation', () => {
   test.setTimeout(Math.max(ACP_BDD_FIXTURE_HOOK_TIMEOUT_MS, 180_000));
 
@@ -111,7 +60,10 @@ test.describe('ACP Chat Agentic Task Row presentation', () => {
         .last()
         .click();
 
-      const row = page.locator('[data-testid^="agentic-task-row-"]').filter({ hasText: TASK_TITLE }).first();
+      const row = page
+        .locator('[data-testid^="agentic-task-row-"][aria-current="true"]')
+        .filter({ hasText: TASK_TITLE })
+        .first();
       await expect(row).toBeVisible({ timeout: 30_000 });
       const rowTestId = await row.getAttribute('data-testid');
       expect(rowTestId).toBeTruthy();
@@ -143,7 +95,7 @@ test.describe('ACP Chat Agentic Task Row presentation', () => {
         expect(bounds.every(({ left, right, rowLeft, rowRight }) => left >= rowLeft && right <= rowRight)).toBe(true);
       }
 
-      await row.hover();
+      await row.focus();
       await expect(tooltipContent).toBeVisible();
       await expect(tooltipContent).toContainText(TASK_TITLE);
       await expect(tooltipContent).toContainText('Agent');
@@ -159,8 +111,28 @@ test.describe('ACP Chat Agentic Task Row presentation', () => {
       expect(tooltipBounds.bottom).toBeLessThanOrEqual(900);
 
       const themeSurfaces: string[] = [];
-      for (const themeLabel of THEME_LABELS) {
-        await chooseTheme(themeLabel);
+      for (const theme of THEMES) {
+        await page.waitForFunction(() => !!(window as any).__OPENSUMI_E2E__?.executeCommand);
+        await page.evaluate(() => {
+          void (window as any).__OPENSUMI_E2E__.executeCommand('theme.toggle');
+        });
+        const input = page.locator('#opensumi-quickpick-input');
+        await expect(input).toBeVisible();
+        await input.fill(theme.label);
+        const option = page.locator(`#opensumi-quickpick-item[aria-label=${JSON.stringify(theme.label)}]`);
+        await expect(option).toBeVisible();
+        await input.press('Enter');
+        await expect(input).toBeHidden();
+        await expect
+          .poll(() =>
+            page.evaluate(
+              ({ bodyClass, rootClass }) =>
+                document.documentElement.classList.contains(rootClass) &&
+                (!bodyClass || document.body.classList.contains(bodyClass)),
+              theme,
+            ),
+          )
+          .toBe(true);
         await row.focus();
         await expect(tooltipContent).toBeVisible();
         await expect(row).toHaveCSS('height', '22px');

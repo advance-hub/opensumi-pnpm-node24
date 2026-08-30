@@ -25,6 +25,11 @@ export async function startServer(
     injector?: Injector;
   },
 ) {
+  const configuredExtensionHostIdleTimeout = Number(process.env.EXTENSION_HOST_IDLE_TIMEOUT);
+  const extensionHostIdleTimeout =
+    Number.isSafeInteger(configuredExtensionHostIdleTimeout) && configuredExtensionHostIdleTimeout > 0
+      ? configuredExtensionHostIdleTimeout
+      : 5 * 60 * 1000;
   const app = new Koa();
   const router = new KoaRouter();
   const deferred = new Deferred<http.Server>();
@@ -73,7 +78,7 @@ export async function startServer(
     marketplace: {
       showBuiltinExtensions: true,
     },
-    processCloseExitThreshold: 5 * 60 * 1000,
+    processCloseExitThreshold: extensionHostIdleTimeout,
     terminalPtyCloseThreshold: 5 * 60 * 1000,
     staticAllowOrigin: '*',
     staticAllowPath: [
@@ -89,7 +94,8 @@ export async function startServer(
     extHost:
       process.env.EXTENSION_HOST_ENTRY || path.join(__dirname, '../../../packages/extension/lib/hosted/ext.process.js'),
     watcherHost:
-      process.env.WATCHER_HOST_ENTRY || path.join(__dirname, '../../../packages/file-service/lib/node/hosted/watcher.process.js'),
+      process.env.WATCHER_HOST_ENTRY ||
+      path.join(__dirname, '../../../packages/file-service/lib/node/hosted/watcher.process.js'),
     onDidCreateExtensionHostProcess: (extHostProcess) => {
       console.log(`Extension host process ${extHostProcess.pid} created`);
     },
