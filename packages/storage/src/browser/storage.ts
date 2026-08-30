@@ -96,9 +96,18 @@ export class Storage implements IStorage {
       // 初始化服务端缓存
       this.database.init(this.appConfig.storageDirName, this.isGlobal ? undefined : workspace).then(() => {
         this.database.getItems(storageName).then(async (data) => {
-          // 后续以服务端数据为准更新前端缓存数据，防止后续数据存取异常
-          this.cache = this.jsonToMap(data);
-          this.browserLocalStorage?.setData(storageName, data);
+          // The browser cache makes startup non-blocking, so writes may arrive before
+          // the authoritative backend snapshot. Preserve those pending mutations when
+          // reconciling the snapshot instead of replacing the in-memory cache wholesale.
+          const serverCache = this.jsonToMap(data);
+          for (const key of this.pendingDeletes) {
+            serverCache.delete(key);
+          }
+          for (const [key, value] of this.pendingInserts) {
+            serverCache.set(key, value);
+          }
+          this.cache = serverCache;
+          this.persistBrowserCache();
           this.whenReadyToWriteDeferred.resolve();
         });
       });
@@ -179,6 +188,7 @@ export class Storage implements IStorage {
     this.cache.set(key, valueStr);
     this.pendingInserts.set(key, valueStr);
     this.pendingDeletes.delete(key);
+    this.persistBrowserCache();
 
     // Event
     this._onDidChangeStorage.fire(key);
@@ -203,6 +213,7 @@ export class Storage implements IStorage {
     }
 
     this.pendingInserts.delete(key);
+    this.persistBrowserCache();
 
     // 同步事件
     this._onDidChangeStorage.fire(key);
@@ -243,25 +254,16 @@ export class Storage implements IStorage {
       insert: this.mapToJson(this.pendingInserts),
       delete: Array.from(this.pendingDeletes),
     };
-    // 同时在 LocalStorage 中同步缓存变化
-    if (this.browserLocalStorage) {
-      let cache = this.mapToJson(this.cache);
-      for (const del of updateRequest?.delete || []) {
-        delete cache[del];
-      }
-      cache = {
-        ...cache,
-        ...updateRequest.insert,
-      };
-      this.browserLocalStorage.setData(this.storageName, cache);
-    }
-
     // 重置等待队列用于下次存储
     this.pendingDeletes = new Set<string>();
     this.pendingInserts = new Map<string, string>();
 
     // 更新数据
     return this.database.updateItems(this.storageName, updateRequest);
+  }
+
+  private persistBrowserCache() {
+    this.browserLocalStorage?.setData(this.storageName, this.mapToJson(this.cache));
   }
 
   private mapToJson(map: Map<string, string>) {

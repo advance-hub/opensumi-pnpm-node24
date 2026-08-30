@@ -240,5 +240,56 @@ describe('WorkspaceStorage should be work', () => {
       expect((globalStorage as Storage).whenReady).toBeDefined();
       expect(MockWorkspaceService.onWorkspaceChanged).toHaveBeenCalledTimes(2);
     });
+
+    it('preserves writes made while the backend snapshot initializes', async () => {
+      let resolveBackendInit!: () => void;
+      const backendInit = new Promise<void>((resolve) => {
+        resolveBackendInit = resolve;
+      });
+      const database = {
+        close: jest.fn(async () => undefined),
+        getItems: jest.fn(async () => ({ layout: JSON.stringify({ hidden: false }) })),
+        init: jest.fn(() => backendInit),
+        updateItems: jest.fn(async () => undefined),
+      };
+      const browserLocalStorage = {
+        getData: jest.fn(() => ({ layout: JSON.stringify({ hidden: false }) })),
+        setData: jest.fn(),
+      };
+      const storage = new Storage(
+        database as unknown as IStorageServer,
+        MockWorkspaceService as unknown as IWorkspaceService,
+        {} as AppConfig,
+        'layout',
+        false,
+        browserLocalStorage as any,
+      );
+
+      await storage.whenReady;
+      const pendingWrite = storage.set('layout', { hidden: true });
+
+      expect(storage.get('layout')).toEqual({ hidden: true });
+      expect(browserLocalStorage.setData).toHaveBeenLastCalledWith(
+        'layout',
+        expect.objectContaining({ layout: JSON.stringify({ hidden: true }) }),
+      );
+
+      resolveBackendInit();
+      await pendingWrite;
+
+      expect(storage.get('layout')).toEqual({ hidden: true });
+      expect(database.updateItems).toHaveBeenCalledWith(
+        'layout',
+        expect.objectContaining({ insert: expect.objectContaining({ layout: JSON.stringify({ hidden: true }) }) }),
+      );
+
+      const pendingDelete = storage.delete('layout');
+      expect(browserLocalStorage.setData).toHaveBeenLastCalledWith(
+        'layout',
+        expect.not.objectContaining({ layout: expect.anything() }),
+      );
+      await pendingDelete;
+      await storage.close();
+    });
   });
 });

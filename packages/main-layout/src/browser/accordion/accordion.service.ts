@@ -158,7 +158,10 @@ export class AccordionService extends WithEventBus {
     }
   }
 
-  constructor(public containerId: string, private noRestore?: boolean) {
+  constructor(
+    public containerId: string,
+    private noRestore?: boolean,
+  ) {
     super();
     this.addDispose(recomputeInitiallyAndOnChange(this.visibleViews));
 
@@ -482,7 +485,7 @@ export class AccordionService extends WithEventBus {
     if (this.noRestore || !this.rendered) {
       return;
     }
-    this.layoutState.setState(LAYOUT_STATE.getContainerSpace(this.containerId), this.state);
+    this.layoutState.setStateSync(LAYOUT_STATE.getContainerSpace(this.containerId), this.state);
   };
 
   private registerGlobalToggleCommand() {
