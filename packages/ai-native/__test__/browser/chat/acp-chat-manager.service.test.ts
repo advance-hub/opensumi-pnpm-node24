@@ -832,20 +832,42 @@ describe('AcpChatManagerService', () => {
     expect(session.createdAt).toBe(67890);
   });
 
-  it('keeps the first empty ACP session list result retryable before caching confirmed empty history', async () => {
+  it('expires a confirmed empty ACP session list so late backend history becomes visible', async () => {
     const provider = createSessionProvider();
-    const listSessions = jest.fn().mockResolvedValue({ sessions: [] });
+    const listSessions = jest
+      .fn()
+      .mockResolvedValueOnce({ sessions: [] })
+      .mockResolvedValueOnce({ sessions: [] })
+      .mockResolvedValueOnce({
+        sessions: [{ sessionId: 'late-session', title: 'Late session' }],
+      });
     Object.defineProperty(provider, 'aiBackService', {
       value: {
         listSessions,
       },
     });
+    const dateNowSpy = jest.spyOn(Date, 'now').mockReturnValue(10_000);
 
-    await expect(provider.loadSessions()).resolves.toEqual([]);
-    await expect(provider.loadSessions()).resolves.toEqual([]);
-    await expect(provider.loadSessions()).resolves.toEqual([]);
+    try {
+      await expect(provider.loadSessions()).resolves.toEqual([]);
+      await expect(provider.loadSessions()).resolves.toEqual([]);
 
-    expect(listSessions).toHaveBeenCalledTimes(2);
+      dateNowSpy.mockReturnValue(10_500);
+      await expect(provider.loadSessions()).resolves.toEqual([]);
+      expect(listSessions).toHaveBeenCalledTimes(2);
+
+      dateNowSpy.mockReturnValue(11_001);
+      await expect(provider.loadSessions()).resolves.toEqual([
+        expect.objectContaining({
+          sessionId: 'acp:late-session',
+          title: 'Late session',
+        }),
+      ]);
+    } finally {
+      dateNowSpy.mockRestore();
+    }
+
+    expect(listSessions).toHaveBeenCalledTimes(3);
   });
 
   it('does not start an implicit agent while loading history in the background', async () => {
