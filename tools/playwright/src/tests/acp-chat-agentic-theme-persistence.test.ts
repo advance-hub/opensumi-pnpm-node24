@@ -23,14 +23,48 @@ async function chooseTheme(label: string) {
   const input = page.locator('#opensumi-quickpick-input');
   await expect(input).toBeVisible();
   await input.fill('Color Theme');
-  const command = page.locator('#opensumi-quickpick-item[aria-label="Color Theme"]');
-  await expect(command).toBeVisible({ timeout: 15_000 });
-  // Select from the focused quick-pick input so a list rerender cannot detach
-  // the inner label between the visibility assertion and the click.
-  await input.press('Enter');
-  const option = page.getByText(label, { exact: true }).last();
-  await expect(option).toBeVisible({ timeout: 15_000 });
-  await option.click();
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const command = document.querySelector<HTMLElement>('#opensumi-quickpick-item[aria-label="Color Theme"]');
+        return !!command && command.getBoundingClientRect().height > 0;
+      }),
+    )
+    .toBe(true);
+  await page.evaluate(() => {
+    document
+      .querySelector<HTMLElement>('#opensumi-quickpick-item[aria-label="Color Theme"] [class*="item_label_container"]')
+      ?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Array.from(document.querySelectorAll<HTMLElement>('#opensumi-quickpick-item')).some(
+          (element) =>
+            /High Contrast|default light|default dark/.test(element.textContent || '') &&
+            element.getBoundingClientRect().height > 0,
+        ),
+      ),
+    )
+    .toBe(true);
+  await input.fill(label);
+  await expect
+    .poll(() =>
+      page.evaluate((themeLabel) => {
+        const option = Array.from(document.querySelectorAll<HTMLElement>('#opensumi-quickpick-item')).find(
+          (element) => element.textContent?.includes(themeLabel) && element.getBoundingClientRect().height > 0,
+        );
+        return !!option;
+      }, label),
+    )
+    .toBe(true);
+  await page.evaluate((themeLabel) => {
+    Array.from(document.querySelectorAll<HTMLElement>('#opensumi-quickpick-item'))
+      .find((element) => element.textContent?.includes(themeLabel) && element.getBoundingClientRect().height > 0)
+      ?.querySelector<HTMLElement>('[class*="item_label_container"]')
+      ?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+  }, label);
+  await expect(input).toBeHidden();
 }
 
 async function switchLayoutByMenu(target: 'Agent' | 'Classic') {
