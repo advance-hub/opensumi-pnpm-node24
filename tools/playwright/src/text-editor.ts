@@ -421,13 +421,18 @@ export class OpenSumiTextEditor extends OpenSumiEditor {
 
   private async waitForEditorTextFocus(): Promise<void> {
     await this.page.waitForFunction(
-      (selector) => {
-        const editor = document.querySelector(selector);
+      (viewSelector) => {
+        const editorView = document.querySelector(viewSelector);
         const activeElement = document.activeElement;
-        return !!editor && !!activeElement && editor.contains(activeElement);
+        return (
+          !!editorView &&
+          activeElement instanceof HTMLElement &&
+          editorView.contains(activeElement) &&
+          !!activeElement.closest('.monaco-editor')
+        );
       },
-      `${this.viewSelector} .monaco-editor`,
-      { timeout: 3000 },
+      this.viewSelector,
+      { timeout: 10000 },
     );
   }
 }
