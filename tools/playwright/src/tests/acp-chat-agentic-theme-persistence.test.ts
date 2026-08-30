@@ -25,7 +25,9 @@ async function chooseTheme(label: string) {
   await input.fill('Color Theme');
   const command = page.locator('#opensumi-quickpick-item[aria-label="Color Theme"]');
   await expect(command).toBeVisible({ timeout: 15_000 });
-  await command.locator("[class*='item_label_container']").first().click();
+  // Select from the focused quick-pick input so a list rerender cannot detach
+  // the inner label between the visibility assertion and the click.
+  await input.press('Enter');
   const option = page.getByText(label, { exact: true }).last();
   await expect(option).toBeVisible({ timeout: 15_000 });
   await option.click();

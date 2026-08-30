@@ -179,13 +179,44 @@ function expectLayoutBounds(proof: LayoutBoundsProof, workbenchExpected = true) 
   expect(proof.messageViewport?.bottom).toBeLessThanOrEqual((proof.input?.top ?? Number.POSITIVE_INFINITY) + 2);
 }
 
-async function waitForScrollableMessageList() {
+async function waitForStableLayoutBounds(workbenchExpected = true): Promise<LayoutBoundsProof> {
+  let stableProof: LayoutBoundsProof | undefined;
   await expect
-    .poll(async () => (await readLayoutBounds()).messageListScrollable, {
-      timeout: 10_000,
-      message: 'long stream message list should become scrollable',
-    })
+    .poll(
+      async () => {
+        const first = await readLayoutBounds();
+        try {
+          expectLayoutBounds(first, workbenchExpected);
+        } catch {
+          return false;
+        }
+
+        await page.evaluate(
+          () =>
+            new Promise<void>((resolve) => {
+              requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+            }),
+        );
+        const second = await readLayoutBounds();
+        try {
+          expectLayoutBounds(second, workbenchExpected);
+          stableProof = second;
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      {
+        timeout: 10_000,
+        message: 'long stream layout should remain valid across consecutive animation frames',
+      },
+    )
     .toBe(true);
+
+  if (!stableProof) {
+    throw new Error('long stream layout did not produce stable bounds');
+  }
+  return stableProof;
 }
 
 test.describe('ACP Chat Agentic Layout Stress', () => {
@@ -214,9 +245,8 @@ test.describe('ACP Chat Agentic Layout Stress', () => {
     await expect(chatSlot().getByText(LONG_CONTENT_SENTINEL)).toBeVisible({ timeout: 30_000 });
     await expect(chatButton('Stop')).toBeVisible();
     await expect(page.locator('[data-testid^="agentic-task-row-"]').first()).toBeVisible({ timeout: 30_000 });
-    await waitForScrollableMessageList();
 
-    const wideBounds = await readLayoutBounds();
+    const wideBounds = await waitForStableLayoutBounds();
     expectLayoutBounds(wideBounds);
     const wideProof = await evidence.saveJson(
       '01-wide-layout-bounds',
@@ -242,9 +272,8 @@ test.describe('ACP Chat Agentic Layout Stress', () => {
         .toBe(workbenchExpected);
       await expect(chatSlot().getByText(LONG_CONTENT_SENTINEL)).toBeVisible();
       await expect(page.locator('[data-testid^="agentic-task-row-"]').first()).toBeVisible({ timeout: 5000 });
-      await waitForScrollableMessageList();
 
-      const bounds = await readLayoutBounds();
+      const bounds = await waitForStableLayoutBounds(workbenchExpected);
       expectLayoutBounds(bounds, workbenchExpected);
       const proof = await evidence.saveJson(
         `02-responsive-${width}px`,
@@ -266,7 +295,7 @@ test.describe('ACP Chat Agentic Layout Stress', () => {
     await page.waitForTimeout(100);
     await expect(page.locator('[data-testid^="agentic-task-row-"]').first()).toBeVisible({ timeout: 5000 });
 
-    const hiddenPreferenceBounds = await readLayoutBounds();
+    const hiddenPreferenceBounds = await waitForStableLayoutBounds(false);
     expectLayoutBounds(hiddenPreferenceBounds, false);
     const hiddenPreferenceProof = await evidence.saveJson(
       '03-hidden-preference-layout-bounds',
