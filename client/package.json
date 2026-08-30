@@ -24,7 +24,7 @@
     "@rspack/dev-server": "^2.2.0",
     "@opensumi/ide-dev-tool": "workspace:*",
     "css-loader": "^7.1.4",
-    "cross-env": "^7.0.3",
+    "cross-env": "^10.1.0",
     "less": "^4.9.0",
     "less-loader": "^13.0.0",
     "style-loader": "^4.0.0",

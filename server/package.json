@@ -34,7 +34,7 @@
     "@types/koa-static": "^4.0.4",
     "@types/node": "^24.0.0",
     "@types/ws": "^8.5.10",
-    "cross-env": "^7.0.3",
+    "cross-env": "^10.1.0",
     "rimraf": "^6.0.1",
     "tsx": "^4.23.12",
     "typescript": "^5.9.3",
