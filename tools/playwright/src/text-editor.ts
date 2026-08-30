@@ -420,19 +420,31 @@ export class OpenSumiTextEditor extends OpenSumiEditor {
   }
 
   private async waitForEditorTextFocus(): Promise<void> {
-    await this.page.waitForFunction(
-      (viewSelector) => {
-        const editorView = document.querySelector(viewSelector);
-        const activeElement = document.activeElement;
-        return (
-          !!editorView &&
-          activeElement instanceof HTMLElement &&
-          editorView.contains(activeElement) &&
-          !!activeElement.closest('.monaco-editor')
-        );
-      },
-      this.viewSelector,
-      { timeout: 10000 },
-    );
+    const waitForFocus = (timeout: number) =>
+      this.page.waitForFunction(
+        (viewSelector) => {
+          const editorView = document.querySelector(viewSelector);
+          const activeElement = document.activeElement;
+          return (
+            !!editorView &&
+            activeElement instanceof HTMLElement &&
+            editorView.contains(activeElement) &&
+            !!activeElement.closest('.monaco-editor')
+          );
+        },
+        this.viewSelector,
+        { timeout },
+      );
+
+    try {
+      await waitForFocus(1000);
+    } catch {
+      // Linux can retain focus on a pinned-tab action after the editor line is
+      // clicked. Focus Monaco's live textarea so subsequent keyboard input is
+      // delivered to the editor instead of relying on a test-level retry.
+      const editorInput = this.page.locator(`${this.viewSelector} .monaco-editor:visible textarea`).last();
+      await editorInput.focus();
+      await waitForFocus(5000);
+    }
   }
 }
