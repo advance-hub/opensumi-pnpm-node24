@@ -75,7 +75,13 @@ export class DefaultACPConfigProvider implements IACPConfigProvider {
       {},
       undefined,
     );
+    const agentConfigOverrides = this.preferenceService.resolve<Record<string, AgentConfig>>(
+      AINativeSettingSectionsId.AgentConfigsOverride,
+      {},
+      undefined,
+    );
     const configuredAgent = agentConfigs.value?.[agentType];
+    const configuredAgentOverride = agentConfigOverrides.value?.[agentType];
     const builtInAgent = DEFAULT_AGENT_CONFIGS[agentType];
     const configuredArgs = configuredAgent?.args || [];
     const builtInArgs = builtInAgent?.args || [];
@@ -83,10 +89,17 @@ export class DefaultACPConfigProvider implements IACPConfigProvider {
       configuredAgent?.command === builtInAgent?.command &&
       configuredArgs.length === builtInArgs.length &&
       configuredArgs.every((argument, index) => argument === builtInArgs[index]);
+    const hasExplicitAgentConfig =
+      agentConfigs.scope !== PreferenceScope.Default &&
+      Boolean(configuredAgent?.command?.trim()) &&
+      !isImplicitBuiltInAgent;
+    const hasExplicitAgentCommandOverride =
+      agentConfigOverrides.scope !== PreferenceScope.Default && Boolean(configuredAgentOverride?.command?.trim());
     // Built-in registrations describe supported adapters, not binaries that
     // are guaranteed to exist on the deployment host. Only prewarm after the
-    // operator or user has explicitly configured the selected command.
-    if (agentConfigs.scope === PreferenceScope.Default || !configuredAgent?.command?.trim() || isImplicitBuiltInAgent) {
+    // operator or user has explicitly configured the selected command, either
+    // through the primary Agent config or the supported spawn override.
+    if (!hasExplicitAgentConfig && !hasExplicitAgentCommandOverride) {
       return undefined;
     }
 

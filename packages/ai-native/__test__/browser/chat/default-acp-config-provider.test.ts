@@ -7,6 +7,7 @@ describe('DefaultACPConfigProvider', () => {
     isMultiRoot?: boolean;
     defaultAgentType?: string;
     agentConfigs?: Record<string, { command?: string; args?: string[]; description?: string; streaming?: boolean }>;
+    agentConfigOverrides?: Record<string, { command?: string; args?: string[] }>;
     quickPickResult?: string | undefined | Promise<string | undefined>;
   }
 
@@ -61,17 +62,25 @@ describe('DefaultACPConfigProvider', () => {
                 return '';
               }
               if (id === 'ai-native.acp.agents') {
-                return {};
+                return options.agentConfigOverrides || {};
               }
               if (id === AINativeSettingSectionsId.AcpThreadPoolSize) {
                 return fallback;
               }
               return fallback;
             }),
-            resolve: jest.fn(() => ({
-              value: options.agentConfigs || {},
-              scope: options.agentConfigs ? PreferenceScope.User : PreferenceScope.Default,
-            })),
+            resolve: jest.fn((id: string) => {
+              if (id === AINativeSettingSectionsId.AgentConfigsOverride) {
+                return {
+                  value: options.agentConfigOverrides || {},
+                  scope: options.agentConfigOverrides ? PreferenceScope.Workspace : PreferenceScope.Default,
+                };
+              }
+              return {
+                value: options.agentConfigs || {},
+                scope: options.agentConfigs ? PreferenceScope.User : PreferenceScope.Default,
+              };
+            }),
           },
         },
         workspaceService: {
@@ -192,6 +201,24 @@ describe('DefaultACPConfigProvider', () => {
 
     await expect(provider.resolvePrewarmConfig()).resolves.toBeUndefined();
     expect((provider as any).mcpConfigService.getACPServers).not.toHaveBeenCalled();
+  });
+
+  it('resolves a background config from an explicit ACP spawn command override', async () => {
+    const provider = await createProvider({
+      agentConfigOverrides: {
+        'claude-agent-acp': {
+          command: process.execPath,
+          args: ['/workspace/mock-acp-agent.ts'],
+        },
+      },
+    });
+
+    await expect(provider.resolvePrewarmConfig()).resolves.toMatchObject({
+      command: process.execPath,
+      args: ['/workspace/mock-acp-agent.ts'],
+      cwd: rootA,
+    });
+    expect((provider as any).quickPick.show).not.toHaveBeenCalled();
   });
 
   it('skips background warmup config resolution for an unselected multi-root workspace', async () => {
